@@ -27,6 +27,7 @@ const navGroups: { label: string; items: { href: string; label: string }[] }[] =
       { href: "/admin/horses", label: "馬マスタ" },
       { href: "/admin/events", label: "イベントマスタ" },
       { href: "/admin/bookings", label: "予約管理" },
+      { href: "/admin/news", label: "ニュース" },
     ],
   },
   {
@@ -34,6 +35,7 @@ const navGroups: { label: string; items: { href: string; label: string }[] }[] =
     items: [
       { href: "/admin/users", label: "ユーザー管理" },
       { href: "/admin/csv", label: "CSV 入出力" },
+      { href: "/admin/profile", label: "マイプロフィール" },
     ],
   },
 ];

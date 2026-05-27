@@ -25,6 +25,7 @@ export type Customer = {
   postal_code: string | null;
   address1: string | null;
   address2: string | null;
+  avatar_url: string | null;
   status: CustomerStatus;
   joined_at: string | null;
   created_at: string;
@@ -133,6 +134,20 @@ export type Payment = {
   stripe_payment_intent_id: string | null;
   failure_reason: string | null;
   occurred_at: string;
+};
+
+export type NewsItem = {
+  id: string;
+  title: string;
+  body: string | null;
+  tag: string;
+  tag_color: string;
+  image_url: string | null;
+  published_at: string;
+  is_published: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type CustomerSummary = {

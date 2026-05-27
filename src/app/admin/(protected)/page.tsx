@@ -171,41 +171,52 @@ export default async function AdminDashboardPage() {
         <div className="card md:col-span-2">
           <h2 className="section-title">月次収益推移</h2>
           <div className="relative">
-            <svg viewBox="0 0 200 60" className="w-full" preserveAspectRatio="xMidYMid meet">
+            <svg viewBox="0 0 200 70" className="w-full" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <linearGradient id="adminChartGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2d6a4f" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#2d6a4f" stopOpacity="0.02" />
+                  <stop offset="0%" stopColor="#4a9e7e" stopOpacity="0.12" />
+                  <stop offset="80%" stopColor="#4a9e7e" stopOpacity="0.02" />
+                  <stop offset="100%" stopColor="#4a9e7e" stopOpacity="0" />
                 </linearGradient>
+                <filter id="lineShadow" x="-4%" y="-4%" width="108%" height="108%">
+                  <feGaussianBlur in="SourceAlpha" stdDeviation="0.8" />
+                  <feOffset dx="0" dy="0.5" />
+                  <feComponentTransfer><feFuncA type="linear" slope="0.15" /></feComponentTransfer>
+                  <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
               </defs>
-              {/* Grid */}
-              {[12, 24, 36, 48].map((y) => (
-                <line key={y} x1="5" y1={y} x2="195" y2={y} stroke="#e5e7eb" strokeWidth="0.4" />
+              {/* Subtle horizontal guides */}
+              {[16, 28, 40, 52].map((y) => (
+                <line key={y} x1="8" y1={y} x2="192" y2={y} stroke="#f0f0f0" strokeWidth="0.3" strokeDasharray="2 3" />
               ))}
-              {/* Area */}
+              {/* Area fill */}
               <polygon points={areaPoints} fill="url(#adminChartGrad)" />
-              {/* Line */}
+              {/* Main line - thin and elegant */}
               <polyline
                 points={linePoints}
                 fill="none"
-                stroke="#2d6a4f"
-                strokeWidth="1.8"
+                stroke="#3d8b6e"
+                strokeWidth="0.9"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                filter="url(#lineShadow)"
               />
-              {/* Data points */}
+              {/* Data points - small, refined */}
               {chartData.map((d, i) => {
                 const x = (i / (chartData.length - 1)) * 190 + 5;
                 const y = 55 - (d.total / maxVal) * 48;
                 return (
-                  <circle key={i} cx={x} cy={y} r="2" fill="white" stroke="#2d6a4f" strokeWidth="1.2" />
+                  <g key={i}>
+                    <circle cx={x} cy={y} r="2.5" fill="white" stroke="#3d8b6e" strokeWidth="0.7" />
+                    <circle cx={x} cy={y} r="1" fill="#3d8b6e" />
+                  </g>
                 );
               })}
             </svg>
             {/* X-axis labels */}
-            <div className="flex justify-between mt-1 px-1">
+            <div className="flex justify-between mt-1.5 px-2">
               {chartData.map((d) => (
-                <span key={d.month} className="text-[10px] text-ink-mute">{d.month}</span>
+                <span key={d.month} className="text-[10px] text-ink-mute font-medium tracking-wide">{d.month}</span>
               ))}
             </div>
             {maxVal === 1 && (
@@ -219,43 +230,47 @@ export default async function AdminDashboardPage() {
           <h2 className="section-title">契約状態の内訳</h2>
           <div className="flex flex-1 items-center gap-4">
             <div className="relative shrink-0">
-              <svg viewBox="0 0 36 36" width="80" height="80" className="-rotate-90">
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#e5e7eb" strokeWidth="5" />
+              <svg viewBox="0 0 36 36" width="88" height="88" className="-rotate-90">
+                <circle cx="18" cy="18" r="15" fill="none" stroke="#f5f5f5" strokeWidth="2.8" />
                 {/* active */}
                 <circle
-                  cx="18" cy="18" r="14" fill="none" stroke="#2d6a4f" strokeWidth="5"
-                  strokeDasharray={`${activeLen} ${C}`}
-                  strokeDashoffset={activeOffset}
+                  cx="18" cy="18" r="15" fill="none" stroke="#4a9e7e" strokeWidth="2.8"
+                  strokeDasharray={`${total > 0 ? ((activeContracts ?? 0) / total) * (2 * Math.PI * 15) : 0} ${2 * Math.PI * 15}`}
+                  strokeDashoffset={2 * Math.PI * 15 / 4}
+                  strokeLinecap="round"
                 />
                 {/* past_due */}
                 <circle
-                  cx="18" cy="18" r="14" fill="none" stroke="#b91c1c" strokeWidth="5"
-                  strokeDasharray={`${failedLen} ${C}`}
-                  strokeDashoffset={activeOffset - activeLen}
+                  cx="18" cy="18" r="15" fill="none" stroke="#e85d5d" strokeWidth="2.8"
+                  strokeDasharray={`${total > 0 ? ((pastDueCount ?? 0) / total) * (2 * Math.PI * 15) : 0} ${2 * Math.PI * 15}`}
+                  strokeDashoffset={2 * Math.PI * 15 / 4 - (total > 0 ? ((activeContracts ?? 0) / total) * (2 * Math.PI * 15) : 0)}
+                  strokeLinecap="round"
                 />
                 {/* canceled */}
                 <circle
-                  cx="18" cy="18" r="14" fill="none" stroke="#d1d5db" strokeWidth="5"
-                  strokeDasharray={`${canceledLen} ${C}`}
-                  strokeDashoffset={activeOffset - activeLen - failedLen}
+                  cx="18" cy="18" r="15" fill="none" stroke="#c4c4c4" strokeWidth="2.8"
+                  strokeDasharray={`${total > 0 ? ((canceledContracts ?? 0) / total) * (2 * Math.PI * 15) : 0} ${2 * Math.PI * 15}`}
+                  strokeDashoffset={2 * Math.PI * 15 / 4 - (total > 0 ? (((activeContracts ?? 0) + (pastDueCount ?? 0)) / total) * (2 * Math.PI * 15) : 0)}
+                  strokeLinecap="round"
                 />
               </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-xs font-bold text-ink tabular-nums">{total}</span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-lg font-bold text-ink tabular-nums leading-none">{total}</span>
+                <span className="text-[9px] text-ink-mute mt-0.5">件</span>
               </div>
             </div>
-            <dl className="space-y-2 text-sm flex-1">
+            <dl className="space-y-3 text-sm flex-1">
               {[
-                { color: "#2d6a4f", label: "有効", count: activeContracts ?? 0 },
-                { color: "#b91c1c", label: "失敗", count: pastDueCount ?? 0 },
-                { color: "#d1d5db", label: "解約", count: canceledContracts ?? 0 },
+                { color: "#4a9e7e", label: "有効", count: activeContracts ?? 0 },
+                { color: "#e85d5d", label: "失敗", count: pastDueCount ?? 0 },
+                { color: "#c4c4c4", label: "解約", count: canceledContracts ?? 0 },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: item.color }} />
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: item.color }} />
                     <span className="text-ink-soft text-xs">{item.label}</span>
                   </div>
-                  <span className="font-bold tabular-nums text-xs">{item.count.toLocaleString()}</span>
+                  <span className="font-bold tabular-nums text-sm">{item.count.toLocaleString()}</span>
                 </div>
               ))}
             </dl>
@@ -325,7 +340,13 @@ export default async function AdminDashboardPage() {
                 <div>
                   <span className="font-medium text-sm">{s.customer?.full_name}</span>
                   <span className="text-ink-mute mx-1.5">→</span>
-                  <span className="text-sm text-brand font-medium">🐴 {s.horse?.name}</span>
+                  {s.horse?.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.horse.image_url} alt="" className="w-6 h-6 rounded-md object-cover inline-block align-text-bottom mr-1" />
+                  ) : (
+                    <span className="mr-1">🐴</span>
+                  )}
+                  <span className="text-sm text-brand font-medium">{s.horse?.name}</span>
                 </div>
                 <span className="text-xs text-ink-mute shrink-0">{formatDate(s.created_at)}</span>
               </li>

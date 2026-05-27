@@ -20,7 +20,17 @@ export default async function HorsesPage() {
             {(horses ?? []).map((h: any, i: number) => (
               <tr key={h.id}>
                 <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
-                <td className="font-semibold">{h.name}</td>
+                <td>
+                  <div className="flex items-center gap-3">
+                    {h.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={h.image_url} alt={h.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center text-lg shrink-0">🐴</div>
+                    )}
+                    <span className="font-semibold">{h.name}</span>
+                  </div>
+                </td>
                 <td>{h.name_kana ?? "—"}</td>
                 <td>{h.sex ?? "—"}</td>
                 <td>{h.birth_year ?? "—"}</td>

@@ -9,7 +9,8 @@ export type AuditAction =
   | `donation.${string}`
   | `payment.${string}`
   | `plan.${string}`
-  | `notify.${string}`;
+  | `notify.${string}`
+  | `news.${string}`;
 
 export type AuditEntry = {
   actorId: string | null;

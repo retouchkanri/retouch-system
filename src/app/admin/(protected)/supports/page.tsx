@@ -19,10 +19,10 @@ export default async function AdminSupportsPage({
   const from = (page - 1) * PAGE_SIZE;
 
   const [{ data: horses }, { data: horseStats }] = await Promise.all([
-    supabase.from("horses").select("id, name").order("sort_order"),
+    supabase.from("horses").select("id, name, image_url").order("sort_order"),
     supabase
       .from("support_subscriptions")
-      .select("horse_id, units, monthly_amount, status, horse:horses(name)")
+      .select("horse_id, units, monthly_amount, status, horse:horses(name, image_url)")
       .eq("status", "active"),
   ]);
 
@@ -46,11 +46,12 @@ export default async function AdminSupportsPage({
     : data ?? [];
 
   // horse-wise visualization
-  const stats = new Map<string, { name: string; units: number; monthly: number; supporters: number }>();
+  const stats = new Map<string, { name: string; image_url: string | null; units: number; monthly: number; supporters: number }>();
   for (const r of horseStats ?? []) {
     const id = (r as any).horse_id as string;
     const name = (r as any).horse?.name ?? "—";
-    const cur = stats.get(id) ?? { name, units: 0, monthly: 0, supporters: 0 };
+    const image_url = (r as any).horse?.image_url ?? null;
+    const cur = stats.get(id) ?? { name, image_url, units: 0, monthly: 0, supporters: 0 };
     cur.units += Number((r as any).units ?? 0);
     cur.monthly += Number((r as any).monthly_amount ?? 0);
     cur.supporters += 1;
@@ -72,11 +73,19 @@ export default async function AdminSupportsPage({
           <h2 className="section-title">馬ごとの支援状況</h2>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
             {horseSummary.map(([id, s]) => (
-              <div key={id} className="p-3 rounded-xl border border-surface-line">
-                <p className="font-bold">{s.name}</p>
-                <p className="text-xs text-ink-soft">
-                  支援者 {s.supporters}名 / {formatUnits(s.units)} / {formatYen(s.monthly)}月
-                </p>
+              <div key={id} className="p-3 rounded-xl border border-surface-line flex items-center gap-3">
+                {s.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={s.image_url} alt={s.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg bg-brand-50 flex items-center justify-center text-xl shrink-0">🐴</div>
+                )}
+                <div>
+                  <p className="font-bold">{s.name}</p>
+                  <p className="text-xs text-ink-soft">
+                    支援者 {s.supporters}名 / {formatUnits(s.units)} / {formatYen(s.monthly)}月
+                  </p>
+                </div>
               </div>
             ))}
           </div>

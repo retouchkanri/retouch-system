@@ -243,10 +243,13 @@ export default async function MyPageTop() {
               return (
                 <li key={s.id} className="py-4">
                   <div className="flex items-start gap-3">
-                    {/* Horse icon */}
-                    <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center text-2xl shrink-0">
-                      🐴
-                    </div>
+                    {/* Horse image */}
+                    {s.horse?.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.horse.image_url} alt={s.horse?.name ?? ""} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center text-2xl shrink-0">🐴</div>
+                    )}
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">

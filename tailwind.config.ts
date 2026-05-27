@@ -29,12 +29,18 @@ const config: Config = {
       fontFamily: {
         sans: [
           "var(--font-noto-sans-jp)",
+          "Noto Sans JP",
           "Hiragino Sans",
           "Hiragino Kaku Gothic ProN",
-          "Noto Sans JP",
           "Meiryo",
           "system-ui",
           "sans-serif",
+        ],
+        serif: [
+          "var(--font-noto-serif-jp)",
+          "Noto Serif JP",
+          "Georgia",
+          "serif",
         ],
         brand: [
           "var(--font-pacifico)",
@@ -43,7 +49,13 @@ const config: Config = {
         ],
       },
       borderRadius: {
-        xl: "14px",
+        none: "0",
+        xl: "0",
+        "2xl": "0",
+        lg: "0",
+        md: "0",
+        sm: "0",
+        full: "9999px",
       },
       boxShadow: {
         card: "0 1px 2px rgba(16,24,40,0.06), 0 1px 3px rgba(16,24,40,0.10)",

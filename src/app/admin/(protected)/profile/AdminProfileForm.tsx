@@ -1,43 +1,41 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Customer } from "@/types/db";
 
-export default function ProfileForm({
-  customer,
+export default function AdminProfileForm({
+  userId,
   email,
   avatarUrl,
+  fullName,
+  fullNameKana,
+  phone,
 }: {
-  customer: Customer;
+  userId: string;
   email: string;
   avatarUrl: string | null;
+  fullName: string;
+  fullNameKana: string;
+  phone: string;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
-    full_name: customer.full_name ?? "",
-    full_name_kana: customer.full_name_kana ?? "",
-    phone: customer.phone ?? "",
-    postal_code: customer.postal_code ?? "",
-    address1: customer.address1 ?? "",
-    address2: customer.address2 ?? "",
-    birthday: customer.birthday ?? "",
-    gender: customer.gender ?? "unspecified",
+    email,
+    full_name: fullName,
+    full_name_kana: fullNameKana,
+    phone,
   });
-  const [emailVal, setEmailVal] = useState(email);
-  const [newPassword, setNewPassword] = useState("");
+  const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [avatar, setAvatar] = useState<string | null>(avatarUrl);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-
-  const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [k]: e.target.value }));
-  };
 
   const onAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,19 +50,19 @@ export default function ProfileForm({
     reader.readAsDataURL(file);
   };
 
-  const onSubmit = async (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setErr(null);
     setMsg(null);
 
-    if (newPassword && newPassword !== confirmPassword) {
+    if (password && password !== confirmPassword) {
       setErr("パスワードが一致しません。");
-      setSaving(false);
       return;
     }
 
-    // 1) Upload avatar if changed
+    setBusy(true);
+
+    // 1) Avatar upload
     if (avatarFile) {
       const fd = new FormData();
       fd.append("avatar", avatarFile);
@@ -72,55 +70,36 @@ export default function ProfileForm({
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         setErr(j.error ?? "アバターのアップロードに失敗しました。");
-        setSaving(false);
+        setBusy(false);
         return;
       }
     }
 
-    // 2) Update profile fields
-    const res = await fetch("/api/mypage/profile", {
-      method: "POST",
+    // 2) Update user via admin API
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        password: password || undefined,
+      }),
     });
+    const j = await res.json().catch(() => ({}));
+    setBusy(false);
     if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "プロフィールの保存に失敗しました。");
-      setSaving(false);
+      setErr(j.error ?? "保存できませんでした。");
       return;
     }
-
-    // 3) Update email/password if changed
-    const emailChanged = emailVal !== email;
-    const passwordChanged = newPassword.length >= 8;
-    if (emailChanged || passwordChanged) {
-      const payload: Record<string, string> = {};
-      if (emailChanged) payload.email = emailVal;
-      if (passwordChanged) payload.newPassword = newPassword;
-      const res2 = await fetch("/api/mypage/account", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res2.ok) {
-        const j = await res2.json().catch(() => ({}));
-        setErr(j.error ?? "アカウント情報の更新に失敗しました。");
-        setSaving(false);
-        return;
-      }
-    }
-
-    setSaving(false);
-    setMsg("変更内容を保存しました。");
-    setNewPassword("");
+    setMsg("保存しました。");
+    setPassword("");
     setConfirmPassword("");
     setAvatarFile(null);
     router.refresh();
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      {/* Avatar section */}
+    <form onSubmit={save} className="space-y-5">
+      {/* Avatar */}
       <div className="card">
         <h2 className="text-base font-bold mb-4">プロフィール写真</h2>
         <div className="flex items-center gap-5">
@@ -175,58 +154,20 @@ export default function ProfileForm({
       <div className="card space-y-4">
         <h2 className="text-base font-bold">基本情報</h2>
         <div>
-          <label className="label">お名前</label>
+          <label className="label">メールアドレス</label>
+          <input type="email" className="input" value={form.email} onChange={set("email")} required />
+        </div>
+        <div>
+          <label className="label">氏名</label>
           <input className="input" value={form.full_name} onChange={set("full_name")} required />
         </div>
         <div>
-          <label className="label">お名前（カナ）</label>
+          <label className="label">フリガナ</label>
           <input className="input" value={form.full_name_kana} onChange={set("full_name_kana")} />
         </div>
         <div>
           <label className="label">電話番号</label>
           <input className="input" value={form.phone} onChange={set("phone")} />
-        </div>
-        <div>
-          <label className="label">郵便番号</label>
-          <input className="input" value={form.postal_code} onChange={set("postal_code")} />
-        </div>
-        <div>
-          <label className="label">住所</label>
-          <input className="input mb-2" placeholder="都道府県・市区町村・番地" value={form.address1} onChange={set("address1")} />
-          <input className="input" placeholder="建物名・部屋番号など" value={form.address2} onChange={set("address2")} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">生年月日</label>
-            <input type="date" className="input" value={form.birthday} onChange={set("birthday")} />
-          </div>
-          <div>
-            <label className="label">性別</label>
-            <select className="input" value={form.gender} onChange={set("gender")}>
-              <option value="unspecified">未回答</option>
-              <option value="male">男性</option>
-              <option value="female">女性</option>
-              <option value="other">その他</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Email */}
-      <div className="card space-y-4">
-        <h2 className="text-base font-bold">メールアドレス</h2>
-        <div>
-          <label className="label">メールアドレス</label>
-          <input
-            type="email"
-            className="input"
-            value={emailVal}
-            onChange={(e) => setEmailVal(e.target.value)}
-            required
-          />
-          {emailVal !== email && (
-            <p className="text-xs text-amber-600 mt-1">メールアドレスが変更されます。</p>
-          )}
         </div>
       </div>
 
@@ -239,8 +180,8 @@ export default function ProfileForm({
           <input
             type="password"
             className="input"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             minLength={8}
             placeholder="新しいパスワードを入力"
           />
@@ -255,25 +196,25 @@ export default function ProfileForm({
             minLength={8}
             placeholder="もう一度入力してください"
           />
-          {newPassword && confirmPassword && newPassword !== confirmPassword && (
+          {password && confirmPassword && password !== confirmPassword && (
             <p className="text-xs text-danger mt-1">パスワードが一致しません。</p>
           )}
         </div>
       </div>
 
-      {msg && (
-        <div className="p-4 rounded-xl bg-green-50 border border-green-200">
-          <p className="text-ok text-sm font-semibold">{msg}</p>
-        </div>
-      )}
       {err && (
         <div className="p-4 rounded-xl bg-red-50 border border-red-200">
           <p className="text-danger text-sm font-semibold">{err}</p>
         </div>
       )}
+      {msg && (
+        <div className="p-4 rounded-xl bg-green-50 border border-green-200">
+          <p className="text-ok text-sm font-semibold">{msg}</p>
+        </div>
+      )}
 
-      <button className="btn-primary w-full" disabled={saving}>
-        {saving ? "保存中..." : "変更内容を保存する"}
+      <button className="btn-primary w-full" disabled={busy}>
+        {busy ? "保存中..." : "保存する"}
       </button>
     </form>
   );

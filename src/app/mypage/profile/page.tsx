@@ -15,7 +15,11 @@ export default async function ProfilePage() {
         <h1 className="text-xl font-bold">登録情報の変更</h1>
         <Link href="/mypage" className="text-brand underline">マイページへ戻る</Link>
       </div>
-      <ProfileForm customer={customer} />
+      <ProfileForm
+        customer={customer}
+        email={session.email ?? ""}
+        avatarUrl={(customer as any).avatar_url ?? null}
+      />
     </div>
   );
 }

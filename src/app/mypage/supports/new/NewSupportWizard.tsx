@@ -76,13 +76,19 @@ export default function NewSupportWizard({ horses, plans, existingHorseIds, disa
                 >
                   <input
                     type="radio"
-                    className="w-5 h-5"
+                    className="w-5 h-5 shrink-0"
                     name="horse"
                     checked={horseId === h.id}
                     onChange={() => setHorseId(h.id)}
                     disabled={disabled}
                   />
-                  <div className="flex-1">
+                  {h.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={h.image_url} alt={h.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl bg-brand-50 flex items-center justify-center text-2xl shrink-0">🐴</div>
+                  )}
+                  <div className="flex-1 min-w-0">
                     <p className="font-bold">
                       {h.name}
                       {owned && <span className="chip-warn ml-2">支援中（口数を追加）</span>}
