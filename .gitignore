@@ -1,0 +1,22 @@
+node_modules/
+.claude/
+.next/
+out/
+dist/
+.env
+.env.local
+.env.development.local
+.env.production.local
+.vercel
+*.log
+.DS_Store
+coverage/
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Editor / OS / stray git
+.git2/
+.tmp/
+*.tmp.*
+*.swp
+Thumbs.db
