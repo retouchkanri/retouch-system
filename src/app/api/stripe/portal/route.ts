@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getStripe } from "@/lib/stripe";
+import { getBaseUrl } from "@/lib/site";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(req: Request) {
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
     await admin.from("customers").update({ stripe_customer_id: cust.id }).eq("id", (c as any).id);
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(req.url).origin;
+  const siteUrl = getBaseUrl(req);
   const portal = await stripe.billingPortal.sessions.create({
     customer: stripeCustomerId!,
     return_url: `${siteUrl}/mypage`,

@@ -86,6 +86,8 @@ export async function POST(req: Request) {
     contract_id: result.contractId,
     synced: result.synced,
     reason: result.reason ?? null,
+    checkout_url: result.checkoutUrl ?? null,
+    requires_payment: result.requiresPayment ?? false,
   });
 }
 

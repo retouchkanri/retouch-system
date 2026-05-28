@@ -51,7 +51,7 @@ async function getOrCreateStripePriceForPlan(planId: string, amount: number, nam
 export async function subscribeBasicPlan(params: {
   customer: CustomerRow;
   plan: { id: string; code: "A" | "B" | "C"; name: string; monthly_amount: number };
-}): Promise<{ contractId: string; synced: boolean; reason?: string }> {
+}): Promise<{ contractId: string; synced: boolean; reason?: string; checkoutUrl?: string | null; requiresPayment?: boolean }> {
   const admin = createSupabaseAdminClient();
   const stripe = getStripe();
 
@@ -148,8 +148,10 @@ export async function subscribeBasicPlan(params: {
     customer: stripeCustomerId,
     items: [{ price: priceId, quantity: 1 }],
     collection_method: "charge_automatically",
+    payment_behavior: "default_incomplete",
     proration_behavior: "create_prorations",
     metadata: { contract_id: contractRow.id, plan_code: params.plan.code },
+    expand: ["latest_invoice"],
   });
 
   await admin
@@ -167,7 +169,14 @@ export async function subscribeBasicPlan(params: {
     })
     .eq("id", contractRow.id);
 
-  return { contractId: contractRow.id, synced: true };
+  // New subscription with no saved card: surface the hosted invoice so the
+  // member can complete the first payment. The subscription activates (and
+  // the webhook flips status to active) once that invoice is paid.
+  const invoice = typeof sub.latest_invoice === "string" ? null : sub.latest_invoice;
+  const checkoutUrl = invoice?.hosted_invoice_url ?? null;
+  const requiresPayment = ["incomplete", "past_due", "unpaid"].includes(sub.status);
+
+  return { contractId: contractRow.id, synced: true, checkoutUrl, requiresPayment };
 }
 
 /**

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
+import { getBaseUrl } from "@/lib/site";
 
 const schema = z.object({
   amount: z.number().int().min(100).max(10_000_000),
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, checkout_url: null });
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const siteUrl = getBaseUrl(req);
   const checkout = await stripe.checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card"],

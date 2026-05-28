@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
+import { getBaseUrl } from "@/lib/site";
 import { donationThanksTemplate, notify } from "@/lib/notify";
 
 const schema = z.object({
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
   if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
   const stripe = getStripe();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const siteUrl = getBaseUrl(req);
   const returnBase = session ? "/mypage/donate" : "/donate";
 
   if (!stripe) {
