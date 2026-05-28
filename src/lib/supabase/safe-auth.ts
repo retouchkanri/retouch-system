@@ -9,7 +9,11 @@ function isNetworkError(error: unknown): boolean {
     message.includes("fetch failed") ||
     message.includes("timeout") ||
     message.includes("network") ||
+    message.includes("enotfound") ||
+    message.includes("econnrefused") ||
+    message.includes("abort") ||
     error.name === "HeadersTimeoutError" ||
+    error.name === "ConnectTimeoutError" ||
     error.name === "AbortError"
   );
 }

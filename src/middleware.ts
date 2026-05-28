@@ -2,6 +2,27 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { safeGetUser } from "@/lib/supabase/safe-auth";
 
+const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const timeoutPromise = new Promise<Response>((resolve) => {
+    setTimeout(() => {
+      resolve(
+        new Response(
+          JSON.stringify({
+            error: "timeout",
+            error_description: "Supabase request timed out",
+          }),
+          {
+            status: 504,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      );
+    }, 3000);
+  });
+
+  return Promise.race([fetch(input, init), timeoutPromise]);
+};
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
 
@@ -12,6 +33,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    global: { fetch: fetchWithTimeout },
     cookies: {
       get(name: string) {
         return request.cookies.get(name)?.value;

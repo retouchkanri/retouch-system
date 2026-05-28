@@ -72,6 +72,20 @@ export default async function PlanPage() {
           <PlanSelector.Cancel />
         </section>
       )}
+
+      <section className="card bg-brand-50/40 border-2 border-brand-100">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-bold text-brand-dark">特別チーム会員</p>
+            <p className="text-sm text-ink-soft mt-1">
+              馬ごとに月額1,000円。A/B/C会員・支援会員と併用できます。
+            </p>
+          </div>
+          <Link href="/mypage/special-team/new" className="btn-secondary shrink-0">
+            申し込む
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

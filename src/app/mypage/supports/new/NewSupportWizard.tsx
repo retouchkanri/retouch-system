@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import horseImage from "@/assets/images/horse.png";
 import type { Horse, MembershipPlan } from "@/types/db";
 import { formatYen } from "@/lib/format";
 
@@ -86,7 +88,9 @@ export default function NewSupportWizard({ horses, plans, existingHorseIds, disa
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={h.image_url} alt={h.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
                   ) : (
-                    <div className="w-14 h-14 rounded-xl bg-brand-50 flex items-center justify-center text-2xl shrink-0">🐴</div>
+                    <div className="w-14 h-14 rounded-xl bg-brand-50 overflow-hidden shrink-0">
+                      <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
+                    </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="font-bold">

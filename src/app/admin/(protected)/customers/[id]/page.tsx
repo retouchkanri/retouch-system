@@ -18,6 +18,7 @@ export default async function CustomerDetail({ params }: { params: { id: string 
     { data: bookings },
     { data: payments },
     { data: memos },
+    { data: specialTeams },
   ] = await Promise.all([
     supabase.from("customers").select("*").eq("id", params.id).maybeSingle(),
     supabase.from("v_customer_summary").select("*").eq("customer_id", params.id).maybeSingle(),
@@ -27,6 +28,7 @@ export default async function CustomerDetail({ params }: { params: { id: string 
     supabase.from("bookings").select("*, event:events(*)").eq("customer_id", params.id).order("booked_at", { ascending: false }),
     supabase.from("payments").select("*").eq("customer_id", params.id).order("occurred_at", { ascending: false }).limit(50),
     supabase.from("admin_memos").select("*").eq("customer_id", params.id).order("slot"),
+    supabase.from("special_team_memberships").select("*, horse:horses(*)").eq("customer_id", params.id).order("started_at", { ascending: false }),
   ]);
 
   if (!customer) return notFound();
@@ -132,6 +134,26 @@ export default async function CustomerDetail({ params }: { params: { id: string 
               </tr>
             ))}
             {(supports ?? []).length === 0 && <tr><td colSpan={7} className="text-center text-ink-mute py-3">支援履歴はまだありません。</td></tr>}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="card">
+        <h2 className="section-title">特別チーム会員</h2>
+        <table className="table">
+          <thead><tr><th className="w-12 text-right">No.</th><th>馬</th><th>月額</th><th>状態</th><th>開始</th><th>停止</th></tr></thead>
+          <tbody>
+            {(specialTeams ?? []).map((x: any, i: number) => (
+              <tr key={x.id}>
+                <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
+                <td>{x.horse?.name ?? "—"}</td>
+                <td>{formatYen(x.monthly_amount)}</td>
+                <td>{statusLabel(x.status)}</td>
+                <td>{formatDate(x.started_at)}</td>
+                <td>{x.canceled_at ? formatDate(x.canceled_at) : "—"}</td>
+              </tr>
+            ))}
+            {(specialTeams ?? []).length === 0 && <tr><td colSpan={6} className="text-center text-ink-mute py-3">特別チーム会員の登録はありません。</td></tr>}
           </tbody>
         </table>
       </section>

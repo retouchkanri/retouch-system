@@ -1,6 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatYen } from "@/lib/format";
+import horseImage from "@/assets/images/horse.png";
 
 export default async function AdminDashboardPage() {
   const supabase = createSupabaseServerClient();
@@ -96,17 +98,17 @@ export default async function AdminDashboardPage() {
   const activeOffset = C / 4; // start at top
 
   const cards = [
-    { label: "会員数", value: customersTotal ?? 0, href: "/admin/customers", icon: "👤", sub: "登録済み" },
-    { label: "継続契約", value: activeContracts ?? 0, href: "/admin/contracts", icon: "📋", sub: "有効中" },
+    { label: "会員数", value: customersTotal ?? 0, href: "/admin/customers", icon: "https://api.iconify.design/fluent-emoji-flat/bust-in-silhouette.svg", sub: "登録済み" },
+    { label: "継続契約", value: activeContracts ?? 0, href: "/admin/contracts", icon: "https://api.iconify.design/fluent-emoji-flat/page-facing-up.svg", sub: "有効中" },
     {
       label: "決済失敗",
       value: pastDueCount ?? 0,
       warn: (pastDueCount ?? 0) > 0,
       href: "/admin/payments?status=failed",
-      icon: "⚠️",
+      icon: "https://api.iconify.design/fluent-emoji-flat/warning.svg",
       sub: "要対応",
     },
-    { label: "本日の予約", value: bookingsToday ?? 0, href: "/admin/bookings", icon: "📅", sub: "本日" },
+    { label: "本日の予約", value: bookingsToday ?? 0, href: "/admin/bookings", icon: "https://api.iconify.design/fluent-emoji-flat/spiral-calendar.svg", sub: "本日" },
   ];
 
   return (
@@ -130,7 +132,9 @@ export default async function AdminDashboardPage() {
                   {c.warn ? "→ 対応が必要です" : c.sub}
                 </p>
               </div>
-              <span className="text-2xl opacity-60 mt-0.5">{c.icon}</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={c.icon} alt="" className="w-9 h-9 mt-0.5 shrink-0" />
+
             </div>
           );
           return c.href ? (
@@ -150,13 +154,14 @@ export default async function AdminDashboardPage() {
       {/* Quick links */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { href: "/admin/customers", label: "顧客一覧", sub: "検索・編集・履歴", icon: "👥" },
-          { href: "/admin/supports", label: "支援管理", sub: "馬ごと・口数・状態", icon: "🐴" },
-          { href: "/admin/contracts", label: "契約一覧", sub: "A/B/C・停止処理", icon: "📄" },
-          { href: "/admin/payments", label: "決済履歴", sub: "成功・失敗・返金", icon: "💳" },
+          { href: "/admin/customers", label: "顧客一覧", sub: "検索・編集・履歴", icon: "https://api.iconify.design/fluent-emoji-flat/busts-in-silhouette.svg" },
+          { href: "/admin/supports", label: "支援管理", sub: "馬ごと・口数・状態", icon: "https://api.iconify.design/fluent-emoji-flat/horse-face.svg" },
+          { href: "/admin/contracts", label: "契約一覧", sub: "A/B/C・停止処理", icon: "https://api.iconify.design/fluent-emoji-flat/page-with-curl.svg" },
+          { href: "/admin/payments", label: "決済履歴", sub: "成功・失敗・返金", icon: "https://api.iconify.design/fluent-emoji-flat/credit-card.svg" },
         ].map((l) => (
           <Link key={l.href} href={l.href} className="card hover:shadow-lg transition-shadow flex items-center gap-3">
-            <span className="text-2xl shrink-0">{l.icon}</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={l.icon} alt="" className="w-8 h-8 shrink-0" />
             <div>
               <p className="font-bold text-sm">{l.label}</p>
               <p className="text-xs text-ink-soft mt-0.5">{l.sub}</p>
@@ -344,7 +349,7 @@ export default async function AdminDashboardPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={s.horse.image_url} alt="" className="w-6 h-6 rounded-md object-cover inline-block align-text-bottom mr-1" />
                   ) : (
-                    <span className="mr-1">🐴</span>
+                    <Image src={horseImage} alt="" width={16} height={16} className="inline-block w-4 h-4 rounded-sm object-cover align-text-bottom mr-1" />
                   )}
                   <span className="text-sm text-brand font-medium">{s.horse?.name}</span>
                 </div>

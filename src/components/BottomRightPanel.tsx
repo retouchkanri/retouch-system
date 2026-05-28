@@ -80,21 +80,30 @@ export default function BottomRightPanel() {
       <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3">
 
         {/* Chatbot button */}
-        <button
-          onClick={() => setChatOpen((v) => !v)}
-          className="scroll-top-btn w-12 h-12 rounded-full bg-brand text-white shadow-lg flex items-center justify-center hover:bg-brand-dark transition-colors"
-          aria-label="チャットサポートを開く"
-        >
-          {chatOpen ? (
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M3 3l12 12M15 3L3 15" stroke="white" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+        <div className="relative flex items-center justify-center">
+          {/* Ping rings — only when chat is closed */}
+          {!chatOpen && (
+            <>
+              <span className="absolute inline-flex h-full w-full rounded-full bg-brand opacity-40 animate-ping" />
+              <span className="absolute inline-flex h-[140%] w-[140%] rounded-full bg-brand opacity-20 animate-[ping_1.8s_cubic-bezier(0,0,0.2,1)_infinite_0.4s]" />
+            </>
           )}
-        </button>
+          <button
+            onClick={() => setChatOpen((v) => !v)}
+            className="relative w-12 h-12 rounded-full bg-brand text-white shadow-lg flex items-center justify-center hover:bg-brand-dark hover:scale-110 active:scale-95 transition-all duration-200"
+            aria-label="チャットサポートを開く"
+          >
+            {chatOpen ? (
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M3 3l12 12M15 3L3 15" stroke="white" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+        </div>
 
         {/* Top button */}
         {showTop && (

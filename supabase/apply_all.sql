@@ -631,7 +631,7 @@ from (values
   ('新しい支援馬「コスモブライト」を追加しました','2024年引退のコスモブライトが牧場に到着しました。支援の受付を開始します。','お知らせ','bg-brand-50 text-brand-dark','https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?w=600&h=300&fit=crop','2026-05-20T00:00:00Z',1),
   ('6月牧場見学会のお申込み受付開始','6月14日（日）開催の牧場見学会の予約受付を開始いたしました。定員20名。','イベント','bg-amber-50 text-amber-800','https://images.unsplash.com/photo-1563830283-12f0a3ec7bf3?w=600&h=300&fit=crop','2026-05-10T00:00:00Z',2),
   ('メンバーズサイトをリニューアルしました','UI/UXを刷新し、支援状況の確認や口数変更がより簡単になりました。','リリース','bg-blue-50 text-blue-700','https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=300&fit=crop','2026-04-28T00:00:00Z',3),
-  ('日本経済新聞で活動が紹介されました','引退馬支援の取り組みが日経朝刊の社会面で取り上げられました。','メディア','bg-purple-50 text-purple-700','https://images.unsplash.com/photo-1504711434969-e33886168d9c?w=600&h=300&fit=crop','2026-04-15T00:00:00Z',4),
+  ('日本経済新聞で活動が紹介されました','引退馬支援の取り組みが日経朝刊の社会面で取り上げられました。','メディア','bg-purple-50 text-purple-700','https://images.unsplash.com/photo-1495020689067-958852a7765e?w=600&h=300&fit=crop','2026-04-15T00:00:00Z',4),
   ('年次活動報告書を公開しました','2025年度の支援実績・会計報告をまとめた年次報告書をPDFで公開しています。','お知らせ','bg-brand-50 text-brand-dark','https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&h=300&fit=crop','2026-03-30T00:00:00Z',5),
   ('春の感謝イベントを開催しました','会員80名が参加。牧場でのBBQと馬とのふれあいを楽しんでいただきました。','イベント','bg-amber-50 text-amber-800','https://images.unsplash.com/photo-1530092285049-1c42085fd395?w=600&h=300&fit=crop','2026-03-12T00:00:00Z',6),
   ('冬季の馬たちの健康レポート','獣医チームによる冬季健康診断の結果をご報告します。全頭健康状態良好です。','お知らせ','bg-brand-50 text-brand-dark','https://images.unsplash.com/photo-1598974357801-cbca100e65d3?w=600&h=300&fit=crop','2026-02-20T00:00:00Z',7),
@@ -642,3 +642,41 @@ from (values
   ('支援者数600名を突破しました','皆さまのおかげで支援者数が600名を超えました。心より感謝申し上げます。','お知らせ','bg-brand-50 text-brand-dark','https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&h=300&fit=crop','2025-11-01T00:00:00Z',12)
 ) as v(title, body, tag, tag_color, image_url, published_at, sort_order)
 where not exists (select 1 from public.news n where n.title = v.title);
+
+-- =====================================================================
+-- Special Team membership (特別チーム会員)
+--   - Per-horse, fixed 1,000円/month.
+--   - Combinable with ALL other plans (A/B/C and 支援会員).
+--   - Isolated table so it never interferes with contracts /
+--     support_subscriptions queries.
+-- =====================================================================
+create table if not exists public.special_team_memberships (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  horse_id uuid not null references public.horses(id) on delete restrict,
+  monthly_amount integer not null default 1000,
+  stripe_subscription_id text,
+  stripe_subscription_item_id text,
+  status contract_status not null default 'active',
+  started_at timestamptz not null default now(),
+  canceled_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists special_team_customer_idx on public.special_team_memberships (customer_id);
+create index if not exists special_team_horse_idx on public.special_team_memberships (horse_id);
+create index if not exists special_team_status_idx on public.special_team_memberships (status);
+create index if not exists special_team_sub_idx on public.special_team_memberships (stripe_subscription_id);
+
+alter table public.special_team_memberships enable row level security;
+
+drop policy if exists "special_team scope" on public.special_team_memberships;
+create policy "special_team scope" on public.special_team_memberships
+  for select using (customer_id = public.current_customer_id() or public.is_admin());
+drop policy if exists "special_team admin all" on public.special_team_memberships;
+create policy "special_team admin all" on public.special_team_memberships
+  for all using (public.is_admin()) with check (public.is_admin());
+
+drop trigger if exists special_team_set_updated_at on public.special_team_memberships;
+create trigger special_team_set_updated_at before update on public.special_team_memberships
+  for each row execute procedure public.tg_set_updated_at();

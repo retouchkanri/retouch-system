@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formatDate } from "@/lib/format";
 
@@ -19,24 +20,23 @@ export default async function AdminUsersPage({
 }: {
   searchParams: { q?: string; role?: string };
 }) {
+  noStore();
   const q = (searchParams.q ?? "").trim().toLowerCase();
   const role = searchParams.role ?? "";
 
   const admin = createSupabaseAdminClient();
-  const { data: authPage } = await admin.auth.admin.listUsers({
-    page: 1,
-    perPage: 200,
-  });
-  const authUsers = authPage?.users ?? [];
 
-  const { data: profiles } = await admin.from("profiles").select("id, role, customer_id");
-  const profileMap = new Map<string, { role: string; customer_id: string | null }>(
-    (profiles ?? []).map((p: any) => [p.id, { role: p.role, customer_id: p.customer_id }]),
-  );
+  // Source of truth: every login account has a `profiles` row (created on
+  // signup and on admin-create). Reading directly from the DB tables
+  // reflects live state and avoids stale auth-admin listing.
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("id, role, customer_id, created_at")
+    .order("created_at", { ascending: true });
 
-  const customerIds = Array.from(profileMap.values())
-    .map((p) => p.customer_id)
-    .filter((id): id is string => !!id);
+  const customerIds = (profiles ?? [])
+    .map((p: any) => p.customer_id)
+    .filter((id: string | null): id is string => !!id);
   const { data: customers } = customerIds.length
     ? await admin
         .from("customers")
@@ -45,17 +45,28 @@ export default async function AdminUsersPage({
     : { data: [] as any[] };
   const customerMap = new Map<string, any>((customers ?? []).map((c: any) => [c.id, c]));
 
-  const rows: Row[] = authUsers.map((u) => {
-    const prof = profileMap.get(u.id);
-    const cust = prof?.customer_id ? customerMap.get(prof.customer_id) : null;
+  // Fill in emails for any profile whose customer row lacks one, using the
+  // auth record as a fallback (best-effort; never throws).
+  const emailFallback = new Map<string, string>();
+  try {
+    const { data: authPage } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    for (const u of authPage?.users ?? []) {
+      if (u.email) emailFallback.set(u.id, u.email);
+    }
+  } catch {
+    // ignore — customers.email is the primary source
+  }
+
+  const rows: Row[] = (profiles ?? []).map((p: any) => {
+    const cust = p.customer_id ? customerMap.get(p.customer_id) : null;
     return {
-      id: u.id,
-      email: u.email ?? "",
-      full_name: cust?.full_name ?? (u.user_metadata?.full_name as string) ?? null,
-      role: prof?.role ?? "member",
+      id: p.id,
+      email: cust?.email ?? emailFallback.get(p.id) ?? "",
+      full_name: cust?.full_name ?? null,
+      role: p.role ?? "member",
       customer_status: cust?.status ?? null,
       avatar_url: cust?.avatar_url ?? null,
-      created_at: u.created_at,
+      created_at: p.created_at,
     };
   });
 
@@ -71,7 +82,13 @@ export default async function AdminUsersPage({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">ユーザー管理</h1>
+        <div>
+          <h1 className="text-2xl font-bold">ユーザー管理</h1>
+          <p className="text-sm text-ink-mute mt-1">
+            登録ユーザー 全 {rows.length} 名
+            {(role || q) && <> / 表示中 {filtered.length} 名（絞り込み適用中）</>}
+          </p>
+        </div>
         <Link href="/admin/users/new" className="btn-primary !py-2 !px-4">
           新規ユーザー追加
         </Link>
@@ -153,7 +170,14 @@ export default async function AdminUsersPage({
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={8} className="text-center text-ink-mute py-6">
-                  該当するユーザーがいません。
+                  {rows.length > 0 ? (
+                    <>
+                      絞り込み条件に一致するユーザーがいません（登録は全 {rows.length} 名）。
+                      <Link href="/admin/users" className="text-brand underline ml-1">条件をリセット</Link>
+                    </>
+                  ) : (
+                    "ユーザーがいません。"
+                  )}
                 </td>
               </tr>
             )}

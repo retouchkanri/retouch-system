@@ -136,6 +136,21 @@ export type Payment = {
   occurred_at: string;
 };
 
+export type SpecialTeamMembership = {
+  id: string;
+  customer_id: string;
+  horse_id: string;
+  monthly_amount: number;
+  stripe_subscription_id: string | null;
+  stripe_subscription_item_id: string | null;
+  status: ContractStatus;
+  started_at: string;
+  canceled_at: string | null;
+  created_at: string;
+  updated_at: string;
+  horse?: Horse | null;
+};
+
 export type NewsItem = {
   id: string;
   title: string;

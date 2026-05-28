@@ -1,5 +1,7 @@
+import Image from "next/image";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import horseImage from "@/assets/images/horse.png";
 import HorseForm from "./HorseForm";
 
 export default async function HorsesPage() {
@@ -26,7 +28,9 @@ export default async function HorsesPage() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={h.image_url} alt={h.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center text-lg shrink-0">🐴</div>
+                      <div className="w-10 h-10 rounded-lg bg-brand-50 overflow-hidden shrink-0">
+                        <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
+                      </div>
                     )}
                     <span className="font-semibold">{h.name}</span>
                   </div>

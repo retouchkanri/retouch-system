@@ -1,12 +1,16 @@
+import Image from "next/image";
 import Link from "next/link";
+import horseImage from "@/assets/images/horse.png";
 import { requireMember } from "@/lib/auth";
 import {
   loadActiveContract,
+  loadActiveSpecialTeam,
   loadActiveSupports,
   loadCustomer,
   loadCustomerSummary,
   loadPayments,
 } from "@/lib/customer";
+import SpecialTeamStopButton from "./SpecialTeamStopButton";
 import { formatDate, formatUnits, formatYen } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -26,12 +30,13 @@ export default async function MyPageTop() {
   }
 
   const customerId = session.customerId;
-  const [customer, summary, contract, supports, recentPayments] = await Promise.all([
+  const [customer, summary, contract, supports, recentPayments, specialTeams] = await Promise.all([
     loadCustomer(customerId),
     loadCustomerSummary(customerId),
     loadActiveContract(customerId),
     loadActiveSupports(customerId),
     loadPayments(customerId, 5),
+    loadActiveSpecialTeam(customerId),
   ]);
 
   const baseStatusKey = contract
@@ -104,13 +109,13 @@ export default async function MyPageTop() {
       <section className={`card bg-gradient-to-br ${statusBannerColor} text-white overflow-hidden relative`}>
         {/* Background pattern */}
         <div aria-hidden className="absolute inset-0 opacity-10">
-          {["🐴","🐴","🐴"].map((e, i) => (
+          {[0, 1, 2].map((i) => (
             <span
               key={i}
-              className="absolute text-6xl select-none"
+              className="absolute select-none w-16 h-16 rounded-full overflow-hidden"
               style={{ right: `${i * 30 + 10}px`, top: `${i * 10 - 10}px`, transform: `rotate(${i * 15}deg)` }}
             >
-              {e}
+              <Image src={horseImage} alt="" fill className="object-cover" />
             </span>
           ))}
         </div>
@@ -188,7 +193,7 @@ export default async function MyPageTop() {
             <p className="font-bold text-amber-800">停止予定の支援があります</p>
             {scheduledStop.map((s) => (
               <p key={s.id} className="text-sm text-amber-700">
-                🐴 {s.name}：{formatDate(s.date, false)} をもって終了予定
+                <Image src={horseImage} alt="" width={16} height={16} className="inline-block w-4 h-4 rounded-sm object-cover align-text-bottom mr-1" />{s.name}：{formatDate(s.date, false)} をもって終了予定
               </p>
             ))}
           </div>
@@ -206,7 +211,9 @@ export default async function MyPageTop() {
 
         {supports.length === 0 ? (
           <div className="py-8 text-center">
-            <p className="text-4xl mb-3">🐴</p>
+            <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3">
+              <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
+            </div>
             <p className="text-ink-mute text-sm">現在、ご支援中の馬はありません。</p>
             <Link href="/mypage/supports/new" className="btn-primary inline-flex mt-4">
               馬を支援する
@@ -248,7 +255,9 @@ export default async function MyPageTop() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={s.horse.image_url} alt={s.horse?.name ?? ""} className="w-12 h-12 rounded-xl object-cover shrink-0" />
                     ) : (
-                      <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center text-2xl shrink-0">🐴</div>
+                      <div className="w-12 h-12 rounded-xl bg-brand-50 overflow-hidden shrink-0">
+                        <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
+                      </div>
                     )}
 
                     <div className="flex-1 min-w-0">
@@ -287,6 +296,86 @@ export default async function MyPageTop() {
               新しい支援を追加する
             </Link>
           </div>
+        )}
+      </section>
+
+      {/* ── Special team memberships ── */}
+      <section className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="section-title mb-0">特別チーム会員</h2>
+          <Link className="text-brand underline text-sm font-medium" href="/mypage/special-team/new">
+            + 申し込む
+          </Link>
+        </div>
+
+        {specialTeams.length === 0 ? (
+          <div className="py-6 text-center">
+            <p className="text-ink-mute text-sm">
+              特別チーム会員は、馬ごとに月額{formatYen(1000)}でご参加いただけます。<br />
+              他の会員種別と併用可能です。
+            </p>
+            <Link href="/mypage/special-team/new" className="btn-secondary inline-flex mt-4">
+              特別チーム会員に申し込む
+            </Link>
+          </div>
+        ) : (
+          <ul className="divide-y divide-surface-line">
+            {specialTeams.map((m) => {
+              const isScheduledStop =
+                m.status === "active" &&
+                m.canceled_at &&
+                new Date(m.canceled_at).getTime() > now;
+              const statusColor =
+                m.status === "active"
+                  ? isScheduledStop
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-green-100 text-green-800"
+                  : m.status === "past_due"
+                  ? "bg-red-100 text-red-800"
+                  : "bg-gray-100 text-gray-700";
+              const statusLabel =
+                m.status === "active"
+                  ? isScheduledStop
+                    ? "停止予定"
+                    : "有効"
+                  : m.status === "past_due"
+                  ? "決済失敗"
+                  : m.status === "incomplete"
+                  ? "手続き中"
+                  : m.status;
+              return (
+                <li key={m.id} className="py-4">
+                  <div className="flex items-start gap-3">
+                    {m.horse?.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={m.horse.image_url} alt={m.horse?.name ?? ""} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-brand-50 overflow-hidden shrink-0">
+                        <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-lg">{m.horse?.name ?? "—"}</p>
+                        <span className={`chip text-xs ${statusColor}`}>{statusLabel}</span>
+                      </div>
+                      <p className="text-sm text-ink-soft mt-0.5">
+                        特別チーム会員 / {formatYen(m.monthly_amount)} / 月
+                      </p>
+                      {isScheduledStop && (
+                        <p className="text-xs text-amber-700 mt-1">
+                          {formatDate(m.canceled_at, false)} をもって終了予定
+                        </p>
+                      )}
+                    </div>
+                    {!isScheduledStop && m.status !== "canceled" && (
+                      <SpecialTeamStopButton id={m.id} horseName={m.horse?.name ?? "対象馬"} />
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </section>
 

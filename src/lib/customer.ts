@@ -9,6 +9,7 @@ import type {
   Horse,
   MembershipPlan,
   Payment,
+  SpecialTeamMembership,
   SupportSubscription,
 } from "@/types/db";
 
@@ -37,6 +38,19 @@ export async function loadActiveSupports(customerId: string): Promise<SupportSub
     .in("status", ["active", "past_due"])
     .order("started_at", { ascending: false });
   return (data as SupportSubscription[] | null) ?? [];
+}
+
+export async function loadActiveSpecialTeam(customerId: string): Promise<SpecialTeamMembership[]> {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("special_team_memberships")
+    .select("*, horse:horses(*)")
+    .eq("customer_id", customerId)
+    .in("status", ["active", "past_due", "incomplete"])
+    .order("started_at", { ascending: false });
+  // Resilient: if the table has not been migrated yet, do not crash callers.
+  if (error) return [];
+  return (data as SpecialTeamMembership[] | null) ?? [];
 }
 
 export async function loadActiveContract(customerId: string): Promise<Contract | null> {

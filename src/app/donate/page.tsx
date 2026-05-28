@@ -1,5 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import PublicDonationForm from "./PublicDonationForm";
+
+export const metadata: Metadata = {
+  title: "単発寄付",
+  description: "ログイン不要で引退競走馬へ単発寄付ができます。いただいたご寄付はホースレストでの馬のケア・獣医療費・牧場運営に活用されます。",
+  openGraph: {
+    title: "単発寄付 | Retouchメンバーズサイト",
+    description: "ログイン不要で引退競走馬へ単発寄付ができます。",
+  },
+};
 
 export default function PublicDonatePage() {
   return (

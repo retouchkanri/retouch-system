@@ -1,5 +1,7 @@
+import Image from "next/image";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import horseImage from "@/assets/images/horse.png";
 import { formatDate, formatUnits, formatYen, statusLabel } from "@/lib/format";
 import SupportRow from "./SupportRow";
 import SupportForm from "./SupportForm";
@@ -78,7 +80,9 @@ export default async function AdminSupportsPage({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={s.image_url} alt={s.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
                 ) : (
-                  <div className="w-12 h-12 rounded-lg bg-brand-50 flex items-center justify-center text-xl shrink-0">🐴</div>
+                  <div className="w-12 h-12 rounded-lg bg-brand-50 overflow-hidden shrink-0">
+                    <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
+                  </div>
                 )}
                 <div>
                   <p className="font-bold">{s.name}</p>

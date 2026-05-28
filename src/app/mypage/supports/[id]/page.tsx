@@ -1,5 +1,7 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import horseImage from "@/assets/images/horse.png";
 import { requireMember } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadPlans } from "@/lib/customer";
@@ -31,8 +33,20 @@ export default async function ChangeSupportPage({ params }: { params: { id: stri
       </div>
       <div className="card">
         <p className="label">現在の支援内容</p>
-        <p className="text-lg font-bold">{support.horse?.name}</p>
-        <p className="text-sm text-ink-soft">{support.units} 口 / 月額 {support.monthly_amount.toLocaleString()} 円</p>
+        <div className="flex items-center gap-3 mt-1">
+          {support.horse?.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={support.horse.image_url} alt={support.horse?.name ?? ""} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-brand-50 overflow-hidden shrink-0">
+              <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
+            </div>
+          )}
+          <div>
+            <p className="text-lg font-bold">{support.horse?.name}</p>
+            <p className="text-sm text-ink-soft">{support.units} 口 / 月額 {support.monthly_amount.toLocaleString()} 円</p>
+          </div>
+        </div>
       </div>
       <ChangeSupportForm support={support} plans={plans} />
       <Link href={`/mypage/supports/${support.id}/stop`} className="btn-ghost w-full text-danger border-2 border-danger">

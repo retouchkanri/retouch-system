@@ -26,7 +26,7 @@ export default async function SiteHeader() {
 
   return (
     <>
-      <header className="site-header sticky top-0 z-30 w-full shrink-0 bg-white/95 backdrop-blur border-b border-surface-line">
+      <header className="site-header sticky top-0 z-[100] w-full shrink-0 bg-white/95 backdrop-blur border-b border-surface-line">
         <div className="w-full flex items-center justify-between gap-3 py-3 pr-[5vw]">
           <Link
             href="/"

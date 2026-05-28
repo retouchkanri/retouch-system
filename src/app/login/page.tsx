@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import LoginForm from "./LoginForm";
+
+export const metadata: Metadata = {
+  title: "会員ログイン",
+  description: "Retouchメンバーズサイトへログインします。引退競走馬の支援状況・寄付履歴をご確認いただけます。",
+  robots: { index: false, follow: false },
+};
 
 export default function LoginPage({
   searchParams,

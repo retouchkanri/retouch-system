@@ -17,10 +17,6 @@ export default function AdminLoginPage({ searchParams }: { searchParams: { error
             />
           </div>
           <h1 className="text-xl font-bold text-brand">Retouch 管理画面</h1>
-          <p className="text-ink-soft mt-1">運営ログイン</p>
-          <p className="text-xs text-ink-mute mt-2">
-            初期アカウント：admin@gmail.com / admin@gmail.com
-          </p>
         </div>
         <div className="card">
           {searchParams.error === "forbidden" && (

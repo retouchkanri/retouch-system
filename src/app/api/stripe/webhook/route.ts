@@ -93,6 +93,29 @@ export async function POST(req: Request) {
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
+
+        // --- 特別チーム会員の専用サブスクは contracts へ書き込まず、
+        //     special_team_memberships のみ更新する（既存ロジックと分離）。
+        if (sub.metadata?.kind === "special_team") {
+          const stMapped =
+            sub.status === "active" ? "active" :
+            sub.status === "past_due" ? "past_due" :
+            sub.status === "canceled" ? "canceled" :
+            sub.status === "incomplete" || sub.status === "incomplete_expired" ? "incomplete" : "active";
+          const stPeriodEnd = sub.current_period_end
+            ? new Date(sub.current_period_end * 1000).toISOString()
+            : null;
+          await admin
+            .from("special_team_memberships")
+            .update({
+              status: stMapped,
+              canceled_at: sub.cancel_at_period_end ? stPeriodEnd : null,
+            })
+            .eq("stripe_subscription_id", sub.id)
+            .in("status", ["active", "past_due", "incomplete"]);
+          break;
+        }
+
         const stripeCustomerId = sub.customer as string;
         const { data: customer } = await admin
           .from("customers")
@@ -150,6 +173,17 @@ export async function POST(req: Request) {
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const nowIso = new Date().toISOString();
+
+        // --- 特別チーム会員の専用サブスク削除は専用テーブルのみ更新 ---
+        if (sub.metadata?.kind === "special_team") {
+          await admin
+            .from("special_team_memberships")
+            .update({ status: "canceled", canceled_at: nowIso, stripe_subscription_item_id: null })
+            .eq("stripe_subscription_id", sub.id)
+            .in("status", ["active", "past_due", "incomplete"]);
+          break;
+        }
+
         await admin
           .from("contracts")
           .update({ status: "canceled", canceled_at: nowIso })
@@ -183,6 +217,55 @@ export async function POST(req: Request) {
           .select("id")
           .eq("stripe_customer_id", stripeCustomerId)
           .maybeSingle();
+
+        // --- 特別チーム会員の専用サブスク請求は専用テーブルを更新 ---
+        if (invoice.subscription) {
+          const { data: stRows } = await admin
+            .from("special_team_memberships")
+            .select("id")
+            .eq("stripe_subscription_id", invoice.subscription as string)
+            .limit(1);
+          if (stRows && stRows.length > 0) {
+            await admin.from("payments").insert({
+              customer_id: (customer as any)?.id ?? null,
+              kind: "subscription",
+              amount: invoice.amount_paid || invoice.amount_due || 0,
+              currency: invoice.currency,
+              status: event.type === "invoice.payment_succeeded" ? "succeeded" : "failed",
+              stripe_event_id: event.id,
+              stripe_invoice_id: invoice.id,
+              failure_reason: event.type === "invoice.payment_failed" ? (invoice.last_finalization_error?.message ?? null) : null,
+              occurred_at: new Date((invoice.status_transitions.paid_at ?? invoice.created) * 1000).toISOString(),
+              raw: invoice as any,
+            });
+            const newStatus = event.type === "invoice.payment_succeeded" ? "active" : "past_due";
+            await admin
+              .from("special_team_memberships")
+              .update({ status: newStatus })
+              .eq("stripe_subscription_id", invoice.subscription as string)
+              .in("status", ["active", "past_due", "incomplete"]);
+            if (event.type === "invoice.payment_failed") {
+              const { data: fullCust } = await admin
+                .from("customers")
+                .select("full_name, email")
+                .eq("id", (customer as any)?.id)
+                .maybeSingle();
+              const tpl = paymentFailedTemplate({
+                name: (fullCust as any)?.full_name ?? null,
+                contractId: invoice.subscription as string,
+              });
+              await notify({
+                kind: "payment_failed",
+                to: (fullCust as any)?.email ?? null,
+                to_name: (fullCust as any)?.full_name ?? null,
+                subject: tpl.subject,
+                body_text: tpl.body_text,
+                meta: { special_team_subscription: invoice.subscription, invoice_id: invoice.id },
+              });
+            }
+            break;
+          }
+        }
         const { data: contract } = invoice.subscription
           ? await admin
               .from("contracts")
