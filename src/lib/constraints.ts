@@ -3,8 +3,9 @@
  * - Only one of A / B / C can be active.
  * - SUPPORT (支援会員) cannot coexist with A/B/C.
  * - SPECIAL_TEAM can coexist with anything.
+ * - RPT (RetouchPony【リタポ】メンバー) can coexist with anything.
  */
-export type PlanCode = "A" | "B" | "C" | "SPECIAL_TEAM" | "SUPPORT";
+export type PlanCode = "A" | "B" | "C" | "SPECIAL_TEAM" | "SUPPORT" | "RPT";
 
 export function canCoexist(existing: PlanCode[], incoming: PlanCode): { ok: boolean; reason?: string } {
   const has = (c: PlanCode) => existing.includes(c);

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 
 type Initial = {
   id?: string;
-  code?: "A" | "B" | "C" | "SPECIAL_TEAM" | "SUPPORT";
+  code?: "A" | "B" | "C" | "SPECIAL_TEAM" | "SUPPORT" | "RPT";
   name?: string;
   monthly_amount?: number;
   unit_amount?: number | null;
@@ -100,6 +100,7 @@ export default function PlanForm({
           <option value="C">C</option>
           <option value="SPECIAL_TEAM">SPECIAL_TEAM</option>
           <option value="SUPPORT">SUPPORT</option>
+          <option value="RPT">RPT</option>
         </select>
       </div>
       <div className="md:col-span-2">

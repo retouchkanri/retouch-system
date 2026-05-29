@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const patchSchema = z.object({
-  code: z.enum(["A", "B", "C", "SPECIAL_TEAM", "SUPPORT"]).optional(),
+  code: z.enum(["A", "B", "C", "SPECIAL_TEAM", "SUPPORT", "RPT"]).optional(),
   name: z.string().min(1).max(120).optional(),
   monthly_amount: z.number().int().min(0).optional(),
   unit_amount: z.number().int().min(0).optional().nullable(),

@@ -16,8 +16,10 @@ create extension if not exists "citext";
 
 -- ---------- enums ----------
 do $$ begin
-  create type member_plan_code as enum ('A','B','C','SPECIAL_TEAM','SUPPORT');
+  create type member_plan_code as enum ('A','B','C','SPECIAL_TEAM','SUPPORT','RPT');
 exception when duplicate_object then null; end $$;
+-- Backfill the RPT value for installations created before it was added.
+alter type member_plan_code add value if not exists 'RPT';
 
 do $$ begin
   create type contract_status as enum ('active','past_due','canceled','paused','incomplete');
@@ -462,6 +464,31 @@ on conflict (code, name) do update
       unit_amount = excluded.unit_amount,
       description = excluded.description,
       updated_at = now();
+
+-- RetouchPony【リタポ】メンバー (RPT): flat ¥3,000/month, combinable with all
+-- other plans. Sign-ups are handled externally via Stripe; this row exists so
+-- the plan is manageable in admin and assignable to contracts.
+--
+-- NOTE: Postgres forbids using an enum value in the same transaction that
+-- ADDed it (error 55P04). On an EXISTING database the `alter type ... add
+-- value 'RPT'` above is not yet committed when this seed runs, so the insert
+-- is wrapped to skip cleanly; re-running this script (or the migration having
+-- been applied earlier) lets the insert succeed. On a FRESH install the value
+-- is part of `create type`, so it inserts on the first run.
+do $$
+begin
+  insert into public.membership_plans (code, name, monthly_amount, unit_amount, allow_with_support, allow_with_team, sort_order, description)
+  values
+    ('RPT', 'RetouchPony【リタポ】メンバー', 3000, null, true, true, 45, '月額3,000円のRetouch Ponys Team（RPT）メンバー（他会員と併用可能）')
+  on conflict (code, name) do update
+    set monthly_amount = excluded.monthly_amount,
+        allow_with_support = excluded.allow_with_support,
+        allow_with_team = excluded.allow_with_team,
+        description = excluded.description,
+        updated_at = now();
+exception when others then
+  raise notice 'RPT plan seed skipped (enum value not yet committed — re-run this script once more): %', sqlerrm;
+end $$;
 
 insert into public.horses (name, name_kana, sex, birth_year, profile, is_supportable, sort_order)
 select v.name, v.kana, v.sex, v.y, v.bio, true, v.ord

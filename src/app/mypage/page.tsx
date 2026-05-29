@@ -11,6 +11,7 @@ import {
   loadPayments,
 } from "@/lib/customer";
 import SpecialTeamStopButton from "./SpecialTeamStopButton";
+import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED } from "@/lib/featureFlags";
 import { formatDate, formatUnits, formatYen } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -303,20 +304,31 @@ export default async function MyPageTop() {
       <section className="card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="section-title mb-0">特別チーム会員</h2>
-          <Link className="text-brand underline text-sm font-medium" href="/mypage/special-team/new">
-            + 申し込む
-          </Link>
+          {SPECIAL_TEAM_NEW_SIGNUPS_ENABLED && (
+            <Link className="text-brand underline text-sm font-medium" href="/mypage/special-team/new">
+              + 申し込む
+            </Link>
+          )}
         </div>
 
         {specialTeams.length === 0 ? (
           <div className="py-6 text-center">
-            <p className="text-ink-mute text-sm">
-              特別チーム会員は、馬ごとに月額{formatYen(1000)}でご参加いただけます。<br />
-              他の会員種別と併用可能です。
-            </p>
-            <Link href="/mypage/special-team/new" className="btn-secondary inline-flex mt-4">
-              特別チーム会員に申し込む
-            </Link>
+            {SPECIAL_TEAM_NEW_SIGNUPS_ENABLED ? (
+              <>
+                <p className="text-ink-mute text-sm">
+                  特別チーム会員は、馬ごとに月額{formatYen(1000)}でご参加いただけます。<br />
+                  他の会員種別と併用可能です。
+                </p>
+                <Link href="/mypage/special-team/new" className="btn-secondary inline-flex mt-4">
+                  特別チーム会員に申し込む
+                </Link>
+              </>
+            ) : (
+              <p className="text-ink-mute text-sm">
+                現在、特別チーム会員の新規受付を停止しております。<br />
+                ご支援いただきありがとうございます。
+              </p>
+            )}
           </div>
         ) : (
           <ul className="divide-y divide-surface-line">

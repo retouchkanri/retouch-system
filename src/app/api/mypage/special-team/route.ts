@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSpecialTeamCreate } from "@/lib/stripeSpecialTeam";
+import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED } from "@/lib/featureFlags";
 import { notify, planChangedTemplate } from "@/lib/notify";
 
 const schema = z.object({
@@ -14,6 +15,13 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session?.customerId) {
     return NextResponse.json({ error: "認証されていません" }, { status: 401 });
+  }
+  // New special-team sign-ups are closed (existing subscribers unaffected).
+  if (!SPECIAL_TEAM_NEW_SIGNUPS_ENABLED) {
+    return NextResponse.json(
+      { error: "現在、特別チーム会員の新規受付を停止しております。" },
+      { status: 403 },
+    );
   }
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {

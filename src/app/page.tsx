@@ -7,6 +7,7 @@ import contactBgImage from "@/assets/images/contact.png";
 import reviewBgImage from "@/assets/images/review.png";
 import adminImage from "@/assets/images/admin.png";
 import userImage from "@/assets/images/user.png";
+import ponyImage from "@/assets/images/pony.png";
 import BottomRightPanel from "@/components/BottomRightPanel";
 import HomeHeroEffect from "@/components/HomeHeroEffect";
 import BusinessPrinciplesDeck from "@/components/BusinessPrinciplesDeck";
@@ -231,6 +232,75 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* ── RETOUCH PONY TEAM ── */}
+      <section id="pony-team" className="relative overflow-hidden bg-gradient-to-br from-brand-50 via-white to-amber-50/50 py-20 px-5">
+        <div aria-hidden className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-brand-100/40 blur-3xl" />
+        <div aria-hidden className="absolute -bottom-20 -left-16 w-64 h-64 rounded-full bg-amber-100/40 blur-3xl" />
+
+        <div className="relative max-w-6xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+            {/* Photo with price badge */}
+            <div className="relative order-1">
+              <div className="overflow-hidden rounded-2xl shadow-2xl border border-white/70">
+                <Image
+                  src={ponyImage}
+                  alt="ふれあい活動を行うRetouchポニーチームのポニーたち"
+                  className="w-full h-[280px] sm:h-[380px] object-cover"
+                />
+              </div>
+              <div className="absolute -bottom-5 right-4 sm:right-8 bg-white rounded-2xl shadow-xl px-5 py-3 border border-brand-100 text-center">
+                <p className="text-[11px] text-ink-mute font-bold tracking-wider">月額支援</p>
+                <p className="font-serif text-2xl sm:text-3xl font-bold text-brand-dark leading-none mt-0.5">
+                  ¥3,000<span className="text-sm font-sans font-medium text-ink-soft"> / 月</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Copy */}
+            <div className="order-2">
+              <p className="text-brand font-bold tracking-[0.2em] text-xs sm:text-sm mb-3">RETOUCH PONY TEAM</p>
+              <h2 className="text-2xl sm:text-[1.9rem] font-bold text-ink mb-5 leading-snug font-serif">
+                肥育場にいたポニーたちを、<br className="hidden sm:block" />みんなで支えませんか？
+              </h2>
+              <p className="text-ink-soft text-sm leading-relaxed mb-4">
+                この子たちは、ただ保護されるだけの存在ではありません。これからのRetouchの活動を、より多くの方に知っていただくための
+                <span className="font-bold text-brand-dark">「広報部隊」</span>。
+                イベントやふれあい活動を通じて、引退馬や肥育場にいる馬たちの“いま”を、やさしく伝えていきます。
+              </p>
+              <p className="text-ink font-serif text-base sm:text-lg font-bold mb-5 leading-relaxed">
+                小さな体で、大きな役割を担うポニーたち。
+              </p>
+              <p className="text-ink-soft text-sm leading-relaxed mb-6">
+                その毎日を支えるため、月額3,000円の
+                <span className="font-bold text-brand-dark">「Retouchポニーチーム支援メンバー」</span>
+                を募集しています。あなたのご支援が、ポニーたちの毎日と未来を、まっすぐに支えます。
+              </p>
+
+              <p className="text-xs font-bold text-ink-mute tracking-wide mb-2">ご支援の使いみち</p>
+              <ul className="flex flex-wrap gap-2 mb-7">
+                {["日々の飼育費", "医療費", "移動費", "活動費"].map((t) => (
+                  <li
+                    key={t}
+                    className="inline-flex items-center gap-1.5 bg-white/85 border border-brand-100 text-brand-dark text-xs font-bold px-3 py-1.5 rounded-full shadow-sm"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+                      <path d="M2 5l2.5 2.5 3.5-4" stroke="#2d6a4f" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {t}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Link href="/signup" className="btn-primary btn-pulse">ポニーチームを支援する</Link>
+                <Link href="#contact" className="btn-secondary">活動について相談する</Link>
+              </div>
+              <p className="text-xs text-ink-mute mt-3">※ 他の会員プランと併用してご参加いただけます。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── HOW IT WORKS ── */}
       <section className="bg-[#faf9f6] py-24 sm:py-28 px-5">
         <div className="max-w-4xl mx-auto">
@@ -385,7 +455,7 @@ export default async function HomePage() {
 
 
       {/* ── CONTACT ── */}
-      <section className="relative py-20 px-5 overflow-hidden">
+      <section id="contact" className="relative py-20 px-5 overflow-hidden">
         {/* Background image */}
         <Image
           src={contactBgImage}

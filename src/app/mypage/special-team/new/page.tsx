@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import { loadHorses, loadPlans, loadActiveSpecialTeam } from "@/lib/customer";
+import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED } from "@/lib/featureFlags";
 import SpecialTeamWizard from "./SpecialTeamWizard";
 
 export default async function NewSpecialTeamPage() {
@@ -15,6 +16,9 @@ export default async function NewSpecialTeamPage() {
 
   const plan = plans.find((p) => p.code === "SPECIAL_TEAM");
   const monthly = plan?.monthly_amount ?? 1000;
+  // New sign-ups can be closed via feature flag while keeping existing
+  // ¥1,000 subscribers untouched. Treat a closed flag like a missing plan.
+  const acceptingSignups = SPECIAL_TEAM_NEW_SIGNUPS_ENABLED && Boolean(plan);
 
   return (
     <div className="space-y-4">
@@ -31,13 +35,13 @@ export default async function NewSpecialTeamPage() {
         </p>
       </div>
 
-      {!plan && (
+      {!acceptingSignups && (
         <div className="card border-2 border-warn">
-          <p className="text-sm text-warn">現在、特別チーム会員の受付を停止しています。</p>
+          <p className="text-sm text-warn">現在、特別チーム会員の新規受付を停止しております。</p>
         </div>
       )}
 
-      {plan && (
+      {acceptingSignups && (
         <SpecialTeamWizard
           horses={horses}
           monthly={monthly}

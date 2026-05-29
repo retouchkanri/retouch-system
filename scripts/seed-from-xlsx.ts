@@ -409,12 +409,14 @@ async function main() {
         const horseId = horseIdByName.get(sr.horseName);
         if (!horseId) continue;
         const units = sr.units ?? (/半口/.test(sr.rank ?? "") ? 0.5 : 1);
-        const isHalf = units < 1;
-        const pricePlan = isHalf
-          ? plans.get("SUPPORT:半口支援")
-          : plans.get("SUPPORT:1口支援");
-        const unit = pricePlan?.unit_amount ?? (isHalf ? 6000 : 12000);
-        const monthly = Math.round(unit * units);
+        // The half-share is already expressed by units (0.5). Charge is a
+        // single per-口 rate (1口 = 12,000円) scaled by units, so 半口 = 6,000円.
+        // NOTE: do NOT use the 半口 plan's unit_amount (6,000) here and then
+        // multiply by 0.5 — that double-discounts to 3,000 ("half of half").
+        const fullUnitPlan =
+          plans.get("SUPPORT:1口支援") ?? plans.get("SUPPORT:1口支援馬会員");
+        const perUnit = fullUnitPlan?.unit_amount ?? 12000;
+        const monthly = Math.round(perUnit * units);
 
         const { data: existingSupport } = await client
           .from("support_subscriptions")

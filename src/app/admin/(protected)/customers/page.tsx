@@ -46,6 +46,7 @@ export default async function CustomersListPage({
           <option value="C">C会員</option>
           <option value="SUPPORT">支援会員</option>
           <option value="SPECIAL_TEAM">特別チーム会員</option>
+          <option value="RPT">RetouchPony【リタポ】メンバー</option>
         </select>
         <select name="pay" defaultValue={pay} className="input">
           <option value="">決済：すべて</option>

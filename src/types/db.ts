@@ -10,7 +10,7 @@ export type PaymentKind = "subscription" | "donation" | "one_time";
 export type EventType = "visit" | "private_visit";
 export type BookingStatus = "reserved" | "canceled" | "attended" | "no_show";
 export type CustomerStatus = "active" | "suspended" | "withdrawn";
-export type MemberPlanCode = "A" | "B" | "C" | "SPECIAL_TEAM" | "SUPPORT";
+export type MemberPlanCode = "A" | "B" | "C" | "SPECIAL_TEAM" | "SUPPORT" | "RPT";
 
 export type Customer = {
   id: string;

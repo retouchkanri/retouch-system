@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import { loadActiveContract, loadActiveSupports, loadPlans } from "@/lib/customer";
 import { formatYen } from "@/lib/format";
+import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED } from "@/lib/featureFlags";
 import PlanSelector from "./PlanSelector";
 
 export default async function PlanPage() {
@@ -73,19 +74,21 @@ export default async function PlanPage() {
         </section>
       )}
 
-      <section className="card bg-brand-50/40 border-2 border-brand-100">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-bold text-brand-dark">特別チーム会員</p>
-            <p className="text-sm text-ink-soft mt-1">
-              馬ごとに月額1,000円。A/B/C会員・支援会員と併用できます。
-            </p>
+      {SPECIAL_TEAM_NEW_SIGNUPS_ENABLED && (
+        <section className="card bg-brand-50/40 border-2 border-brand-100">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-bold text-brand-dark">特別チーム会員</p>
+              <p className="text-sm text-ink-soft mt-1">
+                馬ごとに月額1,000円。A/B/C会員・支援会員と併用できます。
+              </p>
+            </div>
+            <Link href="/mypage/special-team/new" className="btn-secondary shrink-0">
+              申し込む
+            </Link>
           </div>
-          <Link href="/mypage/special-team/new" className="btn-secondary shrink-0">
-            申し込む
-          </Link>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
