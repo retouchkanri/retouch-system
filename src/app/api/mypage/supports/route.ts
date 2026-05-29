@@ -4,12 +4,17 @@ import { getSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSupportCreate } from "@/lib/stripeSupport";
+import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
 import { notify, supportAddedTemplate } from "@/lib/notify";
 
 const schema = z.object({
   horse_id: z.string().uuid(),
   plan_id: z.string().uuid(),
-  units: z.number().positive().max(100),
+  units: z
+    .number()
+    .positive()
+    .max(100)
+    .refine((v) => Number.isInteger(v * 2), "口数は0.5口刻みで指定してください"),
 });
 
 export async function POST(req: Request) {
@@ -95,7 +100,9 @@ export async function POST(req: Request) {
     };
   }
 
-  const perUnit = plan.unit_amount ?? plan.monthly_amount;
+  // Authoritative per-口 price. Never price off the selected plan's own
+  // unit_amount (半口=6,000) — a half share is units=0.5 at 12,000/口.
+  const perUnit = SUPPORT_UNIT_PRICE;
 
   // --- Consolidation: if this customer already has an ACTIVE support row
   // for the same horse, update units/monthly on that row instead of

@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { ROLE_LABELS_JP, isStaffRole, type Role } from "@/lib/roles";
+import RoleBadge from "./RoleBadge";
 
 type Props = {
   name: string;
   email: string;
-  role: "member" | "admin" | "staff";
+  role: Role;
+  hasActiveRpt: boolean;
   avatarUrl: string | null;
 };
 
-export default function HeaderUserMenu({ name, email, role, avatarUrl }: Props) {
+export default function HeaderUserMenu({ name, email, role, hasActiveRpt, avatarUrl }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -32,7 +35,7 @@ export default function HeaderUserMenu({ name, email, role, avatarUrl }: Props) 
     };
   }, [open]);
 
-  const isAdmin = role === "admin" || role === "staff";
+  const isAdmin = isStaffRole(role);
   const initial = (name || email || "?").trim().charAt(0).toUpperCase();
 
   return (
@@ -70,18 +73,9 @@ export default function HeaderUserMenu({ name, email, role, avatarUrl }: Props) 
           <div className="px-4 py-2 border-b border-surface-line">
             <p className="font-semibold text-ink truncate">{name || "—"}</p>
             <p className="text-xs text-ink-mute truncate">{email}</p>
-            <p className="text-xs mt-1">
-              <span
-                className={
-                  role === "admin"
-                    ? "chip-ok"
-                    : role === "staff"
-                      ? "chip-warn"
-                      : "chip-mute"
-                }
-              >
-                {role === "admin" ? "管理者" : role === "staff" ? "スタッフ" : "一般会員"}
-              </span>
+            <p className="text-xs mt-1 flex items-center gap-1.5">
+              <span className="chip-mute">{ROLE_LABELS_JP[role]}</span>
+              <RoleBadge role={role} hasActiveRpt={hasActiveRpt} />
             </p>
           </div>
           <Link

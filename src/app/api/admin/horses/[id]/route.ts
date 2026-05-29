@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  await requireAdmin();
+  await requireCapability("horses.manage");
   const body = await req.json().catch(() => ({}));
   const admin = createSupabaseAdminClient();
   const payload: any = {};
@@ -16,7 +16,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  await requireAdmin();
+  await requireCapability("horses.manage");
   const admin = createSupabaseAdminClient();
   const { error } = await admin.from("horses").update({ is_supportable: false }).eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

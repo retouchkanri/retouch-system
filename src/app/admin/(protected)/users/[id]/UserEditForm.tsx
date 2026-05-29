@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { resolveAvatarUrl } from "@/lib/avatars";
+import { ROLE_LABELS_JP, toRole, type Role } from "@/lib/roles";
 
 type Initial = {
   email: string;
@@ -16,9 +18,11 @@ type Initial = {
 export default function UserEditForm({
   userId,
   initial,
+  assignableRoles,
 }: {
   userId: string;
   initial: Initial;
+  assignableRoles: Role[];
 }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
@@ -67,13 +71,15 @@ export default function UserEditForm({
     router.refresh();
   };
 
+  const displayAvatar = resolveAvatarUrl(toRole(form.role), form.avatar_url);
+
   return (
     <form onSubmit={save} className="card space-y-4">
       <div className="flex items-center gap-3">
-        {form.avatar_url ? (
+        {displayAvatar ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={form.avatar_url}
+            src={displayAvatar}
             alt=""
             className="w-16 h-16 rounded-full object-cover border border-surface-line"
           />
@@ -102,9 +108,15 @@ export default function UserEditForm({
         <div>
           <label className="label">権限</label>
           <select className="input" value={form.role} onChange={set("role")}>
-            <option value="member">一般</option>
-            <option value="staff">スタッフ</option>
-            <option value="admin">管理者</option>
+            {/* Keep the current role visible even if the actor can't normally assign it. */}
+            {(assignableRoles.includes(form.role as Role)
+              ? assignableRoles
+              : [form.role as Role, ...assignableRoles]
+            ).map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABELS_JP[r] ?? r}
+              </option>
+            ))}
           </select>
         </div>
         <div>

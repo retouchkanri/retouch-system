@@ -7,7 +7,7 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
   return (
     <div className="flex min-h-0 flex-1 grid grid-cols-1 md:grid-cols-[240px_1fr]">
       <aside className="bg-brand-dark text-white md:sticky md:top-[73px] md:h-[calc(100vh-73px)] md:overflow-y-auto">
-        <AdminNav />
+        <AdminNav role={session.role} />
         <div className="p-3 mt-4 border-t border-white/10">
           <p className="text-xs text-white/70 mb-2">{session.email}</p>
           <form action="/api/auth/logout?next=/admin/login" method="post">

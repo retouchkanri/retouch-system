@@ -3,33 +3,24 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MembershipPlan, SupportSubscription } from "@/types/db";
+import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
 import { formatYen } from "@/lib/format";
 
 export default function ChangeSupportForm({
   support,
-  plans,
+  plan,
 }: {
   support: SupportSubscription;
-  plans: MembershipPlan[];
+  plan: MembershipPlan | null;
 }) {
   const router = useRouter();
-  const currentUnitAmount = support.monthly_amount / Number(support.units || 1);
-  const bestPlan =
-    plans.find((p) => (p.unit_amount ?? p.monthly_amount) === Math.round(currentUnitAmount))?.id ??
-    plans[0]?.id ??
-    null;
-
-  const [planId, setPlanId] = useState<string | null>(bestPlan);
   const [units, setUnits] = useState<number>(Number(support.units));
   const [mode, setMode] = useState<"edit" | "confirm">("edit");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const plan = plans.find((p) => p.id === planId);
-  const monthly = useMemo(() => {
-    const per = plan?.unit_amount ?? plan?.monthly_amount ?? 0;
-    return Math.round(per * units);
-  }, [plan, units]);
+  // Support is always priced at SUPPORT_UNIT_PRICE per 口; a half share is units 0.5.
+  const monthly = useMemo(() => Math.round(SUPPORT_UNIT_PRICE * units), [units]);
 
   const prevUnits = Number(support.units);
   const prevMonthly = Number(support.monthly_amount);
@@ -37,13 +28,13 @@ export default function ChangeSupportForm({
   const noChange = prevUnits === units && diffMonthly === 0;
 
   const save = async () => {
-    if (!planId || units <= 0) return;
+    if (!plan || units <= 0) return;
     setSaving(true);
     setError(null);
     const res = await fetch(`/api/mypage/supports/${support.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ plan_id: planId, units }),
+      body: JSON.stringify({ plan_id: plan.id, units }),
     });
     const j = await res.json().catch(() => ({}));
     setSaving(false);
@@ -100,17 +91,9 @@ export default function ChangeSupportForm({
     <div className="card space-y-4">
       <div>
         <label className="label">支援内容</label>
-        <div className="space-y-2">
-          {plans.map((p) => (
-            <label key={p.id} className={`border-2 rounded-xl p-3 flex items-center justify-between cursor-pointer
-              ${planId === p.id ? "border-brand bg-brand-50" : "border-surface-line"}`}>
-              <div>
-                <p className="font-bold">{p.name}</p>
-                <p className="text-sm text-ink-soft">1口 {formatYen(p.unit_amount ?? p.monthly_amount)} / 月</p>
-              </div>
-              <input type="radio" className="w-5 h-5" checked={planId === p.id} onChange={() => setPlanId(p.id)} />
-            </label>
-          ))}
+        <div className="border-2 border-surface-line rounded-xl p-3">
+          <p className="font-bold">{plan?.name ?? "支援会員"}</p>
+          <p className="text-sm text-ink-soft">1口 {formatYen(SUPPORT_UNIT_PRICE)} / 月（半口＝0.5口）</p>
         </div>
       </div>
 
@@ -137,7 +120,7 @@ export default function ChangeSupportForm({
       <button
         className="btn-primary w-full"
         onClick={() => setMode("confirm")}
-        disabled={!planId || units <= 0 || noChange}
+        disabled={!plan || units <= 0 || noChange}
       >
         変更内容を確認する
       </button>

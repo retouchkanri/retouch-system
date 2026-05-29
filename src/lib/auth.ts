@@ -2,12 +2,15 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "./supabase/server";
 import { createSupabaseAdminClient } from "./supabase/admin";
 import { safeGetUser } from "./supabase/safe-auth";
+import { type Capability, type Role, can, isStaffRole, toRole } from "./roles";
 
 export type SessionInfo = {
   userId: string;
   email: string | null;
-  role: "member" | "admin" | "staff";
+  role: Role;
   customerId: string | null;
+  /** True when the customer holds an RPT (RetouchPony【リタポ】) contract — forces a gold badge. */
+  hasActiveRpt: boolean;
 };
 
 export async function getSession(): Promise<SessionInfo | null> {
@@ -23,10 +26,11 @@ export async function getSession(): Promise<SessionInfo | null> {
       .maybeSingle();
 
     let customerId = (profile?.customer_id as string | null) ?? null;
-    const role = (profile?.role as SessionInfo["role"]) ?? "member";
+    const role = toRole(profile?.role);
+
+    const admin = createSupabaseAdminClient();
 
     if (!customerId) {
-      const admin = createSupabaseAdminClient();
       const { data: cust } = await admin
         .from("customers")
         .select("id")
@@ -42,11 +46,23 @@ export async function getSession(): Promise<SessionInfo | null> {
       }
     }
 
+    let hasActiveRpt = false;
+    if (customerId) {
+      const { data: rpt } = await admin
+        .from("contracts")
+        .select("id, membership_plans!inner(code)")
+        .eq("customer_id", customerId)
+        .eq("membership_plans.code", "RPT")
+        .limit(1);
+      hasActiveRpt = Array.isArray(rpt) && rpt.length > 0;
+    }
+
     return {
       userId: user.id,
       email: user.email ?? null,
       role,
       customerId,
+      hasActiveRpt,
     };
   } catch (error) {
     if (process.env.NODE_ENV === "development") {
@@ -65,11 +81,34 @@ export async function requireMember(): Promise<SessionInfo> {
   return session;
 }
 
+/**
+ * Gate for the admin area. Any staff role (owner / admin / moderator) may enter;
+ * finer-grained actions are checked with {@link requireCapability}.
+ */
 export async function requireAdmin(): Promise<SessionInfo> {
   const session = await getSession();
   if (!session) redirect("/admin/login");
-  if (session.role !== "admin" && session.role !== "staff") {
+  if (!isStaffRole(session.role)) {
     redirect("/admin/login?error=forbidden");
+  }
+  return session;
+}
+
+/** Require a specific capability; redirects staff who lack it back to the dashboard. */
+export async function requireCapability(capability: Capability): Promise<SessionInfo> {
+  const session = await requireAdmin();
+  if (!can(session.role, capability)) {
+    redirect("/admin?error=forbidden");
+  }
+  return session;
+}
+
+/** Owner-only gate (system/payment settings, role & admin-account management). */
+export async function requireOwner(): Promise<SessionInfo> {
+  const session = await getSession();
+  if (!session) redirect("/admin/login");
+  if (session.role !== "owner") {
+    redirect("/admin?error=forbidden");
   }
   return session;
 }

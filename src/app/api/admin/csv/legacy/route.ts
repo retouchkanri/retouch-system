@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { parseCsv } from "@/lib/csv";
 import { writeAudit } from "@/lib/audit";
@@ -23,7 +23,7 @@ import {
  * rows in place rather than producing duplicates.
  */
 export async function POST(req: Request) {
-  const session = await requireAdmin();
+  const session = await requireCapability("csv");
   const fd = await req.formData();
   const file = fd.get("file");
   const dryRun = String(fd.get("dry_run") ?? "") === "1";
@@ -318,9 +318,10 @@ async function migrateCustomer(
       supportsCreated += 1;
       continue;
     }
-    const isHalf = s.units < 1;
-    const planForUnit = isHalf ? supportHalfPlan : supportFullPlan;
-    const perUnit = planForUnit?.unit_amount ?? (isHalf ? 6000 : 12000);
+    // Per-口 price is always 12,000円. A half share is units=0.5, so it
+    // correctly resolves to 12000*0.5 = 6,000円. (Using the 半口支援 plan's
+    // own unit_amount of 6,000 here would double-apply the "half" → 3,000円.)
+    const perUnit = supportFullPlan?.unit_amount ?? 12000;
     const monthly = Math.round(perUnit * s.units);
 
     if (!customerId) {

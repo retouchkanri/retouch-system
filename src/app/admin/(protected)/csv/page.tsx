@@ -1,7 +1,9 @@
 import CsvTools from "./CsvTools";
 import LegacyMigrationTool from "./LegacyMigrationTool";
+import { requireCapability } from "@/lib/auth";
 
-export default function CsvPage() {
+export default async function CsvPage() {
+  await requireCapability("csv");
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">CSV 入出力</h1>

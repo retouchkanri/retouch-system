@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { toCsv } from "@/lib/csv";
 import { seatUsageBatch } from "@/lib/bookings";
@@ -21,7 +21,7 @@ const EXPORT_COLUMNS = [
 ];
 
 export async function GET() {
-  await requireAdmin();
+  await requireCapability("csv");
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("events")

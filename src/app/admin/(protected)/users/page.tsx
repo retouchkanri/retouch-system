@@ -1,7 +1,17 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { requireCapability } from "@/lib/auth";
+import { resolveAvatarUrl } from "@/lib/avatars";
 import { formatDate } from "@/lib/format";
+import {
+  ROLE_LABELS_JP,
+  ROLES,
+  canManageRole,
+  toRole,
+  type Role,
+} from "@/lib/roles";
+import RoleBadge from "@/components/RoleBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +19,8 @@ type Row = {
   id: string;
   email: string;
   full_name: string | null;
-  role: string;
+  role: Role;
+  hasRpt: boolean;
   customer_status: string | null;
   avatar_url: string | null;
   created_at: string;
@@ -21,6 +32,7 @@ export default async function AdminUsersPage({
   searchParams: { q?: string; role?: string };
 }) {
   noStore();
+  const session = await requireCapability("users.manage");
   const q = (searchParams.q ?? "").trim().toLowerCase();
   const role = searchParams.role ?? "";
 
@@ -45,6 +57,17 @@ export default async function AdminUsersPage({
     : { data: [] as any[] };
   const customerMap = new Map<string, any>((customers ?? []).map((c: any) => [c.id, c]));
 
+  // Customers holding an RPT (RetouchPony【リタポ】) contract — forced gold badge.
+  const rptCustomerIds = new Set<string>();
+  if (customerIds.length) {
+    const { data: rptRows } = await admin
+      .from("contracts")
+      .select("customer_id, membership_plans!inner(code)")
+      .in("customer_id", customerIds)
+      .eq("membership_plans.code", "RPT");
+    for (const r of rptRows ?? []) rptCustomerIds.add((r as any).customer_id);
+  }
+
   // Fill in emails for any profile whose customer row lacks one, using the
   // auth record as a fallback (best-effort; never throws).
   const emailFallback = new Map<string, string>();
@@ -59,11 +82,14 @@ export default async function AdminUsersPage({
 
   const rows: Row[] = (profiles ?? []).map((p: any) => {
     const cust = p.customer_id ? customerMap.get(p.customer_id) : null;
+    const r = toRole(p.role);
+    const hasRpt = !!p.customer_id && rptCustomerIds.has(p.customer_id);
     return {
       id: p.id,
       email: cust?.email ?? emailFallback.get(p.id) ?? "",
       full_name: cust?.full_name ?? null,
-      role: p.role ?? "member",
+      role: r,
+      hasRpt,
       customer_status: cust?.status ?? null,
       avatar_url: cust?.avatar_url ?? null,
       created_at: p.created_at,
@@ -103,9 +129,11 @@ export default async function AdminUsersPage({
         />
         <select name="role" defaultValue={role} className="input">
           <option value="">権限：すべて</option>
-          <option value="member">一般</option>
-          <option value="staff">スタッフ</option>
-          <option value="admin">管理者</option>
+          {ROLES.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABELS_JP[r]}
+            </option>
+          ))}
         </select>
         <div className="flex gap-2">
           <button className="btn-primary !py-2 !px-4">絞り込む</button>
@@ -122,20 +150,23 @@ export default async function AdminUsersPage({
               <th>氏名</th>
               <th>メール</th>
               <th>権限</th>
+              <th>バッジ</th>
               <th>状態</th>
               <th>登録日</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r, i) => (
+            {filtered.map((r, i) => {
+              const avatarSrc = resolveAvatarUrl(r.role, r.avatar_url);
+              return (
               <tr key={r.id} className="hover:bg-surface-soft">
                 <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
                 <td>
-                  {r.avatar_url ? (
+                  {avatarSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={r.avatar_url}
+                      src={avatarSrc}
                       alt=""
                       className="w-9 h-9 rounded-full object-cover border border-surface-line"
                     />
@@ -146,30 +177,28 @@ export default async function AdminUsersPage({
                 <td className="font-semibold">{r.full_name ?? "—"}</td>
                 <td>{r.email}</td>
                 <td>
-                  <span
-                    className={
-                      r.role === "admin"
-                        ? "chip-ok"
-                        : r.role === "staff"
-                          ? "chip-warn"
-                          : "chip-mute"
-                    }
-                  >
-                    {r.role}
-                  </span>
+                  <span className="chip-mute">{ROLE_LABELS_JP[r.role]}</span>
+                </td>
+                <td>
+                  <RoleBadge role={r.role} hasActiveRpt={r.hasRpt} />
                 </td>
                 <td>{r.customer_status ?? "—"}</td>
                 <td>{formatDate(r.created_at)}</td>
                 <td className="text-right">
-                  <Link href={`/admin/users/${r.id}`} className="text-brand underline">
-                    編集
-                  </Link>
+                  {canManageRole(session.role, r.role) ? (
+                    <Link href={`/admin/users/${r.id}`} className="text-brand underline">
+                      編集
+                    </Link>
+                  ) : (
+                    <span className="text-ink-mute text-xs">権限外</span>
+                  )}
                 </td>
               </tr>
-            ))}
+            );
+            })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-center text-ink-mute py-6">
+                <td colSpan={9} className="text-center text-ink-mute py-6">
                   {rows.length > 0 ? (
                     <>
                       絞り込み条件に一致するユーザーがいません（登録は全 {rows.length} 名）。

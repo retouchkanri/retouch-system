@@ -78,6 +78,27 @@ button, a, input, select, textarea {
   .chip-error { @apply chip bg-red-100 text-red-800; }
   .chip-mute  { @apply chip bg-gray-100 text-gray-700; }
 
+  /* ── Staff "Full" badge (repeated by rank: owner ×3, admin ×2, moderator ×1) ── */
+  .badge-full {
+    @apply inline-flex items-center justify-center w-5 h-5 text-[11px] leading-none text-white;
+    background: linear-gradient(135deg, #fbbf24, #b45309);
+    border-radius: 9999px;
+  }
+
+  /* ── Membership / role badges (gold / silver / bronze) ── */
+  .badge-gold {
+    @apply chip text-amber-900;
+    background: linear-gradient(135deg, #fde68a, #f59e0b);
+  }
+  .badge-silver {
+    @apply chip text-gray-800;
+    background: linear-gradient(135deg, #f1f5f9, #cbd5e1);
+  }
+  .badge-bronze {
+    @apply chip text-orange-50;
+    background: linear-gradient(135deg, #d6905a, #a86a3d);
+  }
+
   /* ── Section titles ── */
   .section-title {
     @apply text-lg font-bold text-ink mb-3 flex items-center gap-2;

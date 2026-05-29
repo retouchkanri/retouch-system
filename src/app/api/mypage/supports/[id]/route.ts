@@ -4,11 +4,16 @@ import { getSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSupportUpdate } from "@/lib/stripeSupport";
+import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
 import { notify, supportChangedTemplate } from "@/lib/notify";
 
 const schema = z.object({
   plan_id: z.string().uuid(),
-  units: z.number().positive().max(100),
+  units: z
+    .number()
+    .positive()
+    .max(100)
+    .refine((v) => Number.isInteger(v * 2), "口数は0.5口刻みで指定してください"),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -27,7 +32,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!plan || plan.code !== "SUPPORT") {
     return NextResponse.json({ error: "支援プランが正しくありません" }, { status: 400 });
   }
-  const monthly = Math.round((plan.unit_amount ?? plan.monthly_amount) * Number(units));
+  // Authoritative per-口 price (半口 = units 0.5 → ¥6,000).
+  const monthly = Math.round(SUPPORT_UNIT_PRICE * Number(units));
 
   const admin = createSupabaseAdminClient();
   const { data: existing } = await admin

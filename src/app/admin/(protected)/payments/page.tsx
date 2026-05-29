@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireCapability } from "@/lib/auth";
 import { formatDate, formatYen, statusLabel } from "@/lib/format";
 import PaymentRow from "./PaymentRow";
 
@@ -10,6 +11,7 @@ export default async function AdminPaymentsPage({
 }: {
   searchParams?: { status?: string; kind?: string; q?: string; page?: string };
 }) {
+  await requireCapability("payments.manage");
   const supabase = createSupabaseServerClient();
   const status = searchParams?.status ?? "";
   const kind = searchParams?.kind ?? "";

@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
+import { ROLES, canManageRole } from "@/lib/roles";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8),
   full_name: z.string().trim().min(1).max(120),
-  role: z.enum(["member", "staff", "admin"]).default("member"),
+  role: z.enum(ROLES).default("member"),
 });
 
 export async function POST(req: Request) {
-  const session = await requireAdmin();
+  const session = await requireCapability("users.manage");
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json(
@@ -20,6 +21,14 @@ export async function POST(req: Request) {
     );
   }
   const { email, password, full_name, role } = parsed.data;
+
+  // An admin cannot create owner/admin accounts; only an owner can.
+  if (!canManageRole(session.role, role)) {
+    return NextResponse.json(
+      { error: "この権限を付与する権限がありません。" },
+      { status: 403 },
+    );
+  }
   const admin = createSupabaseAdminClient();
 
   const { data: userData, error: userErr } = await admin.auth.admin.createUser({

@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ROLE_LABELS_JP, type Role } from "@/lib/roles";
 
-export default function NewUserForm() {
+export default function NewUserForm({ assignableRoles }: { assignableRoles: Role[] }) {
   const router = useRouter();
   const [form, setForm] = useState({
     email: "",
     password: "",
     full_name: "",
-    role: "member",
+    role: (assignableRoles.includes("member") ? "member" : assignableRoles[0]) as Role,
   });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,9 +63,11 @@ export default function NewUserForm() {
       <div>
         <label className="label">権限</label>
         <select className="input" value={form.role} onChange={set("role")}>
-          <option value="member">一般</option>
-          <option value="staff">スタッフ</option>
-          <option value="admin">管理者</option>
+          {assignableRoles.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABELS_JP[r]}
+            </option>
+          ))}
         </select>
       </div>
       {err && <p className="text-danger text-sm">{err}</p>}

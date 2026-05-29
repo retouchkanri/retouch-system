@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
+import { resolveAvatarUrl } from "@/lib/avatars";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import AdminProfileForm from "./AdminProfileForm";
 
@@ -18,7 +19,7 @@ export default async function AdminProfilePage() {
       <AdminProfileForm
         userId={session.userId}
         email={session.email ?? ""}
-        avatarUrl={customer?.avatar_url ?? null}
+        avatarUrl={resolveAvatarUrl(session.role, customer?.avatar_url ?? null)}
         fullName={customer?.full_name ?? ""}
         fullNameKana={customer?.full_name_kana ?? ""}
         phone={customer?.phone ?? ""}

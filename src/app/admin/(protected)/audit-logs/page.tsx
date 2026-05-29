@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireCapability } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 
 const PAGE_SIZE = 100;
@@ -9,6 +10,7 @@ export default async function AdminAuditLogsPage({
 }: {
   searchParams?: { action?: string; table?: string; q?: string; page?: string };
 }) {
+  await requireCapability("audit.view");
   const supabase = createSupabaseServerClient();
   const action = searchParams?.action ?? "";
   const table = searchParams?.table ?? "";

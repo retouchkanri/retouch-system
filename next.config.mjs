@@ -13,7 +13,12 @@ const siteHost = (() => {
 const nextConfig = {
   reactStrictMode: true,
   optimizeFonts: false,
+  // Typecheck + lint run via `prebuild` (tsc + next lint) so the build
+  // worker pool does not OOM on memory-constrained Windows hosts.
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
   experimental: {
+    cpus: 1,
     serverActions: {
       allowedOrigins: Array.from(new Set(["localhost:3000", siteHost])),
     },

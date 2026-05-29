@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { resolveAvatarUrl } from "@/lib/avatars";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import HeaderUserMenu from "./HeaderUserMenu";
 
@@ -18,7 +19,7 @@ export default async function SiteHeader() {
         .eq("auth_user_id", session.userId)
         .maybeSingle();
       name = (data?.full_name as string) ?? "";
-      avatarUrl = (data?.avatar_url as string | null) ?? null;
+      avatarUrl = resolveAvatarUrl(session.role, (data?.avatar_url as string | null) ?? null);
     } catch {
       // Supabase unreachable
     }
@@ -57,6 +58,7 @@ export default async function SiteHeader() {
                 name={name}
                 email={session.email ?? ""}
                 role={session.role}
+                hasActiveRpt={session.hasActiveRpt}
                 avatarUrl={avatarUrl}
               />
             ) : (
@@ -78,6 +80,7 @@ export default async function SiteHeader() {
                 name={name}
                 email={session.email ?? ""}
                 role={session.role}
+                hasActiveRpt={session.hasActiveRpt}
                 avatarUrl={avatarUrl}
               />
             )}

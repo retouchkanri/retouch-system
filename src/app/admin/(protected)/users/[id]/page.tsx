@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { requireCapability } from "@/lib/auth";
+import { assignableRoles, canManageRole, toRole } from "@/lib/roles";
 import UserEditForm from "./UserEditForm";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +12,7 @@ export default async function EditUserPage({
 }: {
   params: { id: string };
 }) {
+  const session = await requireCapability("users.manage");
   const admin = createSupabaseAdminClient();
   const { data: userRes } = await admin.auth.admin.getUserById(params.id);
   const user = userRes?.user;
@@ -20,6 +23,12 @@ export default async function EditUserPage({
     .select("role, customer_id")
     .eq("id", params.id)
     .maybeSingle();
+
+  // An admin may not open / edit owner or admin accounts — owner only.
+  const targetRole = toRole(profile?.role);
+  if (!canManageRole(session.role, targetRole)) {
+    redirect("/admin/users?error=forbidden");
+  }
 
   const customerId = (profile?.customer_id as string | null) ?? null;
   const { data: customer } = customerId
@@ -46,9 +55,10 @@ export default async function EditUserPage({
           full_name_kana: (customer?.full_name_kana as string) ?? "",
           phone: (customer?.phone as string) ?? "",
           status: (customer?.status as string) ?? "active",
-          role: (profile?.role as string) ?? "member",
+          role: targetRole,
           avatar_url: (customer?.avatar_url as string) ?? null,
         }}
+        assignableRoles={assignableRoles(session.role)}
       />
     </div>
   );

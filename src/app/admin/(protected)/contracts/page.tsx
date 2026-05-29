@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireCapability } from "@/lib/auth";
 import { formatDate, formatYen, statusLabel } from "@/lib/format";
 import ContractRow from "./ContractRow";
 
@@ -10,6 +11,7 @@ export default async function AdminContractsPage({
 }: {
   searchParams?: { status?: string; q?: string; page?: string };
 }) {
+  await requireCapability("contracts.manage");
   const supabase = createSupabaseServerClient();
   const status = searchParams?.status ?? "";
   const q = (searchParams?.q ?? "").trim();

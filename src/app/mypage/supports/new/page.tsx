@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import { loadHorses, loadPlans, loadActiveSupports, loadActiveContract } from "@/lib/customer";
+import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
 import NewSupportWizard from "./NewSupportWizard";
 
 export default async function NewSupportPage() {
@@ -15,6 +16,12 @@ export default async function NewSupportPage() {
   ]);
 
   const supportPlans = plans.filter((p) => p.code === "SUPPORT");
+  // All SUPPORT plans are priced uniformly at SUPPORT_UNIT_PRICE per 口; present a
+  // single canonical option (the ¥12,000 "1口" plan) and let 口数 express 半口/複数口.
+  const supportPlan =
+    supportPlans.find((p) => (p.unit_amount ?? p.monthly_amount) === SUPPORT_UNIT_PRICE) ??
+    supportPlans[0] ??
+    null;
   const basicPlan = contract?.plan;
   const blocksSupport = basicPlan && ["A", "B", "C"].includes(basicPlan.code);
 
@@ -37,7 +44,7 @@ export default async function NewSupportPage() {
 
       <NewSupportWizard
         horses={horses}
-        plans={supportPlans}
+        plan={supportPlan}
         existingHorseIds={existingSupports.map((s) => s.horse_id)}
         disabled={!!blocksSupport}
       />

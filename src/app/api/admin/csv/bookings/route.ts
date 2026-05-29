@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { toCsv } from "@/lib/csv";
 
@@ -20,7 +20,7 @@ const EXPORT_COLUMNS = [
 ];
 
 export async function GET(req: Request) {
-  await requireAdmin();
+  await requireCapability("csv");
   const url = new URL(req.url);
   const eventId = url.searchParams.get("event_id");
 

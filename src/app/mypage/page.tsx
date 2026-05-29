@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import horseImage from "@/assets/images/horse.png";
 import { requireMember } from "@/lib/auth";
+import RoleBadge from "@/components/RoleBadge";
 import {
   loadActiveContract,
   loadActiveSpecialTeam,
@@ -123,7 +124,10 @@ export default async function MyPageTop() {
 
         <div className="relative">
           <p className="text-sm opacity-80">こんにちは</p>
-          <h1 className="text-2xl font-bold mt-0.5">{customer?.full_name ?? "会員"}様</h1>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <h1 className="text-2xl font-bold">{customer?.full_name ?? "会員"}様</h1>
+            <RoleBadge role={session.role} hasActiveRpt={session.hasActiveRpt} />
+          </div>
 
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[

@@ -7,6 +7,18 @@
  */
 export type PlanCode = "A" | "B" | "C" | "SPECIAL_TEAM" | "SUPPORT" | "RPT";
 
+/**
+ * Canonical price for ONE support 口. A half share is `units = 0.5`, so a
+ * support_subscription's `monthly_amount` must always equal
+ * `round(SUPPORT_UNIT_PRICE * units)` → 半口 = ¥6,000, 1口 = ¥12,000.
+ *
+ * This is the single source of truth for support pricing. Do NOT price off the
+ * 半口支援 plan's own unit_amount (¥6,000) and then multiply by 0.5 units — that
+ * double-applies the "half" and yields ¥3,000. Keep in sync with the 1口支援
+ * membership plan and scripts/fix-half-share-pricing.mjs.
+ */
+export const SUPPORT_UNIT_PRICE = 12000;
+
 export function canCoexist(existing: PlanCode[], incoming: PlanCode): { ok: boolean; reason?: string } {
   const has = (c: PlanCode) => existing.includes(c);
   const basicExclusive: PlanCode[] = ["A", "B", "C"];

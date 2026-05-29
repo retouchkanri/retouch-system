@@ -48,11 +48,23 @@ exception when duplicate_object then null; end $$;
 -- ---------- profiles ----------
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  role text not null default 'member' check (role in ('member','admin','staff')),
+  role text not null default 'member' check (role in ('owner','admin','moderator','honorary_member','member','user')),
   customer_id uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Reconcile the role check constraint on databases created before the
+-- 6-role model existed. `create table if not exists` skips the inline
+-- constraint above when the table already exists, so legacy databases keep
+-- the old ('member','admin','staff') constraint and reject 'owner' etc.
+-- Legacy 'staff' rows are migrated to 'admin' first so the new constraint
+-- can be added without violating existing data.
+update public.profiles set role = 'admin' where role = 'staff';
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles
+  add constraint profiles_role_check
+  check (role in ('owner','admin','moderator','honorary_member','member','user'));
 
 -- ---------- customers ----------
 create table if not exists public.customers (
@@ -284,7 +296,7 @@ create or replace function public.is_admin()
 returns boolean language sql stable as $$
   select exists (
     select 1 from public.profiles p
-    where p.id = auth.uid() and p.role in ('admin','staff')
+    where p.id = auth.uid() and p.role in ('owner','admin','moderator')
   );
 $$;
 
@@ -537,87 +549,73 @@ create policy "avatars authenticated delete" on storage.objects
   for delete using (bucket_id = 'avatars');
 
 -- =====================================================================
--- Seed admin account: admin@gmail.com / admin@gmail.com
---   - inserts into auth.users with bcrypt password (password == email)
---   - inserts into auth.identities (email provider)
---   - inserts into public.customers + public.profiles with role='admin'
+-- Seed login accounts (password == email for these bootstrap logins):
+--   owner     = 野口 佳槻 (bagunet21@yahoo.co.jp)
+--   admin     = admin@gmail.com         (the sole administrator)
+--   moderator = horse@gamil.com
+-- Each call creates/updates auth.users (bcrypt password) + auth.identities +
+-- public.customers + public.profiles. full_name is only set on INSERT, so
+-- real customer names are never overwritten on re-run.
 -- =====================================================================
-do $$
+create or replace function public.seed_login_account(
+  p_email text, p_password text, p_name text, p_role text
+) returns void language plpgsql as $$
 declare
-  admin_email text := 'admin@gmail.com';
-  admin_password text := 'admin@gmail.com';
-  admin_uid uuid;
-  admin_customer_id uuid;
+  v_uid uuid;
+  v_customer_id uuid;
 begin
-  -- 1) auth.users
-  select id into admin_uid from auth.users where email = admin_email;
-  if admin_uid is null then
-    admin_uid := gen_random_uuid();
+  select id into v_uid from auth.users where email = p_email;
+  if v_uid is null then
+    v_uid := gen_random_uuid();
     insert into auth.users (
       instance_id, id, aud, role, email, encrypted_password,
       email_confirmed_at, recovery_sent_at, last_sign_in_at,
-      raw_app_meta_data, raw_user_meta_data,
-      created_at, updated_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
       confirmation_token, email_change, email_change_token_new, recovery_token
     ) values (
-      '00000000-0000-0000-0000-000000000000',
-      admin_uid,
-      'authenticated',
-      'authenticated',
-      admin_email,
-      crypt(admin_password, gen_salt('bf')),
+      '00000000-0000-0000-0000-000000000000', v_uid, 'authenticated', 'authenticated',
+      p_email, crypt(p_password, gen_salt('bf')),
       now(), null, null,
       '{"provider":"email","providers":["email"]}'::jsonb,
-      jsonb_build_object('full_name','管理者'),
-      now(), now(),
-      '', '', '', ''
+      jsonb_build_object('full_name', p_name),
+      now(), now(), '', '', '', ''
     );
   else
     update auth.users
-      set encrypted_password = crypt(admin_password, gen_salt('bf')),
+      set encrypted_password = crypt(p_password, gen_salt('bf')),
           email_confirmed_at = coalesce(email_confirmed_at, now()),
           updated_at = now()
-      where id = admin_uid;
+      where id = v_uid;
   end if;
 
-  -- 2) auth.identities (email provider)
-  if not exists (
-    select 1 from auth.identities
-    where user_id = admin_uid and provider = 'email'
-  ) then
+  if not exists (select 1 from auth.identities where user_id = v_uid and provider = 'email') then
     insert into auth.identities (
-      id, user_id, provider, provider_id, identity_data,
-      last_sign_in_at, created_at, updated_at
+      id, user_id, provider, provider_id, identity_data, last_sign_in_at, created_at, updated_at
     ) values (
-      gen_random_uuid(),
-      admin_uid,
-      'email',
-      admin_uid::text,
-      jsonb_build_object('sub', admin_uid::text, 'email', admin_email, 'email_verified', true),
+      gen_random_uuid(), v_uid, 'email', v_uid::text,
+      jsonb_build_object('sub', v_uid::text, 'email', p_email, 'email_verified', true),
       now(), now(), now()
     );
   end if;
 
-  -- 3) customers row for the admin
-  select id into admin_customer_id from public.customers where email = admin_email;
-  if admin_customer_id is null then
+  select id into v_customer_id from public.customers where email = p_email;
+  if v_customer_id is null then
     insert into public.customers (auth_user_id, full_name, email, status)
-    values (admin_uid, '管理者', admin_email, 'active')
-    returning id into admin_customer_id;
+    values (v_uid, p_name, p_email, 'active')
+    returning id into v_customer_id;
   else
-    update public.customers
-      set auth_user_id = admin_uid, full_name = '管理者', status = 'active'
-      where id = admin_customer_id;
+    update public.customers set auth_user_id = v_uid, status = 'active' where id = v_customer_id;
   end if;
 
-  -- 4) profile with admin role
   insert into public.profiles (id, role, customer_id)
-  values (admin_uid, 'admin', admin_customer_id)
+  values (v_uid, p_role, v_customer_id)
   on conflict (id) do update
-    set role = 'admin',
-        customer_id = excluded.customer_id,
-        updated_at = now();
+    set role = excluded.role, customer_id = excluded.customer_id, updated_at = now();
 end $$;
+
+select public.seed_login_account('bagunet21@yahoo.co.jp', 'bagunet21@yahoo.co.jp', '野口 佳槻',   'owner');
+select public.seed_login_account('admin@gmail.com',       'admin@gmail.com',       '管理者',       'admin');
+select public.seed_login_account('horse@gamil.com',       'horse@gamil.com',       'モデレーター', 'moderator');
 
 -- =====================================================================
 -- News table (homepage carousel)

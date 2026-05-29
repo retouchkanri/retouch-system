@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { csvToObjects, toCsv } from "@/lib/csv";
 
@@ -10,7 +10,7 @@ const EXPORT_COLUMNS = [
 ];
 
 export async function GET() {
-  await requireAdmin();
+  await requireCapability("csv");
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("customers")
@@ -32,7 +32,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  await requireAdmin();
+  await requireCapability("csv");
   const fd = await req.formData();
   const file = fd.get("file");
   if (!file || typeof file === "string") {

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(req: Request) {
-  await requireAdmin();
+  await requireCapability("horses.manage");
   const body = await req.json().catch(() => ({}));
   if (!body?.name) return NextResponse.json({ error: "馬名は必須です" }, { status: 400 });
   const admin = createSupabaseAdminClient();

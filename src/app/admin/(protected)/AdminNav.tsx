@@ -2,30 +2,33 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { type Capability, type Role, can } from "@/lib/roles";
 
-const navGroups: { label: string; items: { href: string; label: string }[] }[] = [
+type NavItem = { href: string; label: string; cap?: Capability };
+
+const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "全体",
     items: [
       { href: "/admin", label: "ダッシュボード" },
       { href: "/admin/search", label: "横断検索" },
-      { href: "/admin/audit-logs", label: "監査ログ" },
+      { href: "/admin/audit-logs", label: "監査ログ", cap: "audit.view" },
     ],
   },
   {
     label: "会員・支援",
     items: [
       { href: "/admin/customers", label: "顧客一覧" },
-      { href: "/admin/contracts", label: "契約一覧" },
+      { href: "/admin/contracts", label: "契約一覧", cap: "contracts.manage" },
       { href: "/admin/supports", label: "支援管理" },
       { href: "/admin/donations", label: "寄付一覧" },
-      { href: "/admin/payments", label: "決済履歴" },
+      { href: "/admin/payments", label: "決済履歴", cap: "payments.manage" },
     ],
   },
   {
     label: "マスタ",
     items: [
-      { href: "/admin/plans", label: "会員プラン" },
+      { href: "/admin/plans", label: "会員プラン", cap: "plans.manage" },
       { href: "/admin/horses", label: "馬マスタ" },
       { href: "/admin/events", label: "イベントマスタ" },
       { href: "/admin/bookings", label: "予約管理" },
@@ -35,8 +38,8 @@ const navGroups: { label: string; items: { href: string; label: string }[] }[] =
   {
     label: "運用",
     items: [
-      { href: "/admin/users", label: "ユーザー管理" },
-      { href: "/admin/csv", label: "CSV 入出力" },
+      { href: "/admin/users", label: "ユーザー管理", cap: "users.manage" },
+      { href: "/admin/csv", label: "CSV 入出力", cap: "csv" },
       { href: "/admin/profile", label: "マイプロフィール" },
     ],
   },
@@ -47,12 +50,16 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-export default function AdminNav() {
+export default function AdminNav({ role }: { role: Role }) {
   const pathname = usePathname();
+
+  const groups = navGroups
+    .map((g) => ({ ...g, items: g.items.filter((n) => !n.cap || can(role, n.cap)) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <nav className="p-2 pt-4 flex md:flex-col gap-1 overflow-x-auto md:overflow-x-visible">
-      {navGroups.map((g) => (
+      {groups.map((g) => (
         <div key={g.label} className="md:mb-2 md:block flex gap-1">
           <p className="hidden md:block text-[10px] uppercase tracking-wider text-white/50 px-3 pt-2 pb-1">
             {g.label}

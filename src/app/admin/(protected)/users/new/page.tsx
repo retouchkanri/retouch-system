@@ -1,7 +1,12 @@
 import Link from "next/link";
+import { requireCapability } from "@/lib/auth";
+import { assignableRoles } from "@/lib/roles";
 import NewUserForm from "./NewUserForm";
 
-export default function NewUserPage() {
+export const dynamic = "force-dynamic";
+
+export default async function NewUserPage() {
+  const session = await requireCapability("users.manage");
   return (
     <div className="space-y-4 max-w-xl">
       <div className="flex items-center justify-between">
@@ -10,7 +15,7 @@ export default function NewUserPage() {
           ← 戻る
         </Link>
       </div>
-      <NewUserForm />
+      <NewUserForm assignableRoles={assignableRoles(session.role)} />
     </div>
   );
 }

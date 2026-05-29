@@ -1,9 +1,11 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireCapability } from "@/lib/auth";
 import { formatYen } from "@/lib/format";
 import PlanForm from "./PlanForm";
 import PlanRow from "./PlanRow";
 
 export default async function AdminPlansPage() {
+  await requireCapability("plans.manage");
   const supabase = createSupabaseServerClient();
   const { data: plans } = await supabase
     .from("membership_plans")

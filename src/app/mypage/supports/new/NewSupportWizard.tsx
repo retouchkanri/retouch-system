@@ -5,39 +5,36 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import horseImage from "@/assets/images/horse.png";
 import type { Horse, MembershipPlan } from "@/types/db";
+import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
 import { formatYen } from "@/lib/format";
 
 type Props = {
   horses: Horse[];
-  plans: MembershipPlan[];
+  plan: MembershipPlan | null;
   existingHorseIds: string[];
   disabled: boolean;
 };
 
-export default function NewSupportWizard({ horses, plans, existingHorseIds, disabled }: Props) {
+export default function NewSupportWizard({ horses, plan, existingHorseIds, disabled }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [horseId, setHorseId] = useState<string | null>(null);
-  const [planId, setPlanId] = useState<string | null>(plans[0]?.id ?? null);
   const [units, setUnits] = useState<number>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedHorse = horses.find((h) => h.id === horseId) ?? null;
-  const selectedPlan = plans.find((p) => p.id === planId) ?? null;
-  const monthly = useMemo(() => {
-    const per = selectedPlan?.unit_amount ?? selectedPlan?.monthly_amount ?? 0;
-    return Math.round(per * units);
-  }, [selectedPlan, units]);
+  // Support is always priced at SUPPORT_UNIT_PRICE per 口; a half share is units 0.5.
+  const monthly = useMemo(() => Math.round(SUPPORT_UNIT_PRICE * units), [units]);
 
   const submit = async () => {
-    if (!horseId || !planId || units <= 0) return;
+    if (!horseId || !plan || units <= 0) return;
     setSubmitting(true);
     setError(null);
     const res = await fetch("/api/mypage/supports", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ horse_id: horseId, plan_id: planId, units }),
+      body: JSON.stringify({ horse_id: horseId, plan_id: plan.id, units }),
     });
     const j = await res.json();
     setSubmitting(false);
@@ -114,24 +111,10 @@ export default function NewSupportWizard({ horses, plans, existingHorseIds, disa
 
       {step === 2 && (
         <div>
-          <h2 className="section-title">口数と種類を選ぶ</h2>
-          <div className="space-y-2 mb-4">
-            {plans.map((p) => (
-              <label key={p.id} className={`border-2 rounded-xl p-3 flex items-center justify-between cursor-pointer
-                ${planId === p.id ? "border-brand bg-brand-50" : "border-surface-line"}`}>
-                <div>
-                  <p className="font-bold">{p.name}</p>
-                  <p className="text-sm text-ink-soft">1口あたり {formatYen(p.unit_amount ?? p.monthly_amount)} / 月</p>
-                </div>
-                <input
-                  type="radio"
-                  className="w-5 h-5"
-                  name="plan"
-                  checked={planId === p.id}
-                  onChange={() => setPlanId(p.id)}
-                />
-              </label>
-            ))}
+          <h2 className="section-title">口数を選ぶ</h2>
+          <div className="border-2 border-surface-line rounded-xl p-3 mb-4">
+            <p className="font-bold">{plan?.name ?? "支援会員"}</p>
+            <p className="text-sm text-ink-soft">1口 {formatYen(SUPPORT_UNIT_PRICE)} / 月（半口＝0.5口）</p>
           </div>
           <div>
             <label className="label">口数</label>
@@ -149,7 +132,7 @@ export default function NewSupportWizard({ horses, plans, existingHorseIds, disa
           </div>
           <div className="flex justify-between mt-4">
             <button className="btn-ghost" onClick={() => setStep(1)}>戻る</button>
-            <button className="btn-primary" disabled={!planId || units <= 0} onClick={() => setStep(3)}>内容を確認する</button>
+            <button className="btn-primary" disabled={!plan || units <= 0} onClick={() => setStep(3)}>内容を確認する</button>
           </div>
         </div>
       )}
@@ -159,7 +142,7 @@ export default function NewSupportWizard({ horses, plans, existingHorseIds, disa
           <h2 className="section-title">内容確認</h2>
           <dl className="divide-y divide-surface-line mb-4">
             <div className="py-3 flex justify-between"><dt className="text-ink-soft">支援する馬</dt><dd className="font-bold">{selectedHorse?.name}</dd></div>
-            <div className="py-3 flex justify-between"><dt className="text-ink-soft">支援内容</dt><dd className="font-bold">{selectedPlan?.name}</dd></div>
+            <div className="py-3 flex justify-between"><dt className="text-ink-soft">支援内容</dt><dd className="font-bold">{plan?.name ?? "支援会員"}</dd></div>
             <div className="py-3 flex justify-between"><dt className="text-ink-soft">口数</dt><dd className="font-bold">{units} 口</dd></div>
             <div className="py-3 flex justify-between"><dt className="text-ink-soft">月額見込み</dt><dd className="font-bold text-brand">{formatYen(monthly)}</dd></div>
           </dl>

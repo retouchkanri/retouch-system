@@ -5,6 +5,7 @@ import horseImage from "@/assets/images/horse.png";
 import { requireMember } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadPlans } from "@/lib/customer";
+import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
 import type { SupportSubscription } from "@/types/db";
 import ChangeSupportForm from "./ChangeSupportForm";
 
@@ -23,7 +24,11 @@ export default async function ChangeSupportPage({ params }: { params: { id: stri
   const support = data as SupportSubscription | null;
   if (!support) return notFound();
 
-  const plans = (await loadPlans()).filter((p) => p.code === "SUPPORT");
+  const supportPlans = (await loadPlans()).filter((p) => p.code === "SUPPORT");
+  const supportPlan =
+    supportPlans.find((p) => (p.unit_amount ?? p.monthly_amount) === SUPPORT_UNIT_PRICE) ??
+    supportPlans[0] ??
+    null;
 
   return (
     <div className="space-y-4">
@@ -48,7 +53,7 @@ export default async function ChangeSupportPage({ params }: { params: { id: stri
           </div>
         </div>
       </div>
-      <ChangeSupportForm support={support} plans={plans} />
+      <ChangeSupportForm support={support} plan={supportPlan} />
       <Link href={`/mypage/supports/${support.id}/stop`} className="btn-ghost w-full text-danger border-2 border-danger">
         この支援を停止する
       </Link>
