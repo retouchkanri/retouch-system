@@ -50,6 +50,11 @@ export function memberClassLabel(code: string | null | undefined): string {
   }
 }
 
+/** 寄付の支払方法ラベル（既定はカード）。 */
+export function donationMethodLabel(method: string | null | undefined): string {
+  return method === "bank_transfer" ? "銀行振込" : "カード";
+}
+
 export function genderLabel(gender: string | null | undefined): string {
   switch (gender) {
     case "male":

@@ -15,6 +15,11 @@ type DonationView = {
   status: string;
   status_label: string;
   message: string;
+  payment_method: string;
+  payment_method_label: string;
+  confirmed_at_label: string;
+  confirmed_at_value: string;
+  note: string;
   donated_at: string;
 };
 
@@ -27,6 +32,9 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
   const [donorName, setDonorName] = useState(donation.donor_name);
   const [donorEmail, setDonorEmail] = useState(donation.donor_email);
   const [message, setMessage] = useState(donation.message);
+  const [paymentMethod, setPaymentMethod] = useState(donation.payment_method || "card");
+  const [confirmedAt, setConfirmedAt] = useState(donation.confirmed_at_value);
+  const [note, setNote] = useState(donation.note);
 
   const save = async () => {
     setBusy(true);
@@ -35,6 +43,9 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
       status,
       donor_name: donorName || null,
       message: message || null,
+      payment_method: paymentMethod,
+      confirmed_at: confirmedAt || null,
+      note: note || null,
     };
     if (donorEmail) payload.donor_email = donorEmail;
     const res = await fetch(`/api/admin/donations/${donation.id}`, {
@@ -85,8 +96,17 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
         </td>
         <td>{donation.amount_label}</td>
         <td>{donation.status_label}</td>
-        <td className="text-xs max-w-[260px] truncate" title={donation.message}>
+        <td>
+          <span className={donation.payment_method === "bank_transfer" ? "chip-warn" : "chip-mute"}>
+            {donation.payment_method_label}
+          </span>
+        </td>
+        <td className="whitespace-nowrap">{donation.confirmed_at_label || "—"}</td>
+        <td className="text-xs max-w-[220px] truncate" title={donation.message}>
           {donation.message || "—"}
+        </td>
+        <td className="text-xs max-w-[200px] truncate" title={donation.note}>
+          {donation.note || "—"}
         </td>
         <td className="text-right whitespace-nowrap">
           <button className="text-brand underline text-sm mr-3" onClick={() => setEditing((v) => !v)}>
@@ -99,7 +119,7 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
       </tr>
       {editing && (
         <tr>
-          <td colSpan={8} className="bg-surface-soft">
+          <td colSpan={11} className="bg-surface-soft">
             <div className="p-3 grid sm:grid-cols-4 gap-3">
               <div>
                 <label className="label">金額</label>
@@ -116,12 +136,27 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
                 </select>
               </div>
               <div>
+                <label className="label">支払方法</label>
+                <select className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                  <option value="card">カード</option>
+                  <option value="bank_transfer">銀行振込</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">入金確認日</label>
+                <input type="date" className="input" value={confirmedAt} onChange={(e) => setConfirmedAt(e.target.value)} />
+              </div>
+              <div>
                 <label className="label">寄付者名</label>
                 <input className="input" value={donorName} onChange={(e) => setDonorName(e.target.value)} />
               </div>
               <div>
                 <label className="label">寄付者メール</label>
                 <input type="email" className="input" value={donorEmail} onChange={(e) => setDonorEmail(e.target.value)} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">備考</label>
+                <input className="input" value={note} onChange={(e) => setNote(e.target.value)} />
               </div>
               <div className="sm:col-span-4">
                 <label className="label">メッセージ</label>

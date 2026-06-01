@@ -183,9 +183,20 @@ create table if not exists public.donations (
   stripe_payment_intent_id text unique,
   stripe_checkout_session_id text,
   status payment_status not null default 'succeeded',
+  payment_method text not null default 'card' check (payment_method in ('card','bank_transfer')),
+  confirmed_at timestamptz,
+  note text,
   donated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
+-- 既存DB向け（create table が既存テーブルをスキップした場合に備える）
+alter table public.donations
+  add column if not exists payment_method text not null default 'card';
+alter table public.donations drop constraint if exists donations_payment_method_check;
+alter table public.donations
+  add constraint donations_payment_method_check check (payment_method in ('card','bank_transfer'));
+alter table public.donations add column if not exists confirmed_at timestamptz;
+alter table public.donations add column if not exists note text;
 create index if not exists donations_customer_idx on public.donations (customer_id);
 create index if not exists donations_date_idx on public.donations (donated_at desc);
 
@@ -483,6 +494,21 @@ begin
 exception when others then
   raise notice 'RPT plan seed skipped (enum value not yet committed — re-run this script once more): %', sqlerrm;
 end $$;
+
+-- 重複プランの自動整理（要件 #5）。会員名変更後にこのseedが再実行されると
+-- 旧名称（A会員 等）が空の重複として再作成されるため、契約0件かつ「契約ありの
+-- 同コード兄弟」が存在するプランのみ無効化する。契約が紐づくプランは残す。
+-- 新規インストール（契約0件）では何も無効化されない。削除はしない。
+update public.membership_plans mp
+set is_active = false, updated_at = now()
+where mp.is_active = true
+  and not exists (select 1 from public.contracts c where c.plan_id = mp.id)
+  and exists (
+    select 1
+    from public.membership_plans sib
+    join public.contracts c2 on c2.plan_id = sib.id
+    where sib.code = mp.code and sib.id <> mp.id
+  );
 
 insert into public.horses (name, name_kana, sex, birth_year, profile, is_supportable, sort_order)
 select v.name, v.kana, v.sex, v.y, v.bio, true, v.ord

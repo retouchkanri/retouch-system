@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formatDate, formatYen, statusLabel } from "@/lib/format";
+import { donationMethodLabel, formatDate, formatYen, statusLabel } from "@/lib/format";
 import DonationRow from "./DonationRow";
 import DonationForm from "./DonationForm";
 
@@ -87,7 +87,10 @@ export default async function AdminDonationsPage({
               <th>会員</th>
               <th>金額</th>
               <th>状態</th>
+              <th>支払方法</th>
+              <th>入金確認日</th>
               <th>メッセージ</th>
+              <th>備考</th>
               <th></th>
             </tr>
           </thead>
@@ -108,13 +111,18 @@ export default async function AdminDonationsPage({
                   status: d.status,
                   status_label: statusLabel(d.status),
                   message: d.message ?? "",
+                  payment_method: d.payment_method ?? "card",
+                  payment_method_label: donationMethodLabel(d.payment_method),
+                  confirmed_at_label: d.confirmed_at ? formatDate(d.confirmed_at) : "",
+                  confirmed_at_value: d.confirmed_at ? String(d.confirmed_at).slice(0, 10) : "",
+                  note: d.note ?? "",
                   donated_at: formatDate(d.donated_at, true),
                 }}
               />
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-center py-6 text-ink-mute">
+                <td colSpan={11} className="text-center py-6 text-ink-mute">
                   該当する寄付がありません。
                 </td>
               </tr>

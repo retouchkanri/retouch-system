@@ -11,6 +11,9 @@ export default function DonationForm() {
     amount: "3000",
     message: "",
     status: "succeeded" as "succeeded" | "pending" | "failed" | "refunded",
+    payment_method: "bank_transfer" as "card" | "bank_transfer",
+    confirmed_at: "",
+    note: "",
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -29,6 +32,9 @@ export default function DonationForm() {
       status: form.status,
       message: form.message || null,
       donor_name: form.donor_name || null,
+      payment_method: form.payment_method,
+      confirmed_at: form.confirmed_at || null,
+      note: form.note || null,
     };
     if (form.customer_id) payload.customer_id = form.customer_id;
     if (form.donor_email) payload.donor_email = form.donor_email;
@@ -51,6 +57,9 @@ export default function DonationForm() {
       amount: "3000",
       message: "",
       status: "succeeded",
+      payment_method: "bank_transfer",
+      confirmed_at: "",
+      note: "",
     });
     router.refresh();
   };
@@ -82,7 +91,22 @@ export default function DonationForm() {
           <option value="refunded">返金済</option>
         </select>
       </div>
-      <div className="md:col-span-3">
+      <div>
+        <label className="label">支払方法</label>
+        <select className="input" value={form.payment_method} onChange={set("payment_method")}>
+          <option value="bank_transfer">銀行振込</option>
+          <option value="card">カード</option>
+        </select>
+      </div>
+      <div>
+        <label className="label">入金確認日</label>
+        <input type="date" className="input" value={form.confirmed_at} onChange={set("confirmed_at")} />
+      </div>
+      <div className="md:col-span-2">
+        <label className="label">備考</label>
+        <input className="input" value={form.note} onChange={set("note")} placeholder="振込名義・確認メモなど" />
+      </div>
+      <div className="md:col-span-4">
         <label className="label">メッセージ</label>
         <input className="input" value={form.message} onChange={set("message")} />
       </div>

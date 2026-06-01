@@ -86,6 +86,8 @@ export type SupportSubscription = {
   horse?: Horse | null;
 };
 
+export type DonationPaymentMethod = "card" | "bank_transfer";
+
 export type Donation = {
   id: string;
   customer_id: string | null;
@@ -94,6 +96,12 @@ export type Donation = {
   amount: number;
   message: string | null;
   status: PaymentStatus;
+  /** 支払方法：カード（Stripe）／銀行振込（手動登録）。 */
+  payment_method: DonationPaymentMethod;
+  /** 入金確認日（銀行振込の着金確認日など）。 */
+  confirmed_at: string | null;
+  /** 備考（管理用メモ。寄付者の message とは別）。 */
+  note: string | null;
   donated_at: string;
 };
 

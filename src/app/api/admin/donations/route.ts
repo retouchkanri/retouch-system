@@ -12,6 +12,9 @@ const schema = z.object({
   status: z
     .enum(["succeeded", "failed", "pending", "refunded", "canceled"])
     .default("succeeded"),
+  payment_method: z.enum(["card", "bank_transfer"]).default("card"),
+  confirmed_at: z.string().optional().nullable(),
+  note: z.string().max(1000).optional().nullable(),
   donated_at: z.string().datetime().optional(),
 });
 
@@ -49,6 +52,9 @@ export async function POST(req: Request) {
       amount: parsed.data.amount,
       message: parsed.data.message ?? null,
       status: parsed.data.status,
+      payment_method: parsed.data.payment_method,
+      confirmed_at: parsed.data.confirmed_at || null,
+      note: parsed.data.note ?? null,
       donated_at: parsed.data.donated_at ?? new Date().toISOString(),
     })
     .select("id")
