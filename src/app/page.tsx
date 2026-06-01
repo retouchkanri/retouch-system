@@ -29,7 +29,7 @@ export default async function HomePage() {
     .then((r) => r, () => ({ data: null }));
 
   return (
-    <div className="flex flex-col min-h-0 flex-1">
+    <div className="flex flex-col min-h-0 flex-1 overflow-x-hidden max-w-full">
       <HomeHeroEffect />
 
       {/* ── HERO ── */}
@@ -171,9 +171,14 @@ export default async function HomePage() {
                   </li>
                 ))}
               </ul>
-              <Link href="/admin/login" className="mt-8 inline-flex items-center justify-center bg-brand-light text-brand-dark font-bold px-6 py-3 hover:brightness-105 transition text-base active:scale-[0.97]">
-                管理者ログイン →
-              </Link>
+              <div className="mt-8 flex justify-center lg:justify-start">
+                <Link
+                  href="/admin/login"
+                  className="inline-flex items-center justify-center rounded-full bg-brand-light text-brand-dark font-bold px-6 py-3 hover:brightness-105 transition text-base active:scale-[0.97] shadow-md"
+                >
+                  管理者ログイン →
+                </Link>
+              </div>
             </div>
             <div className="overflow-hidden rounded-xl shadow-2xl border border-white/10">
               <Image src={adminImage} alt="管理者ダッシュボード画面" className="w-full h-auto" />
@@ -208,7 +213,7 @@ export default async function HomePage() {
                   </li>
                 ))}
               </ul>
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-8 flex flex-wrap gap-3 justify-center lg:justify-start">
                 <Link href="/signup" className="btn-primary btn-pulse">会員登録する</Link>
                 <Link href="/login" className="btn-secondary">ログイン</Link>
               </div>
@@ -494,12 +499,12 @@ export default async function HomePage() {
 
       {/* Footer */}
       <footer className="bg-ink py-10 text-center">
-        <p className="font-brand text-brand-light text-xl mb-2">Retouch</p>
+        <p className="font-serif text-brand-light text-xl mb-2">Retouch</p>
         <p className="text-white/40 text-xs">© 2026 引退競走馬支援プロジェクト</p>
       </footer>
 
-      {/* Bottom padding for mobile CTA bar */}
-      <div className="h-16 md:hidden" />
+      {/* Bottom padding for mobile CTA bar + floating controls */}
+      <div className="h-20 md:hidden" aria-hidden />
 
       <BottomRightPanel />
     </div>

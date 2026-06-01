@@ -58,7 +58,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
-      <body className="flex min-h-dvh flex-col bg-surface-soft text-ink antialiased font-sans">
+      <body className="flex min-h-dvh flex-col overflow-x-hidden bg-surface-soft text-ink antialiased font-sans">
         <SiteHeader />
         <div className="flex min-h-0 flex-1 flex-col">{children}</div>
       </body>

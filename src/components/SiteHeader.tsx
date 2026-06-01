@@ -38,11 +38,10 @@ export default async function SiteHeader() {
   return (
     <>
       <header className="site-header sticky top-0 z-[100] w-full shrink-0 bg-white/95 backdrop-blur border-b border-surface-line">
-        <div className="w-full flex items-center justify-between gap-3 py-3 pr-[5vw]">
+        <div className="w-full max-w-[100vw] flex items-center justify-between gap-3 py-3 px-[5vw] overflow-hidden">
           <Link
             href="/"
-            className="flex items-center min-w-0 gap-3"
-            style={{ marginLeft: "5vw" }}
+            className="flex items-center min-w-0 gap-3 shrink"
             aria-label="Retouchメンバーズサイト"
           >
             <Image
@@ -98,20 +97,14 @@ export default async function SiteHeader() {
         </div>
       </header>
 
-      {/* Mobile sticky bottom CTA bar */}
+      {/* Mobile sticky bottom CTA bar — centred pill buttons */}
       {!session && (
         <div className="mobile-cta-bar">
-          <a href="tel:050-6875-3336" className="flex items-center gap-1.5 text-sm font-semibold text-ink shrink-0">
-            <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="#2d6a4f" strokeWidth="1.5">
-              <path d="M17.5 14.1v2.4a1.6 1.6 0 01-1.7 1.6A15.8 15.8 0 012 4.2 1.6 1.6 0 013.6 2.5H6a1.6 1.6 0 011.6 1.4c.1.8.3 1.5.6 2.2a1.6 1.6 0 01-.4 1.7l-1 1a12.8 12.8 0 004.8 4.8l1-1a1.6 1.6 0 011.7-.4c.7.3 1.4.5 2.2.6a1.6 1.6 0 011.4 1.6z" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            電話
-          </a>
-          <div className="flex gap-2 flex-1 justify-end">
-            <Link href="/login" className="bg-white text-brand border-2 border-brand px-4 py-2.5 text-sm font-bold text-center flex-1 max-w-[120px]">
+          <div className="mobile-cta-bar__actions">
+            <Link href="/login" className="mobile-cta-btn mobile-cta-btn--secondary">
               ログイン
             </Link>
-            <Link href="/signup" className="bg-brand text-white px-4 py-2.5 text-sm font-bold text-center flex-1 max-w-[140px] btn-pulse">
+            <Link href="/signup" className="mobile-cta-btn mobile-cta-btn--primary btn-pulse">
               無料会員登録
             </Link>
           </div>
