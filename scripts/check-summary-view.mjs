@@ -10,8 +10,9 @@ const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABA
 
 const { data, error } = await sb
   .from("v_customer_summary")
-  .select("customer_id, member_class_code, primary_plan_code, total_support_units, total_support_horses")
-  .limit(5);
+  .select("customer_id, member_class_code, total_support_units, total_support_horses, rpt_active, special_team_count, special_team_names")
+  .or("rpt_active.eq.true,special_team_count.gt.0,member_class_code.eq.SUPPORT")
+  .limit(8);
 
 if (error) {
   console.log("VIEW QUERY ERROR:", error.message);

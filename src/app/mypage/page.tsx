@@ -15,7 +15,7 @@ import {
 } from "@/lib/customer";
 import SpecialTeamStopButton from "./SpecialTeamStopButton";
 import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED } from "@/lib/featureFlags";
-import { formatDate, formatUnits, formatYen } from "@/lib/format";
+import { formatDate, formatUnits, formatYen, memberClassLabel } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   describePaymentDisplay,
@@ -102,15 +102,17 @@ export default async function MyPageTop() {
   // 次のバッジまでのヒント（スタッフ＝王冠には表示しない）。
   const nextBadgeText = memberBadge.kind === "full" ? null : nextBadgeHint(badgeStats);
 
-  const planBadgeText =
-    summary?.primary_plan_name ??
-    (summary?.rpt_active
-      ? "リタポメンバー"
-      : (summary?.special_team_count ?? 0) > 0
-      ? "特別チーム会員"
-      : supports.length > 0
-      ? "支援会員"
-      : "未加入");
+  // 会員種別は大分類のみ（サポーター/メンバーズ/リリーフ/支援馬会員）。
+  // リタポ・特別チームは「特別参加」として別タグで表示し、会員種別には混ぜない。
+  const hasSpecial = Boolean(summary?.rpt_active) || (summary?.special_team_count ?? 0) > 0;
+  const specialTeamNames: string[] = Array.isArray(summary?.special_team_names)
+    ? (summary?.special_team_names as string[])
+    : [];
+  const planBadgeText = summary?.member_class_code
+    ? memberClassLabel(summary.member_class_code)
+    : hasSpecial
+    ? "—"
+    : "未加入";
 
   const nextPaymentAt =
     contract?.current_period_end ?? summary?.next_payment_at ?? null;
@@ -179,6 +181,17 @@ export default async function MyPageTop() {
           <div className="space-y-1">
             <p className="label">現在の会員種別</p>
             <p className="text-lg font-bold">{planBadgeText}</p>
+            {hasSpecial && (
+              <div className="pt-0.5">
+                <span className="text-xs text-ink-soft">特別参加：</span>
+                <span className="inline-flex flex-wrap gap-1 align-middle">
+                  {summary?.rpt_active && <span className="chip-mute">リタポ</span>}
+                  {specialTeamNames.map((n) => (
+                    <span key={n} className="chip-mute">{n}</span>
+                  ))}
+                </span>
+              </div>
+            )}
             <Link href="/mypage/plan" className="text-brand underline text-sm">
               会員種別を変更
             </Link>
