@@ -8,9 +8,12 @@ import {
   ROLE_LABELS_JP,
   ROLES,
   canManageRole,
+  resolveBadge,
   toRole,
+  type Badge,
   type Role,
 } from "@/lib/roles";
+import { loadPaymentStats } from "@/lib/badge";
 import RoleBadge from "@/components/RoleBadge";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +23,7 @@ type Row = {
   email: string;
   full_name: string | null;
   role: Role;
-  hasRpt: boolean;
+  badge: Badge;
   customer_status: string | null;
   avatar_url: string | null;
   created_at: string;
@@ -52,10 +55,13 @@ export default async function AdminUsersPage({
   const { data: customers } = customerIds.length
     ? await admin
         .from("customers")
-        .select("id, full_name, email, status, avatar_url")
+        .select("id, full_name, email, status, avatar_url, joined_at, created_at")
         .in("id", customerIds)
     : { data: [] as any[] };
   const customerMap = new Map<string, any>((customers ?? []).map((c: any) => [c.id, c]));
+
+  // Succeeded-payment stats (first payment + total paid) drive the member badge.
+  const payStats = await loadPaymentStats(admin, customerIds);
 
   // Customers holding an RPT (RetouchPony【リタポ】) contract — forced gold badge.
   const rptCustomerIds = new Set<string>();
@@ -84,12 +90,19 @@ export default async function AdminUsersPage({
     const cust = p.customer_id ? customerMap.get(p.customer_id) : null;
     const r = toRole(p.role);
     const hasRpt = !!p.customer_id && rptCustomerIds.has(p.customer_id);
+    const stat = p.customer_id ? payStats.get(p.customer_id) : undefined;
+    const badge = resolveBadge(r, {
+      registeredAt: cust?.joined_at ?? cust?.created_at ?? p.created_at ?? null,
+      firstPaymentAt: stat?.firstPaymentAt ?? null,
+      totalPaidYen: stat?.totalPaidYen ?? 0,
+      hasActiveRpt: hasRpt,
+    });
     return {
       id: p.id,
       email: cust?.email ?? emailFallback.get(p.id) ?? "",
       full_name: cust?.full_name ?? null,
       role: r,
-      hasRpt,
+      badge,
       customer_status: cust?.status ?? null,
       avatar_url: cust?.avatar_url ?? null,
       created_at: p.created_at,
@@ -180,7 +193,7 @@ export default async function AdminUsersPage({
                   <span className="chip-mute">{ROLE_LABELS_JP[r.role]}</span>
                 </td>
                 <td>
-                  <RoleBadge role={r.role} hasActiveRpt={r.hasRpt} />
+                  <RoleBadge badge={r.badge} />
                 </td>
                 <td>{r.customer_status ?? "—"}</td>
                 <td>{formatDate(r.created_at)}</td>

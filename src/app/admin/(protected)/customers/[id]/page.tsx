@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formatDate, formatUnits, formatYen, statusLabel } from "@/lib/format";
+import { formatDate, formatUnits, formatYen, memberClassLabel, statusLabel } from "@/lib/format";
 import InfoEditor from "./InfoEditor";
 import MemoEditor from "./MemoEditor";
 import StatusEditor from "./StatusEditor";
+import TeamNameEditor from "./TeamNameEditor";
 
 export default async function CustomerDetail({ params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient();
@@ -73,10 +74,18 @@ export default async function CustomerDetail({ params }: { params: { id: string 
       <div className="grid md:grid-cols-4 gap-3">
         <div className="card">
           <p className="text-xs text-ink-soft">会員種別</p>
-          <p className="text-lg font-bold">{s?.primary_plan_name ?? "—"}</p>
+          <p className="text-lg font-bold">{memberClassLabel(s?.member_class_code)}</p>
+          {(s?.rpt_active || (s?.special_team_count ?? 0) > 0) && (
+            <p className="mt-1 flex flex-wrap gap-1">
+              {s?.rpt_active && <span className="chip-mute">リタポ</span>}
+              {(Array.isArray(s?.special_team_names) ? s.special_team_names : []).map((name: string) => (
+                <span key={name} className="chip-mute">{name}</span>
+              ))}
+            </p>
+          )}
         </div>
         <div className="card">
-          <p className="text-xs text-ink-soft">支援状況</p>
+          <p className="text-xs text-ink-soft">支援数</p>
           <p className="text-lg font-bold">{s?.total_support_horses ?? 0}頭 / {formatUnits(s?.total_support_units ?? 0)}</p>
         </div>
         <div className="card">
@@ -141,21 +150,23 @@ export default async function CustomerDetail({ params }: { params: { id: string 
       <section className="card">
         <h2 className="section-title">特別チーム会員</h2>
         <table className="table">
-          <thead><tr><th className="w-12 text-right">No.</th><th>馬</th><th>月額</th><th>状態</th><th>開始</th><th>停止</th></tr></thead>
+          <thead><tr><th className="w-12 text-right">No.</th><th>馬</th><th>チーム名</th><th>月額</th><th>状態</th><th>開始</th><th>停止</th></tr></thead>
           <tbody>
             {(specialTeams ?? []).map((x: any, i: number) => (
               <tr key={x.id}>
                 <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
                 <td>{x.horse?.name ?? "—"}</td>
+                <td><TeamNameEditor membershipId={x.id} initialName={x.team_name ?? ""} /></td>
                 <td>{formatYen(x.monthly_amount)}</td>
                 <td>{statusLabel(x.status)}</td>
                 <td>{formatDate(x.started_at)}</td>
                 <td>{x.canceled_at ? formatDate(x.canceled_at) : "—"}</td>
               </tr>
             ))}
-            {(specialTeams ?? []).length === 0 && <tr><td colSpan={6} className="text-center text-ink-mute py-3">特別チーム会員の登録はありません。</td></tr>}
+            {(specialTeams ?? []).length === 0 && <tr><td colSpan={7} className="text-center text-ink-mute py-3">特別チーム会員の登録はありません。</td></tr>}
           </tbody>
         </table>
+        <p className="mt-2 text-xs text-ink-soft">チーム名は「目の負傷『ガンガン支援チーム』」のように、特別参加のタグとして顧客一覧に表示されます。未入力の場合は馬名で表示されます。</p>
       </section>
 
       <section className="card">
@@ -317,21 +328,29 @@ export default async function CustomerDetail({ params }: { params: { id: string 
       <section className="card">
         <h2 className="section-title">決済履歴</h2>
         <table className="table">
-          <thead><tr><th className="w-12 text-right">No.</th><th>日時</th><th>種別</th><th>金額</th><th>状態</th><th>失敗理由</th></tr></thead>
+          <thead><tr><th className="w-12 text-right">No.</th><th>日時</th><th>種別</th><th>金額</th><th>状態</th><th>失敗理由</th><th>Stripe請求/決済ID</th></tr></thead>
           <tbody>
-            {(payments ?? []).map((p: any, i: number) => (
-              <tr key={p.id}>
-                <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
-                <td>{formatDate(p.occurred_at, true)}</td>
-                <td>{p.kind}</td>
-                <td>{formatYen(p.amount)}</td>
-                <td>{statusLabel(p.status)}</td>
-                <td className="text-xs">{p.failure_reason ?? "—"}</td>
-              </tr>
-            ))}
-            {(payments ?? []).length === 0 && <tr><td colSpan={6} className="text-center text-ink-mute py-3">決済履歴はまだありません。</td></tr>}
+            {(payments ?? []).map((p: any, i: number) => {
+              const stripeId = p.stripe_invoice_id || p.stripe_payment_intent_id || "";
+              return (
+                <tr key={p.id}>
+                  <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
+                  <td>{formatDate(p.occurred_at, true)}</td>
+                  <td>{p.kind}</td>
+                  <td>{formatYen(p.amount)}</td>
+                  <td>{statusLabel(p.status)}</td>
+                  <td className="text-xs">{p.failure_reason ?? "—"}</td>
+                  <td className="font-mono text-[11px] max-w-[200px] truncate" title={stripeId}>{stripeId || "—"}</td>
+                </tr>
+              );
+            })}
+            {(payments ?? []).length === 0 && <tr><td colSpan={7} className="text-center text-ink-mute py-3">決済履歴はまだありません。</td></tr>}
           </tbody>
         </table>
+        <p className="mt-2 text-xs text-ink-soft">
+          500円などの端数は、Stripe側の月途中の追加・変更・停止による日割り調整（Proration）で発生する場合があります。
+          照合の際は、上記のStripe請求ID／決済IDをStripe管理画面で検索し、請求書の明細行をご確認ください。
+        </p>
       </section>
 
       <section className="card">

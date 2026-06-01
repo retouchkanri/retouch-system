@@ -3,6 +3,8 @@ import Link from "next/link";
 import horseImage from "@/assets/images/horse.png";
 import { requireMember } from "@/lib/auth";
 import RoleBadge from "@/components/RoleBadge";
+import { resolveBadge, nextBadgeHint } from "@/lib/roles";
+import { loadPaymentStat } from "@/lib/badge";
 import {
   loadActiveContract,
   loadActiveSpecialTeam,
@@ -87,8 +89,28 @@ export default async function MyPageTop() {
   const basicMonthly = contract?.plan?.monthly_amount ?? 0;
   const monthlyGrandTotal = supportMonthlyTotal + basicMonthly;
 
+  // Tenure/payment-based badge (bronze: 登録2か月+ / silver: 支払い6か月+ /
+  // gold: 6か月+ かつ 累計¥100,000+ または リタポ保有)。
+  const payStat = await loadPaymentStat(supabase, customerId);
+  const badgeStats = {
+    registeredAt: customer?.joined_at ?? customer?.created_at ?? null,
+    firstPaymentAt: payStat.firstPaymentAt,
+    totalPaidYen: payStat.totalPaidYen,
+    hasActiveRpt: session.hasActiveRpt,
+  };
+  const memberBadge = resolveBadge(session.role, badgeStats);
+  // 次のバッジまでのヒント（スタッフ＝王冠には表示しない）。
+  const nextBadgeText = memberBadge.kind === "full" ? null : nextBadgeHint(badgeStats);
+
   const planBadgeText =
-    summary?.primary_plan_name ?? (supports.length > 0 ? "支援会員" : "未加入");
+    summary?.primary_plan_name ??
+    (summary?.rpt_active
+      ? "リタポメンバー"
+      : (summary?.special_team_count ?? 0) > 0
+      ? "特別チーム会員"
+      : supports.length > 0
+      ? "支援会員"
+      : "未加入");
 
   const nextPaymentAt =
     contract?.current_period_end ?? summary?.next_payment_at ?? null;
@@ -126,8 +148,11 @@ export default async function MyPageTop() {
           <p className="text-sm opacity-80">こんにちは</p>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <h1 className="text-2xl font-bold">{customer?.full_name ?? "会員"}様</h1>
-            <RoleBadge role={session.role} hasActiveRpt={session.hasActiveRpt} />
+            <RoleBadge badge={memberBadge} />
           </div>
+          {nextBadgeText && (
+            <p className="text-xs opacity-80 mt-1">🎖 {nextBadgeText}</p>
+          )}
 
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[

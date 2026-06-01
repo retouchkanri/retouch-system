@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ROLES, ROLE_LABELS_JP, type Role } from "@/lib/roles";
 
 export default function SignupForm() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<Role>("member");
   const [avatar, setAvatar] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +29,6 @@ export default function SignupForm() {
       fd.append("fullName", fullName);
       fd.append("email", email);
       fd.append("password", password);
-      fd.append("role", role);
       if (avatar) fd.append("avatar", avatar);
 
       const res = await fetch("/api/auth/signup", { method: "POST", body: fd });
@@ -69,16 +66,6 @@ export default function SignupForm() {
             className="text-sm"
           />
         </div>
-      </div>
-      <div>
-        <label className="label">権限</label>
-        <select className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-          {ROLES.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABELS_JP[r]}
-            </option>
-          ))}
-        </select>
       </div>
       <div>
         <label className="label">お名前</label>

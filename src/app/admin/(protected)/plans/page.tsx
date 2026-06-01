@@ -10,8 +10,12 @@ export default async function AdminPlansPage() {
   const { data: plans } = await supabase
     .from("membership_plans")
     .select("*")
+    .order("is_active", { ascending: false })
     .order("sort_order")
     .order("monthly_amount");
+
+  const activeCount = (plans ?? []).filter((p: any) => p.is_active).length;
+  const inactiveCount = (plans ?? []).length - activeCount;
 
   return (
     <div className="space-y-4">
@@ -19,6 +23,12 @@ export default async function AdminPlansPage() {
       <p className="text-sm text-ink-soft">
         A/B/C・特別チーム・支援プランの料金・説明・Stripe価格IDなどを編集できます。
         契約中の顧客がいるプランは削除できません（無効化されます）。
+      </p>
+      <p className="text-sm text-ink-soft">
+        有効 {activeCount} 件 / 無効 {inactiveCount} 件。
+        旧名称・旧料金のプランは、過去の契約や決済履歴との紐づきを保つため削除せず「無効」のまま残します
+        （無効プランは下部にまとめて薄く表示されます）。新規の会員登録では「有効」プランのみ選択されます。
+        旧プランを整理する場合は、各行の「編集」から「有効」チェックを外して無効化してください。
       </p>
 
       <details className="card">

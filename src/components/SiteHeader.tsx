@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { resolveAvatarUrl } from "@/lib/avatars";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { resolveBadge, type Badge } from "@/lib/roles";
+import { loadPaymentStat } from "@/lib/badge";
 import HeaderUserMenu from "./HeaderUserMenu";
 
 export default async function SiteHeader() {
@@ -10,16 +12,24 @@ export default async function SiteHeader() {
 
   let name = "";
   let avatarUrl: string | null = null;
+  let badge: Badge = { kind: "none" };
   if (session) {
     try {
       const admin = createSupabaseAdminClient();
       const { data } = await admin
         .from("customers")
-        .select("full_name, avatar_url")
+        .select("full_name, avatar_url, joined_at, created_at")
         .eq("auth_user_id", session.userId)
         .maybeSingle();
       name = (data?.full_name as string) ?? "";
       avatarUrl = resolveAvatarUrl(session.role, (data?.avatar_url as string | null) ?? null);
+      const stat = await loadPaymentStat(admin, session.customerId);
+      badge = resolveBadge(session.role, {
+        registeredAt: (data?.joined_at as string | null) ?? (data?.created_at as string | null) ?? null,
+        firstPaymentAt: stat.firstPaymentAt,
+        totalPaidYen: stat.totalPaidYen,
+        hasActiveRpt: session.hasActiveRpt,
+      });
     } catch {
       // Supabase unreachable
     }
@@ -58,7 +68,7 @@ export default async function SiteHeader() {
                 name={name}
                 email={session.email ?? ""}
                 role={session.role}
-                hasActiveRpt={session.hasActiveRpt}
+                badge={badge}
                 avatarUrl={avatarUrl}
               />
             ) : (
@@ -80,7 +90,7 @@ export default async function SiteHeader() {
                 name={name}
                 email={session.email ?? ""}
                 role={session.role}
-                hasActiveRpt={session.hasActiveRpt}
+                badge={badge}
                 avatarUrl={avatarUrl}
               />
             )}

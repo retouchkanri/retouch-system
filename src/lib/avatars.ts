@@ -10,9 +10,7 @@ const ROLE_DEFAULT_AVATARS: Partial<Record<Role, StaticImageData>> = {
   owner: ownerImage,
   admin: adminImage,
   moderator: horseImage,
-  honorary_member: userImage,
   member: userImage,
-  user: userImage,
 };
 
 /**

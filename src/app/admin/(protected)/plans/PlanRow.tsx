@@ -35,17 +35,20 @@ export default function PlanRow({ plan, displayYen, index }: { plan: any; displa
   }
 
   return (
-    <tr>
+    <tr className={plan.is_active ? "" : "opacity-60 bg-surface-soft"}>
       <td className="text-right text-ink-mute tabular-nums">{index}</td>
       <td className="font-mono text-xs">{plan.code}</td>
-      <td className="font-semibold">{plan.name}</td>
+      <td className="font-semibold">
+        {plan.name}
+        {!plan.is_active && <span className="chip-mute ml-2">旧プラン</span>}
+      </td>
       <td>{displayYen}</td>
       <td>{plan.unit_amount ?? "—"}</td>
       <td className="text-xs">
         {plan.allow_with_support ? "支✓" : "支✗"} / {plan.allow_with_team ? "チ✓" : "チ✗"}
       </td>
       <td className="font-mono text-[11px]">{plan.stripe_price_id ?? "—"}</td>
-      <td>{plan.is_active ? "有効" : "無効"}</td>
+      <td>{plan.is_active ? <span className="chip-ok">有効</span> : <span className="chip-mute">無効</span>}</td>
       <td>{plan.sort_order}</td>
       <td className="text-right whitespace-nowrap">
         <button className="text-brand underline text-sm mr-3" onClick={() => setEditing(true)}>

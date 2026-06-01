@@ -144,6 +144,7 @@ export type SpecialTeamMembership = {
   stripe_subscription_id: string | null;
   stripe_subscription_item_id: string | null;
   status: ContractStatus;
+  team_name: string | null;
   started_at: string;
   canceled_at: string | null;
   created_at: string;
@@ -170,11 +171,20 @@ export type CustomerSummary = {
   full_name: string;
   email: string | null;
   status: CustomerStatus;
+  /** 基本会員区分のみ（A/B/C）。RPT・特別チームは含まない。 */
   primary_plan_code: MemberPlanCode | null;
   primary_plan_name: string | null;
+  /** 会員種別コード: 基本契約(A/B/C) → 無ければ支援(SUPPORT) → 無ければ null。 */
+  member_class_code: MemberPlanCode | null;
   total_support_units: number;
   total_support_horses: number;
   monthly_total: number;
   next_payment_at: string | null;
   contract_status: ContractStatus | null;
+  /** 特別参加: リタポ（RPT）契約が有効か。 */
+  rpt_active: boolean;
+  /** 特別参加: 有効な特別チーム会員の件数。 */
+  special_team_count: number;
+  /** 特別参加: チーム名（未設定は馬名で代替）。 */
+  special_team_names: string[] | null;
 };

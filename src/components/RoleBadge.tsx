@@ -1,4 +1,4 @@
-import { MEDAL_LABELS_JP, badgeFor, type Medal, type Role } from "@/lib/roles";
+import { MEDAL_LABELS_JP, type Badge, type Medal } from "@/lib/roles";
 
 /** Staff crown icon served from /public (avoids bundling multi-MB PNGs). */
 const CROWN_ICON = "/badges/crown.png";
@@ -11,21 +11,20 @@ const MEDAL_ICON: Record<Medal, string> = {
 };
 
 /**
- * Renders the rank badge for a role using image icons.
+ * Renders a pre-resolved rank badge (see roles.resolveBadge).
  *  - Staff: N crown badges (owner ×3, admin ×2, moderator ×1).
  *  - Members: a Gold / Silver / Bronze medal with its label.
+ *  - "none": nothing (e.g. a freshly-registered member).
  * Pure presentational component — safe in both server and client trees.
  */
 export default function RoleBadge({
-  role,
-  hasActiveRpt = false,
+  badge,
   size = 20,
 }: {
-  role: Role;
-  hasActiveRpt?: boolean;
+  badge: Badge;
   size?: number;
 }) {
-  const badge = badgeFor(role, hasActiveRpt);
+  if (badge.kind === "none") return null;
 
   if (badge.kind === "full") {
     return (

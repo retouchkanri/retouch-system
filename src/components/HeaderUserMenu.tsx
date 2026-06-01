@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ROLE_LABELS_JP, isStaffRole, type Role } from "@/lib/roles";
+import { ROLE_LABELS_JP, isStaffRole, type Badge, type Role } from "@/lib/roles";
 import RoleBadge from "./RoleBadge";
 
 type Props = {
   name: string;
   email: string;
   role: Role;
-  hasActiveRpt: boolean;
+  badge: Badge;
   avatarUrl: string | null;
 };
 
-export default function HeaderUserMenu({ name, email, role, hasActiveRpt, avatarUrl }: Props) {
+export default function HeaderUserMenu({ name, email, role, badge, avatarUrl }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -75,7 +75,7 @@ export default function HeaderUserMenu({ name, email, role, hasActiveRpt, avatar
             <p className="text-xs text-ink-mute truncate">{email}</p>
             <p className="text-xs mt-1 flex items-center gap-1.5">
               <span className="chip-mute">{ROLE_LABELS_JP[role]}</span>
-              <RoleBadge role={role} hasActiveRpt={hasActiveRpt} />
+              <RoleBadge badge={badge} />
             </p>
           </div>
           <Link

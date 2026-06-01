@@ -292,8 +292,18 @@ end $$;
 -- =====================================================================
 -- Helpers
 -- =====================================================================
+-- SECURITY DEFINER is required: these helpers read public.profiles, and
+-- profiles' own RLS policies call is_admin(). Without DEFINER the inner read
+-- re-enters the policy and recurses ("stack depth limit exceeded"), which makes
+-- every is_admin()-gated admin read return empty. DEFINER bypasses RLS inside
+-- the function (it only reads the caller's own row via auth.uid()).
 create or replace function public.is_admin()
-returns boolean language sql stable as $$
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
   select exists (
     select 1 from public.profiles p
     where p.id = auth.uid() and p.role in ('owner','admin','moderator')
@@ -301,7 +311,12 @@ returns boolean language sql stable as $$
 $$;
 
 create or replace function public.current_customer_id()
-returns uuid language sql stable as $$
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
   select customer_id from public.profiles where id = auth.uid();
 $$;
 
@@ -414,42 +429,9 @@ create policy "audit admin only" on public.audit_logs
 -- =====================================================================
 -- Customer summary view
 -- =====================================================================
-create or replace view public.v_customer_summary as
-select
-  c.id as customer_id,
-  c.full_name,
-  c.email,
-  c.status,
-  c.avatar_url,
-  coalesce(primary_plan.plan_code, null) as primary_plan_code,
-  coalesce(primary_plan.plan_name, null) as primary_plan_name,
-  coalesce(support_agg.total_units, 0)  as total_support_units,
-  coalesce(support_agg.horse_count, 0)  as total_support_horses,
-  coalesce(support_agg.monthly_total, 0) as monthly_total,
-  contract_agg.current_period_end as next_payment_at,
-  contract_agg.contract_status as contract_status
-from public.customers c
-left join lateral (
-  select mp.code as plan_code, mp.name as plan_name
-  from public.contracts ct
-  join public.membership_plans mp on mp.id = ct.plan_id
-  where ct.customer_id = c.id and ct.status = 'active'
-  order by ct.started_at desc limit 1
-) primary_plan on true
-left join lateral (
-  select
-    sum(ss.units) as total_units,
-    count(distinct ss.horse_id) as horse_count,
-    sum(ss.monthly_amount) as monthly_total
-  from public.support_subscriptions ss
-  where ss.customer_id = c.id and ss.status = 'active'
-) support_agg on true
-left join lateral (
-  select current_period_end, status::text as contract_status
-  from public.contracts ct
-  where ct.customer_id = c.id
-  order by current_period_end desc nulls last limit 1
-) contract_agg on true;
+-- NOTE: v_customer_summary は special_team_memberships（team_name 含む）に
+-- 依存するため、そのテーブル定義より後（ファイル末尾）で作成します。
+-- 定義はこのファイルの末尾「Customer summary view (definition)」を参照。
 
 -- =====================================================================
 -- Seed data
@@ -683,11 +665,15 @@ create table if not exists public.special_team_memberships (
   stripe_subscription_id text,
   stripe_subscription_item_id text,
   status contract_status not null default 'active',
+  team_name text,
   started_at timestamptz not null default now(),
   canceled_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- 既存DB向け（create table が既存テーブルをスキップした場合に備える）
+alter table public.special_team_memberships
+  add column if not exists team_name text;
 create index if not exists special_team_customer_idx on public.special_team_memberships (customer_id);
 create index if not exists special_team_horse_idx on public.special_team_memberships (horse_id);
 create index if not exists special_team_status_idx on public.special_team_memberships (status);
@@ -705,3 +691,75 @@ create policy "special_team admin all" on public.special_team_memberships
 drop trigger if exists special_team_set_updated_at on public.special_team_memberships;
 create trigger special_team_set_updated_at before update on public.special_team_memberships
   for each row execute procedure public.tg_set_updated_at();
+
+-- =====================================================================
+-- Customer summary view (definition)
+-- =====================================================================
+-- 会員種別 / 支援数 / 特別参加 の3区分を返す（要件 #2）。
+-- special_team_memberships.team_name を参照するため、同テーブル定義の後で作成。
+-- 詳細は migrations/20260601_member_classification.sql を参照。
+-- 列の追加・並び替えを伴うため create or replace では置換できない（42P16）。
+-- 一旦 drop してから作り直す。
+drop view if exists public.v_customer_summary;
+create view public.v_customer_summary as
+select
+  c.id as customer_id,
+  c.full_name,
+  c.email,
+  c.status,
+  c.avatar_url,
+  -- 基本会員区分（A/B/C のみ。RPT・特別チームは含めない）
+  basic_plan.plan_code as primary_plan_code,
+  basic_plan.plan_name as primary_plan_name,
+  -- 会員種別コード: 基本契約(A/B/C) > 無ければ支援(SUPPORT) > 無ければ null
+  coalesce(
+    basic_plan.plan_code::text,
+    case when coalesce(support_agg.horse_count, 0) > 0 then 'SUPPORT' end
+  ) as member_class_code,
+  coalesce(support_agg.total_units, 0)  as total_support_units,
+  coalesce(support_agg.horse_count, 0)  as total_support_horses,
+  coalesce(support_agg.monthly_total, 0) as monthly_total,
+  contract_agg.current_period_end as next_payment_at,
+  contract_agg.contract_status as contract_status,
+  -- 特別参加
+  coalesce(rpt_agg.active, false) as rpt_active,
+  coalesce(team_agg.team_count, 0) as special_team_count,
+  team_agg.team_names as special_team_names
+from public.customers c
+left join lateral (
+  select mp.code as plan_code, mp.name as plan_name
+  from public.contracts ct
+  join public.membership_plans mp on mp.id = ct.plan_id
+  where ct.customer_id = c.id and ct.status = 'active'
+    and mp.code in ('A', 'B', 'C')
+  order by ct.started_at desc limit 1
+) basic_plan on true
+left join lateral (
+  select
+    sum(ss.units) as total_units,
+    count(distinct ss.horse_id) as horse_count,
+    sum(ss.monthly_amount) as monthly_total
+  from public.support_subscriptions ss
+  where ss.customer_id = c.id and ss.status = 'active'
+) support_agg on true
+left join lateral (
+  select bool_or(ct.status = 'active') as active
+  from public.contracts ct
+  join public.membership_plans mp on mp.id = ct.plan_id
+  where ct.customer_id = c.id and ct.status = 'active' and mp.code = 'RPT'
+) rpt_agg on true
+left join lateral (
+  select
+    count(*) as team_count,
+    array_agg(distinct coalesce(nullif(st.team_name, ''), h.name))
+      filter (where st.horse_id is not null or st.team_name is not null) as team_names
+  from public.special_team_memberships st
+  left join public.horses h on h.id = st.horse_id
+  where st.customer_id = c.id and st.status = 'active'
+) team_agg on true
+left join lateral (
+  select current_period_end, status::text as contract_status
+  from public.contracts ct
+  where ct.customer_id = c.id
+  order by current_period_end desc nulls last limit 1
+) contract_agg on true;

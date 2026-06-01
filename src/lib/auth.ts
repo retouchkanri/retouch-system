@@ -19,7 +19,7 @@ export async function getSession(): Promise<SessionInfo | null> {
     const { user } = await safeGetUser(supabase);
     if (!user) return null;
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileErr } = await supabase
       .from("profiles")
       .select("role, customer_id")
       .eq("id", user.id)
@@ -30,7 +30,12 @@ export async function getSession(): Promise<SessionInfo | null> {
 
     const admin = createSupabaseAdminClient();
 
-    if (!customerId) {
+    // Backfill the customer link when it's missing. Two hard rules:
+    //  1. Never write on a failed read — a transient profiles read error must
+    //     not be mistaken for "no profile" and silently demote a staff account.
+    //  2. Never overwrite an existing role — only fill in customer_id. A brand
+    //     new login (no profile row yet) is created as "member".
+    if (!profileErr && !customerId) {
       const { data: cust } = await admin
         .from("customers")
         .select("id")
@@ -38,11 +43,16 @@ export async function getSession(): Promise<SessionInfo | null> {
         .maybeSingle();
       if (cust?.id) {
         customerId = cust.id as string;
-        await admin.from("profiles").upsert({
-          id: user.id,
-          role,
-          customer_id: customerId,
-        });
+        if (profile) {
+          await admin
+            .from("profiles")
+            .update({ customer_id: customerId })
+            .eq("id", user.id);
+        } else {
+          await admin
+            .from("profiles")
+            .insert({ id: user.id, role: "member", customer_id: customerId });
+        }
       }
     }
 
