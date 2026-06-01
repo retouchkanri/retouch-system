@@ -102,7 +102,7 @@ export default async function MyPageTop() {
   // 次のバッジまでのヒント（スタッフ＝王冠には表示しない）。
   const nextBadgeText = memberBadge.kind === "full" ? null : nextBadgeHint(badgeStats);
 
-  // 会員種別は大分類のみ（サポーター/メンバーズ/リリーフ/支援馬会員）。
+  // 会員種別は大分類のみ（サポーター/メンバーズ/リェリーフ/ヘルパーズ）。
   // リタポ・特別チームは「特別参加」として別タグで表示し、会員種別には混ぜない。
   const hasSpecial = Boolean(summary?.rpt_active) || (summary?.special_team_count ?? 0) > 0;
   const specialTeamNames: string[] = Array.isArray(summary?.special_team_names)

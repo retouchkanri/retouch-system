@@ -48,8 +48,8 @@ export default async function CustomersListPage({
           <option value="">会員種別：すべて</option>
           <option value="A">サポーター会員</option>
           <option value="B">メンバーズ会員</option>
-          <option value="C">リリーフ会員</option>
-          <option value="SUPPORT">支援馬会員（ヘルパーズ会員）</option>
+          <option value="C">リェリーフ会員</option>
+          <option value="SUPPORT">ヘルパーズ会員</option>
         </select>
         <select name="special" defaultValue={special} className="input">
           <option value="">特別参加：すべて</option>

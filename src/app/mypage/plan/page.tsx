@@ -33,7 +33,7 @@ export default async function PlanPage() {
           {currentBasic
             ? memberClassLabel(currentBasic.code)
             : hasSupport
-            ? "支援馬会員（ヘルパーズ会員）"
+            ? "ヘルパーズ会員"
             : "未加入"}
         </p>
         {currentBasic && (
@@ -43,9 +43,9 @@ export default async function PlanPage() {
 
       {hasSupport && (
         <div className="card border-2 border-amber-400 bg-amber-50">
-          <p className="font-bold text-warn">ご注意：支援馬会員（ヘルパーズ会員）と併用はできません</p>
+          <p className="font-bold text-warn">ご注意：ヘルパーズ会員と併用はできません</p>
           <p className="text-sm mt-1">
-            現在、{supports.length}頭の馬をご支援中です。会員種別（サポーター／メンバーズ／リリーフ会員）へ切り替える場合は、先にすべての支援を停止してください。
+            現在、{supports.length}頭の馬をご支援中です。会員種別（サポーター／メンバーズ／リェリーフ会員）へ切り替える場合は、先にすべての支援を停止してください。
           </p>
         </div>
       )}
@@ -53,7 +53,7 @@ export default async function PlanPage() {
       <section className="card space-y-3">
         <h2 className="section-title mb-0">プランを選ぶ</h2>
         <p className="text-sm text-ink-soft">
-          会員種別（サポーター／メンバーズ／リリーフ会員）は1つだけお選びいただけます。いつでも変更・停止が可能です。
+          会員種別（サポーター／メンバーズ／リェリーフ会員）は1つだけお選びいただけます。いつでも変更・停止が可能です。
         </p>
         <PlanSelector
           plans={basicPlans.map((p) => ({
@@ -84,7 +84,7 @@ export default async function PlanPage() {
             <div>
               <p className="font-bold text-brand-dark">特別チーム会員</p>
               <p className="text-sm text-ink-soft mt-1">
-                馬ごとに月額1,000円。他の会員種別（サポーター／メンバーズ／リリーフ会員・支援馬会員）と併用できます。
+                馬ごとに月額1,000円。他の会員種別（サポーター／メンバーズ／リェリーフ会員・ヘルパーズ会員）と併用できます。
               </p>
             </div>
             <Link href="/mypage/special-team/new" className="btn-secondary shrink-0">
