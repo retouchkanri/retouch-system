@@ -69,7 +69,7 @@ export default function DonationForm() {
         <textarea className="input" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} />
       </div>
       {error && <p className="text-danger text-sm">{error}</p>}
-      <button className="btn-primary w-full" onClick={submit} disabled={saving}>
+      <button className="btn-accent w-full" onClick={submit} disabled={saving}>
         {saving ? "処理中..." : "この内容で寄付する"}
       </button>
       <p className="text-xs text-ink-mute">

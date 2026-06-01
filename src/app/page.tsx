@@ -10,6 +10,7 @@ import userImage from "@/assets/images/user.png";
 import ponyImage from "@/assets/images/pony.png";
 import BottomRightPanel from "@/components/BottomRightPanel";
 import HomeHeroEffect from "@/components/HomeHeroEffect";
+import HeroText from "@/components/HeroText";
 import BusinessPrinciplesDeck from "@/components/BusinessPrinciplesDeck";
 import NewsCarousel from "@/components/NewsCarousel";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -49,32 +50,16 @@ export default async function HomePage() {
           sizes="100vw"
           className="absolute inset-0 z-0 hidden object-cover object-center hero-zoom md:block"
         />
-        <div aria-hidden className="absolute inset-0 z-10 bg-gradient-to-b from-black/40 via-black/20 to-black/65" />
-        <div aria-hidden className="absolute inset-0 z-10 bg-gradient-to-r from-black/40 via-transparent to-transparent" />
-
-        {/* H1 — hero headline (primary SEO keyword target) */}
-        <div className="relative z-30 flex flex-1 flex-col items-center justify-center text-center px-4 sm:px-5 pb-20 gap-4">
-          <h1
-            className="text-[clamp(1.45rem,5vw,3rem)] font-bold text-white font-serif leading-snug"
-            style={{ textShadow: "0 2px 12px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.4)" }}
-          >
-            引退競走馬と支援者をつなぐ<br />
-            <span className="text-brand-light">Retouch</span>メンバーズサイト
-          </h1>
-          <p
-            className="text-white/90 text-[clamp(0.8rem,2.5vw,1rem)] max-w-xl leading-relaxed"
-            style={{ textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}
-          >
-            会員管理・支援馬管理・決済・寄付をひとつのプラットフォームで。<br className="hidden sm:block" />
-            引退競走馬の安定した余生を、テクノロジーで支える仕組みです。
-          </p>
-        </div>
+        {/* H1 — hero headline (primary SEO keyword target).
+            背景画像は元の色のまま表示するため、暗いオーバーレイは外しています。
+            可読性は各テキストの drop-shadow で確保。 */}
+        <HeroText />
 
         <div className="relative z-30 flex items-end justify-center pb-8">
           <a href="#overview" aria-label="下へスクロール">
             <div className="hero-pulse w-12 h-12 rounded-full border-2 border-white/70 flex items-center justify-center hover:bg-white/15 transition-colors cursor-pointer">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 2v12M3 9l5 5 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M8 2v12M3 9l5 5 5-5" stroke="#2d6a4f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
           </a>
@@ -291,11 +276,12 @@ export default async function HomePage() {
                 ))}
               </ul>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <Link href="/signup" className="btn-primary btn-pulse">ポニーチームを支援する</Link>
-                <Link href="#contact" className="btn-secondary">活動について相談する</Link>
+              {/* Mobile: stacked, centered, equal-width buttons. Desktop: inline row. */}
+              <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <Link href="/donate" className="btn-primary btn-pulse w-full max-w-xs sm:w-auto sm:max-w-none">ポニーチームを支援する</Link>
+                <Link href="#contact" className="btn-secondary w-full max-w-xs sm:w-auto sm:max-w-none">活動について相談する</Link>
               </div>
-              <p className="text-xs text-ink-mute mt-3">※ 他の会員プランと併用してご参加いただけます。</p>
+              <p className="text-xs text-ink-mute mt-3 text-center sm:text-left">※ 他の会員プランと併用してご参加いただけます。</p>
             </div>
           </div>
         </div>

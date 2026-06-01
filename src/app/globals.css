@@ -33,23 +33,29 @@ button, a, input, select, textarea {
 
 @layer components {
   /* ── Buttons ── */
+  /* Pill-shaped buttons (rounded-full) with a soft shadow and a thin inner
+     border, matching the site button style. */
   .btn {
-    @apply inline-flex items-center justify-center px-5 py-3 font-semibold
+    @apply inline-flex items-center justify-center gap-1.5 px-6 py-3 font-bold
            transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-brand/30
-           disabled:opacity-50 disabled:cursor-not-allowed text-base;
-    border-radius: 0;
+           disabled:opacity-50 disabled:cursor-not-allowed text-base shadow-md;
+    border-radius: 9999px;
   }
   .btn-primary {
-    @apply btn bg-brand text-white hover:bg-brand-dark hover:shadow-lg active:scale-[0.97];
+    @apply btn bg-brand text-white border-2 border-brand-light/40 hover:bg-brand-dark hover:shadow-lg active:scale-[0.97];
   }
   .btn-secondary {
-    @apply btn bg-white text-brand border-2 border-brand hover:bg-brand-50 hover:shadow-md active:scale-[0.97];
+    @apply btn bg-white text-brand border-2 border-brand hover:bg-brand-50 hover:shadow-lg active:scale-[0.97];
+  }
+  .btn-accent {
+    @apply btn text-white border-2 border-amber-200/50 hover:shadow-lg active:scale-[0.97];
+    background-image: linear-gradient(180deg, #f7b733, #f59e0b);
   }
   .btn-danger {
-    @apply btn bg-danger text-white hover:bg-red-800 active:scale-[0.97];
+    @apply btn bg-danger text-white border-2 border-red-300/40 hover:bg-red-800 active:scale-[0.97];
   }
   .btn-ghost {
-    @apply btn text-ink hover:bg-surface-soft active:scale-[0.97];
+    @apply btn text-ink !shadow-none hover:bg-surface-soft active:scale-[0.97];
   }
 
   /* ── Cards ── */
@@ -118,7 +124,7 @@ button, a, input, select, textarea {
 
 /* ── Mobile: larger buttons for elderly users ── */
 @media (max-width: 640px) {
-  .btn, .btn-primary, .btn-secondary, .btn-danger, .btn-ghost {
+  .btn, .btn-primary, .btn-secondary, .btn-accent, .btn-danger, .btn-ghost {
     @apply px-6 py-4 text-lg;
     min-height: 56px;
   }
@@ -190,6 +196,17 @@ button, a, input, select, textarea {
 .hero-pulse {
   animation: heroPulse 2.4s ease-in-out infinite;
 }
+/* Subtitle: scale 0 → 1 over the first 2s of a 10s loop (2s / 10s = 20%),
+   hold, then repeat every 10 seconds. */
+@keyframes heroScaleLoop {
+  0%   { transform: scale(0); opacity: 0; }
+  20%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.hero-scale-loop {
+  transform-origin: center;
+  animation: heroScaleLoop 10s ease-out infinite;
+}
 .feature-card {
   @apply border border-white/50 bg-white/80 backdrop-blur-sm px-4 py-3 sm:px-5 sm:py-4;
   border-radius: 0;
@@ -234,7 +251,7 @@ details[open] .faq-chevron { transform: rotate(180deg); }
 .faq-chevron { transition: transform 0.25s ease; }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-fade, .hero-zoom, .hero-pulse, .feature-float, .feature-card, .btn-pulse, .deck-border-spin {
+  .hero-fade, .hero-zoom, .hero-pulse, .hero-scale-loop, .feature-float, .feature-card, .btn-pulse, .deck-border-spin {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
