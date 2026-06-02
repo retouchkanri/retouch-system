@@ -2,9 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatYen } from "@/lib/format";
+import { syncStripePayments } from "@/lib/stripeSync";
 import horseImage from "@/assets/images/horse.png";
 
 export default async function AdminDashboardPage() {
+  // Reflect the latest Stripe payments on the dashboard (incremental,
+  // best-effort — never blocks the page if Stripe is slow/unreachable).
+  await syncStripePayments({}).catch(() => {});
   const supabase = createSupabaseServerClient();
 
   const sixMonthsAgo = new Date();

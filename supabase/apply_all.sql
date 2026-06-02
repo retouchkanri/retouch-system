@@ -246,14 +246,19 @@ create table if not exists public.payments (
   stripe_event_id text,
   stripe_invoice_id text,
   stripe_payment_intent_id text,
+  stripe_charge_id text,
   failure_reason text,
   occurred_at timestamptz not null default now(),
   raw jsonb,
   created_at timestamptz not null default now()
 );
+-- 既存DB向け（create table が既存テーブルをスキップした場合に備える）
+alter table public.payments add column if not exists stripe_charge_id text;
 create index if not exists payments_customer_idx on public.payments (customer_id);
 create index if not exists payments_status_idx on public.payments (status);
 create index if not exists payments_occurred_idx on public.payments (occurred_at desc);
+-- Stripe→DB 同期の冪等性キー（upsert onConflict 用）。
+create unique index if not exists payments_stripe_charge_id_key on public.payments (stripe_charge_id);
 
 -- ---------- admin memos ----------
 create table if not exists public.admin_memos (

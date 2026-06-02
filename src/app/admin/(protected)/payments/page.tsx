@@ -2,7 +2,9 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireCapability } from "@/lib/auth";
 import { formatDate, formatYen, statusLabel } from "@/lib/format";
+import { syncStripePayments } from "@/lib/stripeSync";
 import PaymentRow from "./PaymentRow";
+import SyncButton from "./SyncButton";
 
 const PAGE_SIZE = 50;
 
@@ -12,6 +14,9 @@ export default async function AdminPaymentsPage({
   searchParams?: { status?: string; kind?: string; q?: string; page?: string };
 }) {
   await requireCapability("payments.manage");
+  // Keep the list current with Stripe on each load (incremental, best-effort —
+  // never blocks/breaks the page if Stripe is slow or unreachable).
+  await syncStripePayments({}).catch(() => {});
   const supabase = createSupabaseServerClient();
   const status = searchParams?.status ?? "";
   const kind = searchParams?.kind ?? "";
@@ -40,11 +45,14 @@ export default async function AdminPaymentsPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">決済履歴</h1>
-        <div className="text-sm text-ink-soft">
-          全 {count ?? 0} 件 / 成功合計（表示範囲） {formatYen(totalAmount)}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">決済履歴</h1>
+          <p className="text-sm text-ink-soft mt-1">
+            全 {count ?? 0} 件 / 成功合計（表示範囲） {formatYen(totalAmount)}
+          </p>
         </div>
+        <SyncButton />
       </div>
 
       <form className="card flex flex-wrap gap-3 items-end">
