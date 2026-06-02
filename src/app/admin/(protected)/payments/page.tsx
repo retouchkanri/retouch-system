@@ -1,131 +1,184 @@
 import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireCapability } from "@/lib/auth";
 import { formatDate, formatYen, statusLabel } from "@/lib/format";
 import { syncStripePayments } from "@/lib/stripeSync";
 import PaymentRow from "./PaymentRow";
 import SyncButton from "./SyncButton";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
+
+// Stripe-style status summary chips.
+const STATUS_CHIPS: { key: string; label: string }[] = [
+  { key: "", label: "すべて" },
+  { key: "succeeded", label: "成功" },
+  { key: "refunded", label: "返金済み" },
+  { key: "failed", label: "失敗" },
+  { key: "pending", label: "未確定" },
+];
+
+function paymentMethodLabel(raw: any): string {
+  const brand = raw?.brand as string | null;
+  const last4 = raw?.last4 as string | null;
+  if (!brand && !last4) return "—";
+  const b = brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : "カード";
+  return last4 ? `${b} ••••${last4}` : b;
+}
 
 export default async function AdminPaymentsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; kind?: string; q?: string; page?: string };
+  searchParams?: { status?: string; q?: string; page?: string };
 }) {
   await requireCapability("payments.manage");
-  // Keep the list current with Stripe on each load (incremental, best-effort —
-  // never blocks/breaks the page if Stripe is slow or unreachable).
+  // Keep current with Stripe on each load (incremental, best-effort).
   await syncStripePayments({}).catch(() => {});
-  const supabase = createSupabaseServerClient();
+  // Admin-only page (gated above): use the service-role client so the status
+  // counts and ordering are exact and fast — RLS per-row policy evaluation on
+  // 10k+ rows makes filtered COUNT queries time out (→ null → 0).
+  const supabase = createSupabaseAdminClient();
+
   const status = searchParams?.status ?? "";
-  const kind = searchParams?.kind ?? "";
   const q = (searchParams?.q ?? "").trim();
   const page = Math.max(1, Number(searchParams?.page ?? "1") || 1);
   const from = (page - 1) * PAGE_SIZE;
 
-  let query = supabase
-    .from("payments")
-    .select("*, customer:customers(full_name, email)", { count: "exact" })
-    .order("occurred_at", { ascending: false });
-  if (status) query = query.eq("status", status);
-  if (kind) query = query.eq("kind", kind);
+  // Server-side search across email / name (stored in raw) + Stripe IDs.
+  const safeQ = q.replace(/[%*,()]/g, "");
+  const orFilter = safeQ
+    ? `stripe_charge_id.ilike.*${safeQ}*,stripe_payment_intent_id.ilike.*${safeQ}*,stripe_invoice_id.ilike.*${safeQ}*,raw->>stripe_email.ilike.*${safeQ}*,raw->>stripe_name.ilike.*${safeQ}*`
+    : "";
 
-  const { data, count } = await query.range(from, from + PAGE_SIZE - 1);
+  const applyFilters = (qy: any, statusVal: string) => {
+    if (statusVal) qy = qy.eq("status", statusVal);
+    if (orFilter) qy = qy.or(orFilter);
+    return qy;
+  };
 
-  const filtered = q
-    ? (data ?? []).filter((p: any) => {
-        const hay = `${p.customer?.full_name ?? ""} ${p.customer?.email ?? ""} ${p.stripe_invoice_id ?? ""} ${p.stripe_payment_intent_id ?? ""}`.toLowerCase();
-        return hay.includes(q.toLowerCase());
-      })
-    : data ?? [];
+  // Status counts (respect the search box).
+  const countFor = (statusVal: string) =>
+    applyFilters(supabase.from("payments").select("*", { count: "exact", head: true }), statusVal);
+  const [allC, okC, refC, failC, pendC] = await Promise.all([
+    countFor(""),
+    countFor("succeeded"),
+    countFor("refunded"),
+    countFor("failed"),
+    countFor("pending"),
+  ]);
+  const counts: Record<string, number> = {
+    "": allC.count ?? 0,
+    succeeded: okC.count ?? 0,
+    refunded: refC.count ?? 0,
+    failed: failC.count ?? 0,
+    pending: pendC.count ?? 0,
+  };
 
-  const totalAmount = filtered.reduce((acc: number, p: any) => (p.status === "succeeded" ? acc + Number(p.amount ?? 0) : acc), 0);
-  const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
+  // Page of rows.
+  const { data, error } = await applyFilters(
+    supabase
+      .from("payments")
+      .select("*, customer:customers(full_name, email)")
+      .order("occurred_at", { ascending: false }),
+    status,
+  ).range(from, from + PAGE_SIZE - 1);
+  const rows = (data as any[]) ?? [];
+
+  const totalCount = counts[status] ?? counts[""] ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  const linkFor = (opts: { status?: string; page?: number }) => {
+    const sp = new URLSearchParams();
+    const s = opts.status ?? status;
+    if (s) sp.set("status", s);
+    if (q) sp.set("q", q);
+    if (opts.page && opts.page > 1) sp.set("page", String(opts.page));
+    const str = sp.toString();
+    return `/admin/payments${str ? `?${str}` : ""}`;
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">決済履歴</h1>
-          <p className="text-sm text-ink-soft mt-1">
-            全 {count ?? 0} 件 / 成功合計（表示範囲） {formatYen(totalAmount)}
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold">決済履歴</h1>
         <SyncButton />
       </div>
 
+      {/* Stripe-style status summary chips */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        {STATUS_CHIPS.map((c) => {
+          const active = status === c.key;
+          return (
+            <Link
+              key={c.key || "all"}
+              href={linkFor({ status: c.key, page: 1 })}
+              className={`card !p-3 transition-colors ${
+                active ? "ring-2 ring-brand bg-brand-50/40" : "hover:bg-surface-soft"
+              }`}
+            >
+              <p className="text-xs text-ink-soft">{c.label}</p>
+              <p className="text-xl font-bold tabular-nums">{(counts[c.key] ?? 0).toLocaleString()}</p>
+            </Link>
+          );
+        })}
+      </div>
+
       <form className="card flex flex-wrap gap-3 items-end">
-        <div className="flex-1 min-w-[180px]">
-          <label className="label">顧客／Stripe ID</label>
+        <div className="flex-1 min-w-[200px]">
+          <label className="label">顧客 / メール / Stripe ID</label>
           <input name="q" className="input" defaultValue={q} placeholder="検索..." />
         </div>
-        <div>
-          <label className="label">状態</label>
-          <select name="status" className="input" defaultValue={status}>
-            <option value="">すべて</option>
-            <option value="succeeded">成功</option>
-            <option value="failed">失敗</option>
-            <option value="pending">保留</option>
-            <option value="refunded">返金済</option>
-            <option value="canceled">取消</option>
-          </select>
-        </div>
-        <div>
-          <label className="label">種別</label>
-          <select name="kind" className="input" defaultValue={kind}>
-            <option value="">すべて</option>
-            <option value="subscription">継続</option>
-            <option value="donation">寄付</option>
-            <option value="one_time">単発</option>
-          </select>
-        </div>
+        {status && <input type="hidden" name="status" value={status} />}
         <button className="btn-primary">絞り込む</button>
-        {(q || status || kind) && (
+        {(q || status) && (
           <Link className="btn-ghost" href="/admin/payments">
             リセット
           </Link>
         )}
       </form>
 
+      {error && <div className="card text-danger text-sm">{error.message}</div>}
+
       <div className="card p-0 overflow-auto">
         <table className="table">
           <thead>
             <tr>
-              <th className="w-12 text-right">No.</th>
-              <th>日時</th>
-              <th>顧客</th>
-              <th>種別</th>
               <th>金額</th>
-              <th>状態</th>
-              <th>失敗理由</th>
+              <th>決済手段</th>
+              <th>説明</th>
+              <th>顧客</th>
+              <th>日付</th>
+              <th>返金日</th>
+              <th>支払い拒否の理由</th>
               <th>Stripe</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p: any, i: number) => (
+            {rows.map((p: any) => (
               <PaymentRow
                 key={p.id}
-                index={from + i + 1}
                 payment={{
                   id: p.id,
                   customer_id: p.customer_id,
-                  customer_name: p.customer?.full_name ?? "—",
-                  customer_email: p.customer?.email ?? "",
-                  kind: p.kind,
+                  customer_name: p.customer?.full_name ?? p.raw?.stripe_name ?? "",
+                  customer_email: p.customer?.email ?? p.raw?.stripe_email ?? "",
                   amount: Number(p.amount ?? 0),
                   amount_label: formatYen(p.amount),
+                  currency: (p.currency ?? "jpy").toUpperCase(),
+                  payment_method: paymentMethodLabel(p.raw),
+                  description: p.raw?.description ?? "",
                   status: p.status,
                   status_label: statusLabel(p.status),
                   failure_reason: p.failure_reason ?? "",
                   occurred_at: formatDate(p.occurred_at, true),
+                  refund_date: p.raw?.refunded_at ? formatDate(p.raw.refunded_at) : "",
                   stripe_invoice_id: p.stripe_invoice_id ?? "",
                   stripe_payment_intent_id: p.stripe_payment_intent_id ?? "",
+                  stripe_charge_id: p.stripe_charge_id ?? "",
                 }}
               />
             ))}
-            {filtered.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td colSpan={9} className="text-center py-6 text-ink-mute">
                   該当する決済がありません。
@@ -136,26 +189,36 @@ export default async function AdminPaymentsPage({
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => {
-            const qs = new URLSearchParams();
-            if (status) qs.set("status", status);
-            if (kind) qs.set("kind", kind);
-            if (q) qs.set("q", q);
-            qs.set("page", String(n));
-            return (
-              <Link
-                key={n}
-                href={`/admin/payments?${qs.toString()}`}
-                className={`px-3 py-1 rounded-lg border ${n === page ? "bg-brand text-white border-brand" : "border-surface-line"}`}
-              >
-                {n}
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      {/* Compact pagination (10k+ rows → can't render every page button) */}
+      <div className="flex items-center justify-center gap-2 text-sm">
+        <Link
+          href={linkFor({ page: 1 })}
+          className={`btn-ghost !py-1.5 !px-3 ${page <= 1 ? "pointer-events-none opacity-40" : ""}`}
+        >
+          « 最初
+        </Link>
+        <Link
+          href={linkFor({ page: Math.max(1, page - 1) })}
+          className={`btn-ghost !py-1.5 !px-3 ${page <= 1 ? "pointer-events-none opacity-40" : ""}`}
+        >
+          ‹ 前へ
+        </Link>
+        <span className="text-ink-soft tabular-nums px-2">
+          {page} / {totalPages} ページ（全 {totalCount.toLocaleString()} 件）
+        </span>
+        <Link
+          href={linkFor({ page: Math.min(totalPages, page + 1) })}
+          className={`btn-ghost !py-1.5 !px-3 ${page >= totalPages ? "pointer-events-none opacity-40" : ""}`}
+        >
+          次へ ›
+        </Link>
+        <Link
+          href={linkFor({ page: totalPages })}
+          className={`btn-ghost !py-1.5 !px-3 ${page >= totalPages ? "pointer-events-none opacity-40" : ""}`}
+        >
+          最後 »
+        </Link>
+      </div>
     </div>
   );
 }

@@ -39,11 +39,13 @@ export async function syncStripePayments(
   const admin = createSupabaseAdminClient();
 
   // Existing dedup keys (charge ids + payment-intent ids already recorded).
+  // Incremental runs only fetch recent charges, so a recent window is enough
+  // for dedup and avoids loading the whole (10k+) table on every page load.
   const { data: existing } = await admin
     .from("payments")
     .select("stripe_charge_id, stripe_payment_intent_id, occurred_at")
     .order("occurred_at", { ascending: false })
-    .limit(100000);
+    .limit(opts.full ? 100000 : 1000);
   const haveCharge = new Set<string>();
   const havePI = new Set<string>();
   let latestOccurredMs = 0;
@@ -53,25 +55,49 @@ export async function syncStripePayments(
     if (r.occurred_at) latestOccurredMs = Math.max(latestOccurredMs, new Date(r.occurred_at).getTime());
   }
 
-  const params: Stripe.ChargeListParams = { limit: 100 };
+  // Expand the customer so we can read its email/name (subscription charges
+  // often have empty billing_details; the Customer object is the reliable source).
+  const params: Stripe.ChargeListParams = { limit: 100, expand: ["data.customer"] };
   if (!opts.full && latestOccurredMs > 0) {
     // 1h overlap so we never miss a charge straddling the boundary.
     params.created = { gte: Math.floor(latestOccurredMs / 1000) - 60 * 60 };
   }
 
-  // Cache: stripe_customer_id → local customers.id
-  const custCache = new Map<string, string | null>();
-  async function resolveCustomer(stripeCustomerId: string | null): Promise<string | null> {
-    if (!stripeCustomerId) return null;
-    if (custCache.has(stripeCustomerId)) return custCache.get(stripeCustomerId) ?? null;
-    const { data } = await admin
-      .from("customers")
-      .select("id")
-      .eq("stripe_customer_id", stripeCustomerId)
-      .maybeSingle();
-    const id = (data as any)?.id ?? null;
-    custCache.set(stripeCustomerId, id);
-    return id;
+  // Resolve the local customer: first by stripe_customer_id, then (fallback)
+  // by billing email — many imported customers have no stripe_customer_id but
+  // do match on email (customers.email is citext, so case-insensitive).
+  const byStripeId = new Map<string, string | null>();
+  const byEmail = new Map<string, string | null>();
+  async function resolveCustomer(
+    stripeCustomerId: string | null,
+    email: string | null,
+  ): Promise<string | null> {
+    if (stripeCustomerId) {
+      if (!byStripeId.has(stripeCustomerId)) {
+        const { data } = await admin
+          .from("customers")
+          .select("id")
+          .eq("stripe_customer_id", stripeCustomerId)
+          .maybeSingle();
+        byStripeId.set(stripeCustomerId, (data as any)?.id ?? null);
+      }
+      const id = byStripeId.get(stripeCustomerId);
+      if (id) return id;
+    }
+    if (email) {
+      const key = email.toLowerCase();
+      if (!byEmail.has(key)) {
+        const { data } = await admin
+          .from("customers")
+          .select("id")
+          .eq("email", email)
+          .maybeSingle();
+        byEmail.set(key, (data as any)?.id ?? null);
+      }
+      const id = byEmail.get(key);
+      if (id) return id;
+    }
+    return null;
   }
 
   let synced = 0;
@@ -88,7 +114,21 @@ export async function syncStripePayments(
     }
 
     const invoiceId = idOf(charge.invoice as any);
-    const customerId = await resolveCustomer(idOf(charge.customer as any));
+    // Prefer the (expanded) Stripe Customer's email/name; fall back to the
+    // charge billing details / receipt email. So the row always shows the payer.
+    const cust =
+      charge.customer && typeof charge.customer !== "string" && !(charge.customer as any).deleted
+        ? (charge.customer as Stripe.Customer)
+        : null;
+    const email = (cust?.email || charge.billing_details?.email || charge.receipt_email || null) as
+      | string
+      | null;
+    const name = (cust?.name || charge.billing_details?.name || null) as string | null;
+    const customerId = await resolveCustomer(idOf(charge.customer as any), email);
+
+    // Display details to mirror the Stripe Transactions table.
+    const card = (charge.payment_method_details as any)?.card;
+    const refundedAtUnix = (charge.refunds as any)?.data?.[0]?.created as number | undefined;
 
     const { error } = await admin.from("payments").upsert(
       {
@@ -102,6 +142,14 @@ export async function syncStripePayments(
         stripe_payment_intent_id: pi,
         failure_reason: charge.failure_message ?? null,
         occurred_at: new Date(charge.created * 1000).toISOString(),
+        raw: {
+          stripe_email: email,
+          stripe_name: name,
+          brand: card?.brand ?? (charge.payment_method_details as any)?.type ?? null,
+          last4: card?.last4 ?? null,
+          description: charge.description ?? null,
+          refunded_at: refundedAtUnix ? new Date(refundedAtUnix * 1000).toISOString() : null,
+        },
       },
       { onConflict: "stripe_charge_id" },
     );

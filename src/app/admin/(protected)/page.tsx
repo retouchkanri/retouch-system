@@ -307,9 +307,9 @@ export default async function AdminDashboardPage() {
                 <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
                 <td className="tabular-nums">{formatDate(p.occurred_at, true)}</td>
                 <td>
-                  <span className="font-medium">{p.customer?.full_name ?? "—"}</span>
-                  {p.customer?.email && (
-                    <span className="block text-xs text-ink-mute">{p.customer.email}</span>
+                  <span className="font-medium">{p.customer?.full_name ?? p.raw?.stripe_name ?? "—"}</span>
+                  {(p.customer?.email ?? p.raw?.stripe_email) && (
+                    <span className="block text-xs text-ink-mute">{p.customer?.email ?? p.raw?.stripe_email}</span>
                   )}
                 </td>
                 <td>{p.kind}</td>

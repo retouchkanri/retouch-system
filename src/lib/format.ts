@@ -3,17 +3,33 @@ export function formatYen(amount: number | null | undefined): string {
   return `¥${Math.round(amount).toLocaleString("ja-JP")}`;
 }
 
+// すべての日付は日本時間（Asia/Tokyo）で表示する。サーバーのタイムゾーン
+// （Vercel は UTC）に依存せず、Stripe ダッシュボード（JST）の表示と一致させる。
+const JST_DATE = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const JST_DATETIME = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 export function formatDate(value: string | Date | null | undefined, withTime = false): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return "—";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  if (!withTime) return `${y}/${m}/${day}`;
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${y}/${m}/${day} ${hh}:${mm}`;
+  const parts = Object.fromEntries(
+    (withTime ? JST_DATETIME : JST_DATE).formatToParts(d).map((p) => [p.type, p.value]),
+  );
+  const date = `${parts.year}/${parts.month}/${parts.day}`;
+  return withTime ? `${date} ${parts.hour}:${parts.minute}` : date;
 }
 
 export function formatUnits(units: number | null | undefined): string {

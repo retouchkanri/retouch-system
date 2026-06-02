@@ -12,12 +12,23 @@ const EXPORT_COLUMNS = [
   "kind",
   "amount",
   "currency",
+  "payment_method",
+  "description",
   "status",
+  "refund_date",
   "failure_reason",
   "stripe_invoice_id",
   "stripe_payment_intent_id",
   "stripe_charge_id",
 ];
+
+function pmLabel(raw: any): string {
+  const brand = raw?.brand as string | null;
+  const last4 = raw?.last4 as string | null;
+  if (!brand && !last4) return "";
+  const b = brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : "card";
+  return last4 ? `${b} ****${last4}` : b;
+}
 
 export async function GET() {
   await requireCapability("csv");
@@ -26,7 +37,7 @@ export async function GET() {
     .from("payments")
     .select(
       "id, occurred_at, customer_id, kind, amount, currency, status, failure_reason, " +
-        "stripe_invoice_id, stripe_payment_intent_id, stripe_charge_id, " +
+        "stripe_invoice_id, stripe_payment_intent_id, stripe_charge_id, raw, " +
         "customer:customers(full_name, email)",
     )
     .order("occurred_at", { ascending: false })
@@ -37,12 +48,15 @@ export async function GET() {
     payment_id: r.id,
     occurred_at: r.occurred_at ?? "",
     customer_id: r.customer_id ?? "",
-    customer_name: r.customer?.full_name ?? "",
-    customer_email: r.customer?.email ?? "",
+    customer_name: r.customer?.full_name ?? r.raw?.stripe_name ?? "",
+    customer_email: r.customer?.email ?? r.raw?.stripe_email ?? "",
     kind: r.kind ?? "",
     amount: r.amount ?? 0,
     currency: r.currency ?? "jpy",
+    payment_method: pmLabel(r.raw),
+    description: r.raw?.description ?? "",
     status: r.status ?? "",
+    refund_date: r.raw?.refunded_at ?? "",
     failure_reason: r.failure_reason ?? "",
     stripe_invoice_id: r.stripe_invoice_id ?? "",
     stripe_payment_intent_id: r.stripe_payment_intent_id ?? "",
