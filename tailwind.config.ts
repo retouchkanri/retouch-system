@@ -50,11 +50,11 @@ const config: Config = {
       },
       borderRadius: {
         none: "0",
-        xl: "0",
-        "2xl": "0",
-        lg: "0",
-        md: "0",
-        sm: "0",
+        sm: "0.375rem",
+        md: "0.5rem",
+        lg: "0.75rem",
+        xl: "1rem",
+        "2xl": "1.25rem",
         full: "9999px",
       },
       boxShadow: {

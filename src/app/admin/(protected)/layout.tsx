@@ -5,8 +5,10 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
   const session = await requireAdmin();
 
   return (
-    <div className="flex min-h-0 flex-1 grid grid-cols-1 md:grid-cols-[240px_1fr]">
-      <aside className="bg-brand-dark text-white md:sticky md:top-[73px] md:h-[calc(100vh-73px)] md:overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col md:block">
+      {/* Sidebar: fixed below the (sticky) header on desktop so it stays put
+          while the main content scrolls. Stacks normally on mobile. */}
+      <aside className="bg-brand-dark text-white md:fixed md:top-[73px] md:bottom-0 md:left-0 md:z-40 md:w-[240px] md:overflow-y-auto">
         <AdminNav role={session.role} />
         <div className="p-3 mt-4 border-t border-white/10">
           <p className="text-xs text-white/70 mb-2">{session.email}</p>
@@ -17,7 +19,7 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
           </form>
         </div>
       </aside>
-      <main className="p-4 md:p-6 overflow-x-auto bg-surface-soft">{children}</main>
+      <main className="p-4 md:p-6 md:ml-[240px] overflow-x-auto bg-surface-soft">{children}</main>
     </div>
   );
 }

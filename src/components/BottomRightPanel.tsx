@@ -64,14 +64,14 @@ export default function BottomRightPanel() {
       {/* ── Donation image — bottom-left ── */}
       <a
         href="/donate"
-        className="fixed bottom-0 left-0 z-40 block max-w-[min(7.5rem,28vw)] transition-transform duration-300 hover:scale-110 focus-visible:scale-110 focus:outline-none drop-shadow-xl max-md:bottom-[4.75rem]"
+        className="fixed bottom-0 left-0 z-40 block w-[min(7.5rem,28vw)] transition-transform duration-300 hover:scale-110 focus-visible:scale-110 focus:outline-none drop-shadow-xl max-md:bottom-[4.75rem] md:w-[22.5rem] md:max-w-[min(22.5rem,40vw)]"
         aria-label="単発寄付をする"
       >
         <Image
           src={doImage}
           alt="単発寄付をする"
-          width={260}
-          height={260}
+          width={780}
+          height={780}
           className="w-full h-auto object-contain"
         />
       </a>

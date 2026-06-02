@@ -116,7 +116,7 @@ export default async function HomePage() {
             ].map((f) => (
               <div
                 key={f.title}
-                className="flex flex-col bg-white border border-surface-line hover:shadow-lg transition-shadow cursor-default overflow-hidden"
+                className="flex flex-col bg-white border border-surface-line rounded-xl hover:shadow-lg transition-shadow cursor-default overflow-hidden"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={f.img} alt={f.title} className="w-full h-44 object-cover" />
@@ -372,7 +372,7 @@ export default async function HomePage() {
               { name: "中村 あゆみ", role: "一般会員・1年目", rating: 5,   avatar: "https://images.unsplash.com/photo-1624706477318-2b624c31e2e4?w=100&h=100&fit=crop&crop=face", text: "友人に勧められて登録しました。登録もプラン選択も3分ほどで完了。単発寄付もしやすいです。" },
               { name: "高橋 誠",   role: "支援会員・2年目",   rating: 4.5, avatar: "https://images.unsplash.com/photo-1701980889802-55ff39e2e973?w=100&h=100&fit=crop&crop=face", text: "見学会の予約がオンラインでできるようになり、家族で気軽に参加できるようになりました。" },
             ].map((r) => (
-              <div key={r.name} className="bg-white/80 backdrop-blur-sm p-6 border border-white/60 hover:bg-white/90 transition shadow-sm">
+              <div key={r.name} className="bg-white/80 backdrop-blur-sm p-6 border border-white/60 rounded-xl hover:bg-white/90 transition shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -425,7 +425,7 @@ export default async function HomePage() {
               { q: "退会・解約はいつでもできますか？", a: "はい。マイページからいつでもプラン変更・解約が可能です。解約後も当月末までは会員特典をご利用いただけます。" },
               { q: "寄付金は何に使われますか？", a: "いただいたご支援は、馬の飼料・蹄鉄・獣医療費・牧場運営費・スタッフ人件費に充てられます。年次報告書で詳細な使途を公開しています。" },
             ].map((item) => (
-              <details key={item.q} className="group bg-white shadow-sm overflow-hidden">
+              <details key={item.q} className="group bg-white shadow-sm rounded-xl overflow-hidden">
                 <summary className="flex items-center justify-between gap-4 p-5 font-bold text-sm text-ink cursor-pointer hover:bg-brand-50/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <span className="w-7 h-7 bg-brand-50 text-brand flex items-center justify-center text-xs font-bold shrink-0">Q</span>
@@ -465,7 +465,7 @@ export default async function HomePage() {
           </p>
 
           {/* Contact form */}
-          <div className="max-w-2xl mx-auto shadow-card border border-brand/20 p-6 sm:p-8">
+          <div className="card max-w-2xl mx-auto bg-white">
             <h3 className="font-bold text-lg text-brand-dark mb-5 flex items-center gap-2">
               <svg viewBox="0 0 20 20" className="w-5 h-5" fill="#2d6a4f"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg>
               お問い合わせフォーム

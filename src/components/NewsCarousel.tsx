@@ -45,7 +45,7 @@ export default function NewsCarousel({ items }: { items: NewsItem[] }) {
       {doubled.map((n, i) => (
         <article
           key={`${n.id}-${i}`}
-          className="bg-white shadow-sm overflow-hidden hover:shadow-lg transition-shadow group shrink-0"
+          className="bg-white shadow-sm rounded-xl overflow-hidden hover:shadow-lg transition-shadow group shrink-0"
           style={{ width: 320 }}
         >
           {n.image_url && (

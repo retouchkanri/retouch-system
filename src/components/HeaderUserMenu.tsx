@@ -39,7 +39,7 @@ export default function HeaderUserMenu({ name, email, role, badge, avatarUrl }: 
   const initial = (name || email || "?").trim().charAt(0).toUpperCase();
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className="relative z-[110]" ref={rootRef}>
       <button
         type="button"
         className="flex items-center gap-2 rounded-full pl-1 pr-3 py-1 hover:bg-surface-soft focus:outline-none focus:ring-2 focus:ring-brand/30"
@@ -68,7 +68,7 @@ export default function HeaderUserMenu({ name, email, role, badge, avatarUrl }: 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-60 rounded-xl border border-surface-line bg-white shadow-card py-2 z-40"
+          className="absolute right-0 mt-2 w-60 rounded-xl border border-surface-line bg-white shadow-xl py-2 z-[120]"
         >
           <div className="px-4 py-2 border-b border-surface-line">
             <p className="font-semibold text-ink truncate">{name || "—"}</p>

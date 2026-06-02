@@ -37,8 +37,8 @@ export default async function SiteHeader() {
 
   return (
     <>
-      <header className="site-header sticky top-0 z-[100] w-full shrink-0 bg-white/95 backdrop-blur border-b border-surface-line">
-        <div className="w-full max-w-[100vw] flex items-center justify-between gap-3 py-3 px-[5vw] overflow-hidden">
+      <header className="site-header sticky top-0 z-[100] w-full shrink-0 bg-white/95 backdrop-blur border-b border-surface-line overflow-visible">
+        <div className="w-full max-w-[100vw] flex items-center justify-between gap-3 py-3 px-[5vw] overflow-x-clip overflow-y-visible">
           <Link
             href="/"
             className="flex items-center min-w-0 gap-3 shrink"
