@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { donationMethodLabel, formatDate, formatYen, statusLabel } from "@/lib/format";
+import { resolveMatchingIds, sanitizeSearch } from "@/lib/adminSearch";
 import DonationRow from "./DonationRow";
 import DonationForm from "./DonationForm";
 
@@ -23,16 +24,25 @@ export default async function AdminDonationsPage({
     .order("donated_at", { ascending: false });
   if (status) query = query.eq("status", status);
 
+  // Search the whole table, not just the current page: donor fields live on the
+  // donation row; the member's name/email live on the joined customer, so we
+  // resolve matching customer ids and OR them in.
+  if (q) {
+    const safe = sanitizeSearch(q);
+    const custIds = await resolveMatchingIds(supabase, "customers", ["full_name", "email"], q);
+    const orParts = [
+      `donor_name.ilike.*${safe}*`,
+      `donor_email.ilike.*${safe}*`,
+      `message.ilike.*${safe}*`,
+    ];
+    if (custIds.length) orParts.push(`customer_id.in.(${custIds.join(",")})`);
+    query = query.or(orParts.join(","));
+  }
+
   const { data, count } = await query.range(from, from + PAGE_SIZE - 1);
+  const rows = (data as any[]) ?? [];
 
-  const filtered = q
-    ? (data ?? []).filter((d: any) => {
-        const hay = `${d.customer?.full_name ?? ""} ${d.customer?.email ?? ""} ${d.donor_name ?? ""} ${d.donor_email ?? ""} ${d.message ?? ""}`.toLowerCase();
-        return hay.includes(q.toLowerCase());
-      })
-    : data ?? [];
-
-  const total = filtered.reduce(
+  const total = rows.reduce(
     (acc: number, d: any) => (d.status === "succeeded" ? acc + Number(d.amount ?? 0) : acc),
     0,
   );
@@ -95,7 +105,7 @@ export default async function AdminDonationsPage({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((d: any, i: number) => (
+            {rows.map((d: any, i: number) => (
               <DonationRow
                 key={d.id}
                 index={from + i + 1}
@@ -120,7 +130,7 @@ export default async function AdminDonationsPage({
                 }}
               />
             ))}
-            {filtered.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td colSpan={11} className="text-center py-6 text-ink-mute">
                   該当する寄付がありません。

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireCapability } from "@/lib/auth";
 import { formatDate, formatYen, statusLabel } from "@/lib/format";
+import { NO_MATCH_ID, resolveMatchingIds } from "@/lib/adminSearch";
 import ContractRow from "./ContractRow";
 
 const PAGE_SIZE = 50;
@@ -24,14 +25,21 @@ export default async function AdminContractsPage({
     .order("started_at", { ascending: false });
   if (status) query = query.eq("status", status);
 
-  const { data, count } = await query.range(from, from + PAGE_SIZE - 1);
+  // Search across the whole table (customer name/email + plan name), not just
+  // the current page: resolve matching ids in the joined tables, then filter.
+  if (q) {
+    const [custIds, planIds] = await Promise.all([
+      resolveMatchingIds(supabase, "customers", ["full_name", "email"], q),
+      resolveMatchingIds(supabase, "membership_plans", ["name"], q),
+    ]);
+    const orParts: string[] = [];
+    if (custIds.length) orParts.push(`customer_id.in.(${custIds.join(",")})`);
+    if (planIds.length) orParts.push(`plan_id.in.(${planIds.join(",")})`);
+    query = orParts.length ? query.or(orParts.join(",")) : query.eq("id", NO_MATCH_ID);
+  }
 
-  const filtered = q
-    ? (data ?? []).filter((c: any) => {
-        const hay = `${c.customer?.full_name ?? ""} ${c.customer?.email ?? ""} ${c.plan?.name ?? ""}`.toLowerCase();
-        return hay.includes(q.toLowerCase());
-      })
-    : data ?? [];
+  const { data, count } = await query.range(from, from + PAGE_SIZE - 1);
+  const rows = (data as any[]) ?? [];
 
   const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
 
@@ -83,7 +91,7 @@ export default async function AdminContractsPage({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c: any, i: number) => (
+            {rows.map((c: any, i: number) => (
               <ContractRow
                 key={c.id}
                 index={from + i + 1}
@@ -104,7 +112,7 @@ export default async function AdminContractsPage({
                 }}
               />
             ))}
-            {filtered.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td colSpan={10} className="text-center py-6 text-ink-mute">
                   該当する契約がありません。

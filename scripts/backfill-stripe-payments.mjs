@@ -21,10 +21,12 @@ const mapStatus = (c) =>
 
 const { data: existing } = await sb.from("payments").select("stripe_charge_id, stripe_payment_intent_id").limit(100000);
 const haveCharge = new Set();
-const havePI = new Set();
+// PIs on chargeless rows only (donation webhook rows). Subscription retries share
+// a PI across distinct charges, so we must NOT dedup on PIs that already have a charge.
+const havePINoCharge = new Set();
 for (const r of existing ?? []) {
   if (r.stripe_charge_id) haveCharge.add(r.stripe_charge_id);
-  if (r.stripe_payment_intent_id) havePI.add(r.stripe_payment_intent_id);
+  else if (r.stripe_payment_intent_id) havePINoCharge.add(r.stripe_payment_intent_id);
 }
 
 const byStripeId = new Map();
@@ -49,9 +51,9 @@ async function resolveCustomer(stripeId, email) {
 }
 
 let synced = 0, skipped = 0, withEmail = 0, matched = 0;
-for await (const charge of stripe.charges.list({ limit: 100, expand: ["data.customer"] })) {
+for await (const charge of stripe.charges.list({ limit: 100, expand: ["data.customer", "data.refunds"] })) {
   const pi = idOf(charge.payment_intent);
-  if (!haveCharge.has(charge.id) && pi && havePI.has(pi)) { skipped++; continue; }
+  if (!haveCharge.has(charge.id) && pi && havePINoCharge.has(pi)) { skipped++; continue; }
   const cust = charge.customer && typeof charge.customer === "object" && !charge.customer.deleted ? charge.customer : null;
   const email = cust?.email || charge.billing_details?.email || charge.receipt_email || null;
   const name = cust?.name || charge.billing_details?.name || null;
@@ -82,7 +84,7 @@ for await (const charge of stripe.charges.list({ limit: 100, expand: ["data.cust
     },
     { onConflict: "stripe_charge_id" },
   );
-  if (!error) { synced++; haveCharge.add(charge.id); if (pi) havePI.add(pi); if (email) withEmail++; if (customerId) matched++; }
+  if (!error) { synced++; haveCharge.add(charge.id); if (email) withEmail++; if (customerId) matched++; }
 }
 console.log(`synced ${synced}, skipped ${skipped}, with email ${withEmail}, matched to local customer ${matched}`);
 process.exit(0);

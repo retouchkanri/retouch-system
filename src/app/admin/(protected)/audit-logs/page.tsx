@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireCapability } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
+import { resolveMatchingIds, sanitizeSearch } from "@/lib/adminSearch";
 
 const PAGE_SIZE = 100;
 
@@ -18,24 +19,55 @@ export default async function AdminAuditLogsPage({
   const page = Math.max(1, Number(searchParams?.page ?? "1") || 1);
   const from = (page - 1) * PAGE_SIZE;
 
-  let query = supabase
-    .from("audit_logs")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: false });
-  if (action) query = query.eq("action", action);
-  if (table) query = query.eq("target_table", table);
-
-  const { data, count } = await query.range(from, from + PAGE_SIZE - 1);
-
-  const filtered = q
-    ? (data ?? []).filter((log: any) => {
-        const hay = `${log.action} ${log.target_table ?? ""} ${JSON.stringify(log.meta ?? {})}`.toLowerCase();
-        return hay.includes(q.toLowerCase());
-      })
-    : data ?? [];
+  // Search the whole table (not just the current page) via an RPC: it matches
+  // action / target table, the meta JSON body, and the actor's name/email, and
+  // returns the page of rows plus the total match count. Runs as SECURITY
+  // INVOKER, so the "audit admin only" RLS policy still applies.
+  let rows: any[] = [];
+  let count = 0;
+  const rpc = await supabase.rpc("search_audit_logs", {
+    p_q: q || null,
+    p_action: action || null,
+    p_table: table || null,
+    p_limit: PAGE_SIZE,
+    p_offset: from,
+  });
+  if (!rpc.error) {
+    rows = (rpc.data as any[]) ?? [];
+    count = Number(rows[0]?.total_count ?? 0);
+  } else {
+    // Fallback if the RPC isn't deployed yet: query directly. Covers action /
+    // target table / actor name+email across the whole table, but not the meta
+    // JSON body (that needs the function). Keeps the page working in the gap
+    // before the migration is applied.
+    let query = supabase
+      .from("audit_logs")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false });
+    if (action) query = query.eq("action", action);
+    if (table) query = query.eq("target_table", table);
+    if (q) {
+      const safe = sanitizeSearch(q);
+      const orParts = [`action.ilike.*${safe}*`, `target_table.ilike.*${safe}*`];
+      const custIds = await resolveMatchingIds(supabase, "customers", ["full_name", "email"], q);
+      if (custIds.length) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id")
+          .in("customer_id", custIds)
+          .limit(1000);
+        const matchedActorIds = (profs ?? []).map((p: any) => p.id);
+        if (matchedActorIds.length) orParts.push(`actor_id.in.(${matchedActorIds.join(",")})`);
+      }
+      query = query.or(orParts.join(","));
+    }
+    const res = await query.range(from, from + PAGE_SIZE - 1);
+    rows = (res.data as any[]) ?? [];
+    count = res.count ?? 0;
+  }
 
   // Lookup actor email for display
-  const actorIds = Array.from(new Set(filtered.map((l: any) => l.actor_id).filter(Boolean)));
+  const actorIds = Array.from(new Set(rows.map((l: any) => l.actor_id).filter(Boolean)));
   const actors = new Map<string, string>();
   if (actorIds.length > 0) {
     const { data: profiles } = await supabase
@@ -125,7 +157,7 @@ export default async function AdminAuditLogsPage({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((log: any, i: number) => (
+            {rows.map((log: any, i: number) => (
               <tr key={log.id}>
                 <td className="text-right text-ink-mute tabular-nums">{from + i + 1}</td>
                 <td className="whitespace-nowrap">{formatDate(log.created_at, true)}</td>
@@ -151,7 +183,7 @@ export default async function AdminAuditLogsPage({
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td colSpan={6} className="text-center py-6 text-ink-mute">
                   ログがありません。

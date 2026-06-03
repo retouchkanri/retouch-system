@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import horseImage from "@/assets/images/horse.png";
 import { formatDate, formatUnits, formatYen, statusLabel } from "@/lib/format";
+import { NO_MATCH_ID, resolveMatchingIds } from "@/lib/adminSearch";
 import SupportRow from "./SupportRow";
 import SupportForm from "./SupportForm";
 
@@ -38,14 +39,21 @@ export default async function AdminSupportsPage({
   if (status) query = query.eq("status", status);
   if (horse) query = query.eq("horse_id", horse);
 
-  const { data, count } = await query.range(from, from + PAGE_SIZE - 1);
+  // Search the whole table (customer name/email + horse name), not just the
+  // current page: resolve matching ids in the joined tables, then filter.
+  if (q) {
+    const [custIds, horseIds] = await Promise.all([
+      resolveMatchingIds(supabase, "customers", ["full_name", "email"], q),
+      resolveMatchingIds(supabase, "horses", ["name"], q),
+    ]);
+    const orParts: string[] = [];
+    if (custIds.length) orParts.push(`customer_id.in.(${custIds.join(",")})`);
+    if (horseIds.length) orParts.push(`horse_id.in.(${horseIds.join(",")})`);
+    query = orParts.length ? query.or(orParts.join(",")) : query.eq("id", NO_MATCH_ID);
+  }
 
-  const filtered = q
-    ? (data ?? []).filter((s: any) => {
-        const hay = `${s.customer?.full_name ?? ""} ${s.customer?.email ?? ""} ${s.horse?.name ?? ""}`.toLowerCase();
-        return hay.includes(q.toLowerCase());
-      })
-    : data ?? [];
+  const { data, count } = await query.range(from, from + PAGE_SIZE - 1);
+  const rows = (data as any[]) ?? [];
 
   // horse-wise visualization
   const stats = new Map<string, { name: string; image_url: string | null; units: number; monthly: number; supporters: number }>();
@@ -153,7 +161,7 @@ export default async function AdminSupportsPage({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((s: any, i: number) => (
+            {rows.map((s: any, i: number) => (
               <SupportRow
                 key={s.id}
                 index={from + i + 1}
@@ -174,7 +182,7 @@ export default async function AdminSupportsPage({
                 }}
               />
             ))}
-            {filtered.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td colSpan={9} className="text-center py-6 text-ink-mute">
                   該当する支援がありません。

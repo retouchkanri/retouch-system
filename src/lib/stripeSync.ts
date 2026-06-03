@@ -47,17 +47,31 @@ export async function syncStripePayments(
     .order("occurred_at", { ascending: false })
     .limit(opts.full ? 100000 : 1000);
   const haveCharge = new Set<string>();
-  const havePI = new Set<string>();
+  // PIs recorded on a row that has NO charge id — i.e. a donation logged by the
+  // webhook, which stores payment_intent but not charge. We skip a charge whose
+  // PI matches one of these to avoid duplicating that webhook row.
+  //
+  // We deliberately do NOT dedup on PIs that already have a charge id: one
+  // subscription PaymentIntent can produce several charges (a failed attempt and
+  // its successful retry share a single PI but have distinct charge ids), and
+  // each of those charges is a real transaction that must get its own row.
+  const havePINoCharge = new Set<string>();
   let latestOccurredMs = 0;
   for (const r of (existing ?? []) as any[]) {
     if (r.stripe_charge_id) haveCharge.add(r.stripe_charge_id);
-    if (r.stripe_payment_intent_id) havePI.add(r.stripe_payment_intent_id);
+    else if (r.stripe_payment_intent_id) havePINoCharge.add(r.stripe_payment_intent_id);
     if (r.occurred_at) latestOccurredMs = Math.max(latestOccurredMs, new Date(r.occurred_at).getTime());
   }
 
   // Expand the customer so we can read its email/name (subscription charges
   // often have empty billing_details; the Customer object is the reliable source).
-  const params: Stripe.ChargeListParams = { limit: 100, expand: ["data.customer"] };
+  // Expand refunds too: recent API versions don't return refund details
+  // inline on the charge, so `refunds.data[0].created` (the 返金日) is only
+  // available when expanded.
+  const params: Stripe.ChargeListParams = {
+    limit: 100,
+    expand: ["data.customer", "data.refunds"],
+  };
   if (!opts.full && latestOccurredMs > 0) {
     // 1h overlap so we never miss a charge straddling the boundary.
     params.created = { gte: Math.floor(latestOccurredMs / 1000) - 60 * 60 };
@@ -107,8 +121,10 @@ export async function syncStripePayments(
   for await (const charge of stripe.charges.list(params)) {
     const pi = idOf(charge.payment_intent as any);
     // A row for this exact charge → refresh it. Otherwise, if the webhook
-    // already logged this payment_intent, skip to avoid a duplicate.
-    if (!haveCharge.has(charge.id) && pi && havePI.has(pi)) {
+    // already logged this payment_intent as a chargeless row (donation), skip
+    // to avoid a duplicate. Charges sharing a PI with an existing *charge* row
+    // (subscription retries) are intentionally NOT skipped — see havePINoCharge.
+    if (!haveCharge.has(charge.id) && pi && havePINoCharge.has(pi)) {
       skipped += 1;
       continue;
     }
@@ -156,7 +172,6 @@ export async function syncStripePayments(
     if (!error) {
       synced += 1;
       haveCharge.add(charge.id);
-      if (pi) havePI.add(pi);
     }
   }
 

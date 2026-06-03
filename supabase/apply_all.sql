@@ -794,3 +794,64 @@ left join lateral (
   where ct.customer_id = c.id
   order by current_period_end desc nulls last limit 1
 ) contract_agg on true;
+
+-- =====================================================================
+-- Audit-log full-text search RPC
+-- =====================================================================
+-- audit_logs.meta is jsonb, which PostgREST's .or(ilike) can't body-search.
+-- This function searches action / target_table / the meta JSON body / the
+-- actor's name+email server-side, and returns the requested page plus the
+-- total match count. SECURITY INVOKER (default) → the "audit admin only" RLS
+-- policy still applies (non-admins get 0 rows).
+create or replace function public.search_audit_logs(
+  p_q text default null,
+  p_action text default null,
+  p_table text default null,
+  p_limit int default 100,
+  p_offset int default 0
+)
+returns table (
+  id uuid,
+  actor_id uuid,
+  action text,
+  target_table text,
+  target_id uuid,
+  meta jsonb,
+  created_at timestamptz,
+  total_count bigint
+)
+language sql
+stable
+as $$
+  with filtered as (
+    select a.*
+    from public.audit_logs a
+    where (p_action is null or p_action = '' or a.action = p_action)
+      and (p_table is null or p_table = '' or a.target_table = p_table)
+      and (
+        p_q is null or p_q = ''
+        or a.action ilike '%' || p_q || '%'
+        or coalesce(a.target_table, '') ilike '%' || p_q || '%'
+        or a.meta::text ilike '%' || p_q || '%'
+        or exists (
+          select 1
+          from public.profiles p
+          join public.customers c on c.id = p.customer_id
+          where p.id = a.actor_id
+            and (
+              coalesce(c.full_name, '') ilike '%' || p_q || '%'
+              or coalesce(c.email::text, '') ilike '%' || p_q || '%'
+            )
+        )
+      )
+  )
+  select
+    f.id, f.actor_id, f.action, f.target_table, f.target_id, f.meta, f.created_at,
+    count(*) over () as total_count
+  from filtered f
+  order by f.created_at desc
+  offset greatest(p_offset, 0)
+  limit greatest(p_limit, 1);
+$$;
+
+grant execute on function public.search_audit_logs(text, text, text, int, int) to authenticated;
