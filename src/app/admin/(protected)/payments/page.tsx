@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireCapability } from "@/lib/auth";
 import { formatDate, formatYen, statusLabel } from "@/lib/format";
 import { syncStripePayments } from "@/lib/stripeSync";
+import { resolveMatchingIds } from "@/lib/adminSearch";
 import PaymentRow from "./PaymentRow";
 import SyncButton from "./SyncButton";
 
@@ -43,11 +44,25 @@ export default async function AdminPaymentsPage({
   const page = Math.max(1, Number(searchParams?.page ?? "1") || 1);
   const from = (page - 1) * PAGE_SIZE;
 
-  // Server-side search across email / name (stored in raw) + Stripe IDs.
+  // Server-side search across Stripe IDs + the payer email/name stored on the
+  // row (raw), PLUS the linked customer's name/email. The 顧客 column shows the
+  // linked customer's full_name, which is often empty/different in raw, so we
+  // resolve matching customer ids and include them — letting search work by
+  // customer name as displayed.
   const safeQ = q.replace(/[%*,()]/g, "");
-  const orFilter = safeQ
-    ? `stripe_charge_id.ilike.*${safeQ}*,stripe_payment_intent_id.ilike.*${safeQ}*,stripe_invoice_id.ilike.*${safeQ}*,raw->>stripe_email.ilike.*${safeQ}*,raw->>stripe_name.ilike.*${safeQ}*`
-    : "";
+  let orFilter = "";
+  if (safeQ) {
+    const parts = [
+      `stripe_charge_id.ilike.*${safeQ}*`,
+      `stripe_payment_intent_id.ilike.*${safeQ}*`,
+      `stripe_invoice_id.ilike.*${safeQ}*`,
+      `raw->>stripe_email.ilike.*${safeQ}*`,
+      `raw->>stripe_name.ilike.*${safeQ}*`,
+    ];
+    const custIds = await resolveMatchingIds(supabase, "customers", ["full_name", "email"], q);
+    if (custIds.length) parts.push(`customer_id.in.(${custIds.join(",")})`);
+    orFilter = parts.join(",");
+  }
 
   const applyFilters = (qy: any, statusVal: string) => {
     if (statusVal) qy = qy.eq("status", statusVal);
