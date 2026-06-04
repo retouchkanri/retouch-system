@@ -3,7 +3,33 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatYen } from "@/lib/format";
 import { syncStripePayments } from "@/lib/stripeSync";
+import { buildRevenueSeries, type RawPayment } from "@/lib/revenueSeries";
+import RevenueChart from "./RevenueChart";
 import horseImage from "@/assets/images/horse.png";
+
+// 収益推移チャートは年・月・週・日で切替表示するため、十分に長い期間
+// （直近 5 年）の成功決済を取得する。1000 行の上限を超える可能性があるので
+// ページングして全件取得する。
+async function fetchSucceededPayments(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  sinceISO: string,
+): Promise<RawPayment[]> {
+  const pageSize = 1000;
+  const rows: RawPayment[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("payments")
+      .select("occurred_at, amount")
+      .eq("status", "succeeded")
+      .gte("occurred_at", sinceISO)
+      .order("occurred_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error || !data || data.length === 0) break;
+    rows.push(...(data as RawPayment[]));
+    if (data.length < pageSize) break;
+  }
+  return rows;
+}
 
 export default async function AdminDashboardPage() {
   // Reflect the latest Stripe payments on the dashboard (incremental,
@@ -11,8 +37,8 @@ export default async function AdminDashboardPage() {
   await syncStripePayments({}).catch(() => {});
   const supabase = createSupabaseServerClient();
 
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const fiveYearsAgo = new Date();
+  fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
 
   const [
     { count: customersTotal },
@@ -21,7 +47,7 @@ export default async function AdminDashboardPage() {
     { count: canceledContracts },
     { count: bookingsToday },
     { data: recentPayments },
-    { data: allRecentPayments },
+    revenuePayments,
     { data: recentSupports },
     { data: upcomingEvents },
   ] = await Promise.all([
@@ -38,11 +64,7 @@ export default async function AdminDashboardPage() {
       .select("*, customer:customers(full_name,email)")
       .order("occurred_at", { ascending: false })
       .limit(5),
-    supabase
-      .from("payments")
-      .select("occurred_at, amount")
-      .eq("status", "succeeded")
-      .gte("occurred_at", sixMonthsAgo.toISOString()),
+    fetchSucceededPayments(supabase, fiveYearsAgo.toISOString()),
     supabase
       .from("support_subscriptions")
       .select("*, horse:horses(name), customer:customers(full_name)")
@@ -56,42 +78,8 @@ export default async function AdminDashboardPage() {
       .limit(5),
   ]);
 
-  // ── Monthly revenue chart data (last 6 months) ──
-  const months = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date();
-    d.setDate(1);
-    d.setMonth(d.getMonth() - (5 - i));
-    return d.toISOString().substring(0, 7);
-  });
-
-  const paymentsByMonth = new Map<string, number>();
-  for (const p of allRecentPayments ?? []) {
-    const month = (p.occurred_at as string).substring(0, 7);
-    paymentsByMonth.set(month, (paymentsByMonth.get(month) ?? 0) + Number(p.amount ?? 0));
-  }
-  const chartData = months.map((m) => ({
-    month: m.substring(5) + "月",
-    total: paymentsByMonth.get(m) ?? 0,
-  }));
-  const maxVal = Math.max(...chartData.map((d) => d.total), 1);
-
-  // SVG line chart points (viewBox 0 0 200 60)
-  const linePoints = chartData
-    .map((d, i) => {
-      const x = (i / (chartData.length - 1)) * 190 + 5;
-      const y = 55 - (d.total / maxVal) * 48;
-      return `${x},${y}`;
-    })
-    .join(" ");
-  const areaPoints = [
-    `5,55`,
-    ...chartData.map((d, i) => {
-      const x = (i / (chartData.length - 1)) * 190 + 5;
-      const y = 55 - (d.total / maxVal) * 48;
-      return `${x},${y}`;
-    }),
-    `195,55`,
-  ].join(" ");
+  // ── Revenue chart series (day / week / month / year) ──
+  const revenueSeries = buildRevenueSeries(revenuePayments);
 
   // ── Donut chart for contract status ──
   const total = (activeContracts ?? 0) + (pastDueCount ?? 0) + (canceledContracts ?? 0);
@@ -176,62 +164,9 @@ export default async function AdminDashboardPage() {
 
       {/* Charts row */}
       <div className="grid md:grid-cols-3 gap-4">
-        {/* Monthly Revenue Chart */}
+        {/* Revenue Chart (day / week / month / year) */}
         <div className="card md:col-span-2">
-          <h2 className="section-title">月次収益推移</h2>
-          <div className="relative">
-            <svg viewBox="0 0 200 70" className="w-full" preserveAspectRatio="xMidYMid meet">
-              <defs>
-                <linearGradient id="adminChartGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#4a9e7e" stopOpacity="0.12" />
-                  <stop offset="80%" stopColor="#4a9e7e" stopOpacity="0.02" />
-                  <stop offset="100%" stopColor="#4a9e7e" stopOpacity="0" />
-                </linearGradient>
-                <filter id="lineShadow" x="-4%" y="-4%" width="108%" height="108%">
-                  <feGaussianBlur in="SourceAlpha" stdDeviation="0.8" />
-                  <feOffset dx="0" dy="0.5" />
-                  <feComponentTransfer><feFuncA type="linear" slope="0.15" /></feComponentTransfer>
-                  <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
-                </filter>
-              </defs>
-              {/* Subtle horizontal guides */}
-              {[16, 28, 40, 52].map((y) => (
-                <line key={y} x1="8" y1={y} x2="192" y2={y} stroke="#f0f0f0" strokeWidth="0.3" strokeDasharray="2 3" />
-              ))}
-              {/* Area fill */}
-              <polygon points={areaPoints} fill="url(#adminChartGrad)" />
-              {/* Main line - thin and elegant */}
-              <polyline
-                points={linePoints}
-                fill="none"
-                stroke="#3d8b6e"
-                strokeWidth="0.9"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                filter="url(#lineShadow)"
-              />
-              {/* Data points - small, refined */}
-              {chartData.map((d, i) => {
-                const x = (i / (chartData.length - 1)) * 190 + 5;
-                const y = 55 - (d.total / maxVal) * 48;
-                return (
-                  <g key={i}>
-                    <circle cx={x} cy={y} r="2.5" fill="white" stroke="#3d8b6e" strokeWidth="0.7" />
-                    <circle cx={x} cy={y} r="1" fill="#3d8b6e" />
-                  </g>
-                );
-              })}
-            </svg>
-            {/* X-axis labels */}
-            <div className="flex justify-between mt-1.5 px-2">
-              {chartData.map((d) => (
-                <span key={d.month} className="text-[10px] text-ink-mute font-medium tracking-wide">{d.month}</span>
-              ))}
-            </div>
-            {maxVal === 1 && (
-              <p className="text-xs text-ink-mute text-center mt-2">決済データがまだありません</p>
-            )}
-          </div>
+          <RevenueChart series={revenueSeries} />
         </div>
 
         {/* Contract Status Donut */}

@@ -18,7 +18,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   await requireCapability("horses.manage");
   const admin = createSupabaseAdminClient();
-  const { error } = await admin.from("horses").update({ is_supportable: false }).eq("id", params.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const { error } = await admin.from("horses").delete().eq("id", params.id);
+  if (error) {
+    // 支援・契約などが紐づいている馬は外部キー制約で削除できない。
+    // 利用者に理由が伝わるメッセージを返す（500 ではなく 409）。
+    return NextResponse.json(
+      { error: "この馬には支援などのデータが紐づいているため削除できません。先に関連データを停止・整理してください。" },
+      { status: 409 },
+    );
+  }
   return NextResponse.json({ ok: true });
 }

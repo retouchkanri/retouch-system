@@ -1,11 +1,12 @@
-import Image from "next/image";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import horseImage from "@/assets/images/horse.png";
 import { formatDate, formatUnits, formatYen, statusLabel } from "@/lib/format";
 import { NO_MATCH_ID, resolveMatchingIds } from "@/lib/adminSearch";
+import { getSession } from "@/lib/auth";
+import { can } from "@/lib/roles";
 import SupportRow from "./SupportRow";
 import SupportForm from "./SupportForm";
+import HorseSupportStatus from "./HorseSupportStatus";
 
 const PAGE_SIZE = 50;
 
@@ -15,6 +16,8 @@ export default async function AdminSupportsPage({
   searchParams?: { status?: string; q?: string; horse?: string; page?: string };
 }) {
   const supabase = createSupabaseServerClient();
+  const session = await getSession();
+  const canManageHorses = !!session && can(session.role, "horses.manage");
   const status = searchParams?.status ?? "";
   const q = (searchParams?.q ?? "").trim();
   const horse = searchParams?.horse ?? "";
@@ -68,6 +71,12 @@ export default async function AdminSupportsPage({
     stats.set(id, cur);
   }
   const horseSummary = Array.from(stats.entries()).sort((a, b) => b[1].monthly - a[1].monthly);
+  const horseStatusItems = horseSummary.map(([id, s]) => ({
+    id,
+    name: s.name,
+    image_url: s.image_url,
+    stats: `支援者 ${s.supporters}名 / ${formatUnits(s.units)} / ${formatYen(s.monthly)}月`,
+  }));
 
   const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
 
@@ -78,31 +87,8 @@ export default async function AdminSupportsPage({
         <span className="text-sm text-ink-soft">全 {count ?? 0} 件</span>
       </div>
 
-      {horseSummary.length > 0 && (
-        <div className="card">
-          <h2 className="section-title">馬ごとの支援状況</h2>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {horseSummary.map(([id, s]) => (
-              <div key={id} className="p-3 rounded-xl border border-surface-line flex items-center gap-3">
-                {s.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={s.image_url} alt={s.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
-                ) : (
-                  <div className="w-12 h-12 rounded-lg bg-brand-50 overflow-hidden shrink-0">
-                    <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
-                  </div>
-                )}
-                <div>
-                  <p className="font-bold">{s.name}</p>
-                  <p className="text-xs text-ink-soft">
-                    支援者 {s.supporters}名 / {formatUnits(s.units)} / {formatYen(s.monthly)}月
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* 馬ごとの支援状況（画像・名称の編集 / 追加 / 削除つき） */}
+      <HorseSupportStatus items={horseStatusItems} canManage={canManageHorses} />
 
       <details className="card">
         <summary className="cursor-pointer font-semibold">＋ 手動で支援を追加</summary>

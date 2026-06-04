@@ -1,4 +1,5 @@
 import { requireMember } from "@/lib/auth";
+import BottomRightPanel from "@/components/BottomRightPanel";
 
 export default async function MyPageLayout({
   children,
@@ -11,6 +12,8 @@ export default async function MyPageLayout({
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-6">
         {children}
       </main>
+      {/* 浮遊ボタン: 寄付・チャット・トップ（全デバイスで同じ位置） */}
+      <BottomRightPanel />
       <footer className="py-6 text-center text-xs text-ink-mute space-y-1">
         <p>© Retouchメンバーズサイト</p>
         {process.env.CONTACT_EMAIL && (

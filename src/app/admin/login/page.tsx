@@ -3,7 +3,7 @@ import AdminLoginForm from "./AdminLoginForm";
 
 export default function AdminLoginPage({ searchParams }: { searchParams: { error?: string } }) {
   return (
-    <main className="flex min-h-0 flex-1 items-center justify-center p-4">
+    <main className="font-serif flex min-h-0 flex-1 items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <div className="flex justify-center mb-2">

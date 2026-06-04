@@ -15,6 +15,7 @@ export async function POST(req: Request) {
       sex: body.sex || null,
       birth_year: body.birth_year ?? null,
       profile: body.profile || null,
+      image_url: body.image_url || null,
       is_supportable: body.is_supportable ?? true,
       sort_order: body.sort_order ?? 100,
     })

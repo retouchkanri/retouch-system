@@ -14,6 +14,12 @@ coverage/
 tsconfig.tsbuildinfo
 next-env.d.ts
 
+# Large image archive & extracted source images — keep out of Git
+# (originals live in Supabase Storage, not the repo)
+horseimage/
+horseimage.zip
+*.zip
+
 # Editor / OS / stray git
 .git2/
 .tmp/

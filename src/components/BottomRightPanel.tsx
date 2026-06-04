@@ -29,7 +29,15 @@ function getBotReply(input: string): string {
   return "ご質問ありがとうございます。さらに詳しい内容は support@retouch-members.com までお問い合わせいただくか、お問い合わせフォームをご利用ください。";
 }
 
-export default function BottomRightPanel() {
+export default function BottomRightPanel({
+  showDonate = true,
+  showChat = true,
+}: {
+  /** 単発寄付ボタン（左下の画像）を表示するか。 */
+  showDonate?: boolean;
+  /** チャットサポートボタンを表示するか。 */
+  showChat?: boolean;
+} = {}) {
   const [showTop, setShowTop] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
@@ -61,49 +69,53 @@ export default function BottomRightPanel() {
 
   return (
     <>
-      {/* ── Donation image — bottom-left ── */}
-      <a
-        href="/donate"
-        className="fixed bottom-0 left-0 z-40 block w-[min(7.5rem,28vw)] transition-transform duration-300 hover:scale-110 focus-visible:scale-110 focus:outline-none drop-shadow-xl max-md:bottom-[4.75rem] md:w-[22.5rem] md:max-w-[min(22.5rem,40vw)]"
-        aria-label="単発寄付をする"
-      >
-        <Image
-          src={doImage}
-          alt="単発寄付をする"
-          width={780}
-          height={780}
-          className="w-full h-auto object-contain"
-        />
-      </a>
+      {/* ── Donation image — bottom-left (consistent inset on every device) ── */}
+      {showDonate && (
+        <a
+          href="/donate"
+          className="fixed bottom-0 left-0 z-40 block w-[min(7.5rem,28vw)] transition-transform duration-300 hover:scale-110 focus-visible:scale-110 focus:outline-none drop-shadow-xl sm:w-44 md:w-[22.5rem] md:max-w-[min(22.5rem,40vw)]"
+          aria-label="単発寄付をする"
+        >
+          <Image
+            src={doImage}
+            alt="単発寄付をする"
+            width={780}
+            height={780}
+            className="w-full h-auto object-contain"
+          />
+        </a>
+      )}
 
-      {/* ── Fixed bottom-right stack (above mobile CTA bar, inset from edge) ── */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 max-md:bottom-[5.5rem] max-md:right-2">
+      {/* ── Fixed bottom-right stack — same inset on PC / tablet / mobile ── */}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3">
 
         {/* Chatbot button */}
-        <div className="relative flex items-center justify-center">
-          {/* Ping rings — only when chat is closed */}
-          {!chatOpen && (
-            <>
-              <span className="absolute inline-flex h-full w-full rounded-full bg-brand opacity-40 animate-ping" />
-              <span className="absolute inline-flex h-[140%] w-[140%] rounded-full bg-brand opacity-20 animate-[ping_1.8s_cubic-bezier(0,0,0.2,1)_infinite_0.4s]" />
-            </>
-          )}
-          <button
-            onClick={() => setChatOpen((v) => !v)}
-            className="relative w-12 h-12 rounded-full bg-brand text-white shadow-lg flex items-center justify-center hover:bg-brand-dark hover:scale-110 active:scale-95 transition-all duration-200"
-            aria-label="チャットサポートを開く"
-          >
-            {chatOpen ? (
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path d="M3 3l12 12M15 3L3 15" stroke="white" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+        {showChat && (
+          <div className="relative flex items-center justify-center">
+            {/* Ping rings — only when chat is closed */}
+            {!chatOpen && (
+              <>
+                <span className="absolute inline-flex h-full w-full rounded-full bg-brand opacity-40 animate-ping" />
+                <span className="absolute inline-flex h-[140%] w-[140%] rounded-full bg-brand opacity-20 animate-[ping_1.8s_cubic-bezier(0,0,0.2,1)_infinite_0.4s]" />
+              </>
             )}
-          </button>
-        </div>
+            <button
+              onClick={() => setChatOpen((v) => !v)}
+              className="relative w-12 h-12 rounded-full bg-brand text-white shadow-lg flex items-center justify-center hover:bg-brand-dark hover:scale-110 active:scale-95 transition-all duration-200"
+              aria-label="チャットサポートを開く"
+            >
+              {chatOpen ? (
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M3 3l12 12M15 3L3 15" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Top button */}
         {showTop && (
@@ -120,8 +132,8 @@ export default function BottomRightPanel() {
       </div>
 
       {/* ── Chat popup ── */}
-      {chatOpen && (
-        <div className="fixed bottom-36 right-4 z-50 w-[min(20rem,calc(100vw-1.5rem))] sm:w-96 flex flex-col bg-white rounded-2xl shadow-2xl border border-surface-line overflow-hidden animate-[scaleIn_200ms_ease] max-md:bottom-[9.5rem] max-md:right-2">
+      {showChat && chatOpen && (
+        <div className="fixed bottom-36 right-4 z-50 w-[min(20rem,calc(100vw-1.5rem))] sm:w-96 flex flex-col bg-white rounded-2xl shadow-2xl border border-surface-line overflow-hidden animate-[scaleIn_200ms_ease]">
           {/* Header */}
           <div className="bg-brand px-4 py-3 flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
