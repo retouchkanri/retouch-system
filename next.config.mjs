@@ -30,6 +30,26 @@ const nextConfig = {
       { protocol: "https", hostname: "images.unsplash.com" },
     ],
   },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // Keep the dev file-watcher away from huge non-source trees. An
+      // extracted `horseimage/` archive (tens of thousands of large image
+      // files) would otherwise be crawled and snapshotted by webpack,
+      // which OOMs the compiler and can corrupt the .next pack cache
+      // (the "Array buffer allocation failed" gunzip crash on restart).
+      config.watchOptions = {
+        ...(config.watchOptions || {}),
+        ignored: [
+          "**/node_modules/**",
+          "**/.git/**",
+          "**/.next/**",
+          "**/horseimage/**",
+          "**/backups/**",
+        ],
+      };
+    }
+    return config;
+  },
 };
 
 export default withPWA({

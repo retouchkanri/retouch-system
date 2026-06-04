@@ -12,7 +12,7 @@ export default async function BookingsPage({
   const supabase = createSupabaseServerClient();
   const { data: events } = await supabase
     .from("events")
-    .select("id,title,starts_at,capacity,type,supporters_only")
+    .select("id,title,starts_at,capacity,type,supporters_only,location")
     .order("starts_at", { ascending: false })
     .limit(50);
 
@@ -48,6 +48,14 @@ export default async function BookingsPage({
       {selectedEvent && (
         <div className="card">
           <div className="flex flex-wrap gap-3 text-sm">
+            <p>
+              <span className="text-ink-soft">日時</span>{" "}
+              <span className="font-bold">{formatDate((selectedEvent as any).starts_at, true)}</span>
+            </p>
+            <p>
+              <span className="text-ink-soft">場所</span>{" "}
+              <span className="font-bold">{(selectedEvent as any).location?.trim() ? (selectedEvent as any).location : "—"}</span>
+            </p>
             <p>
               <span className="text-ink-soft">定員</span>{" "}
               <span className="font-bold">{(selectedEvent as any).capacity}</span>

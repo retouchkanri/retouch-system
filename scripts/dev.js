@@ -53,7 +53,16 @@ async function pickPort() {
   const child = spawn(process.execPath, [nextMain, "dev", "-p", String(port)], {
     stdio: "inherit",
     shell: false,
-    env: { ...process.env, PORT: String(port) },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      // Extra V8 heap headroom for the dev compiler on memory-constrained
+      // hosts — prevents "JavaScript heap out of memory" during webpack
+      // cache (de)compression. Preserves any NODE_OPTIONS already set.
+      NODE_OPTIONS: [process.env.NODE_OPTIONS, "--max-old-space-size=4096"]
+        .filter(Boolean)
+        .join(" "),
+    },
   });
 
   const forward = (sig) => () => child.kill(sig);

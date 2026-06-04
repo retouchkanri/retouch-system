@@ -6,6 +6,7 @@ import InfoEditor from "./InfoEditor";
 import MemoEditor from "./MemoEditor";
 import StatusEditor from "./StatusEditor";
 import TeamNameEditor from "./TeamNameEditor";
+import VisitHistory from "./VisitHistory";
 
 export default async function CustomerDetail({ params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient();
@@ -254,22 +255,24 @@ export default async function CustomerDetail({ params }: { params: { id: string 
 
       <section className="card">
         <h2 className="section-title">見学会・個別見学 履歴</h2>
-        <table className="table">
-          <thead><tr><th className="w-12 text-right">No.</th><th>種別</th><th>タイトル</th><th>日時</th><th>人数</th><th>状態</th></tr></thead>
-          <tbody>
-            {(bookings ?? []).map((b: any, i: number) => (
-              <tr key={b.id}>
-                <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
-                <td>{b.event?.type === "private_visit" ? "個別見学" : "見学会"}</td>
-                <td>{b.event?.title}</td>
-                <td>{formatDate(b.event?.starts_at, true)}</td>
-                <td>{b.party_size}</td>
-                <td>{statusLabel(b.status)}</td>
-              </tr>
-            ))}
-            {(bookings ?? []).length === 0 && <tr><td colSpan={6} className="text-center text-ink-mute py-3">見学履歴はまだありません。</td></tr>}
-          </tbody>
-        </table>
+        <p className="text-xs text-ink-mute mb-2">
+          いつ・どこ（場所）の見学会に参加されたかを確認できます。キャンセル等の誤登録は「削除」で取り除けます。
+        </p>
+        <VisitHistory
+          bookings={(bookings ?? []).map((b: any) => ({
+            id: b.id,
+            status: b.status,
+            party_size: b.party_size,
+            event: b.event
+              ? {
+                  type: b.event.type ?? null,
+                  title: b.event.title ?? null,
+                  starts_at: b.event.starts_at ?? null,
+                  location: b.event.location ?? null,
+                }
+              : null,
+          }))}
+        />
       </section>
 
       <section className="card">

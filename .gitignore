@@ -20,6 +20,10 @@ horseimage/
 horseimage.zip
 *.zip
 
+# Personal data dumps — never commit (members' names / emails / addresses / donations)
+supabase/*.csv
+supabase/backups/
+
 # Editor / OS / stray git
 .git2/
 .tmp/
