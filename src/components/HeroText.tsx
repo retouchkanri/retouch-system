@@ -65,9 +65,9 @@ export default function HeroText() {
       <p
         className="hero-scale-loop text-brand bg-white/50 rounded-xl px-5 py-3 shadow-lg text-[clamp(0.8rem,2.5vw,1rem)] max-w-xl leading-relaxed"
       >
-        会員管理・支援馬管理・決済・寄付をひとつのプラットフォームで。
+        ここから始まる、人と馬が支え合う未来。
         <br className="hidden sm:block" />
-        引退競走馬の安定した余生を、テクノロジーで支える仕組みです。
+        Retouchメンバー様の力で、馬たちに新たな役割を。
       </p>
     </div>
   );

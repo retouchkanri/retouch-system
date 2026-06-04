@@ -22,6 +22,7 @@ type DonationView = {
   note: string;
   donated_at: string;
   donated_at_value: string;
+  is_member: boolean;
 };
 
 export default function DonationRow({ donation, index }: { donation: DonationView; index: number }) {
@@ -89,6 +90,14 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
           <div className="text-xs text-ink-mute">{donation.donor_email}</div>
         </td>
         <td>
+          <span
+            className={`inline-block mb-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+              donation.is_member ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"
+            }`}
+          >
+            {donation.is_member ? "会員" : "単発支援"}
+          </span>
+          <br />
           {donation.customer_id ? (
             <Link href={`/admin/customers/${donation.customer_id}`} className="text-brand underline">
               {donation.customer_name}

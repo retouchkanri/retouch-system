@@ -4,10 +4,11 @@ import bgMobileImage from "@/assets/images/bg-m.png";
 import bgDesktopImage from "@/assets/images/bg.png";
 import bossImage from "@/assets/images/boss.png";
 import contactBgImage from "@/assets/images/contact.png";
-import reviewBgImage from "@/assets/images/review.png";
-import adminImage from "@/assets/images/admin.png";
 import userImage from "@/assets/images/user.png";
 import ponyImage from "@/assets/images/pony.png";
+import featureMembersImage from "@/assets/images/feature-members.jpg";
+import featureEventImage from "@/assets/images/feature-event.jpg";
+import featureHorseImage from "@/assets/images/feature-horse.jpg";
 import BottomRightPanel from "@/components/BottomRightPanel";
 import HomeHeroEffect from "@/components/HomeHeroEffect";
 import HeroText from "@/components/HeroText";
@@ -71,47 +72,47 @@ export default async function HomePage() {
         <div className="max-w-5xl mx-auto text-center">
           <p className="text-brand font-bold tracking-[0.2em] text-xs sm:text-sm mb-3 font-sans">SYSTEM FEATURES</p>
           <h2 className="text-2xl sm:text-3xl font-bold text-ink mb-3 font-serif">
-            引退競走馬支援を、<br className="sm:hidden" />もっとスマートに。
+            人と馬をつなぐ<br className="sm:hidden" />Retouch専用プラットフォーム
           </h2>
           <p className="text-ink-soft text-sm max-w-2xl mx-auto mb-4 leading-relaxed">
-            会員管理から馬匹支援・決済・イベントまで、すべてひとつのシステムで完結します。<br />
-            Retouchは、支援者・スタッフ・馬たちをつなぐ専用プラットフォームです。
+          ここから始まる、人と馬が支え合う未来。<br />
+          Retouchメンバー様の力で、馬たちに新たな役割を。
           </p>
           <p className="text-ink-soft text-sm max-w-2xl mx-auto mb-12 leading-relaxed">
-            紙の台帳や複数ツールの煩雑な管理から解放され、リアルタイムで支援状況を把握。
-            会員の皆さまも、スマホひとつで支援・予約・決済をシームレスに行えます。
+            Retouchは、支援者・スタッフ・馬たちをつなぎ、
+            人と馬が支え合う未来を育むためのプラットフォームです。
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
-                img: "https://images.unsplash.com/photo-1565350897149-38dfafa81d83?w=600&h=300&fit=crop",
-                title: "会員管理",
-                desc: "会員情報・プラン・支払い状況を一元管理。CSVインポート・エクスポートにも対応し、既存データをそのまま移行できます。",
+                img: featureMembersImage.src,
+                title: "会員様情報",
+                desc: "会員情報や契約プラン、支援履歴を一元管理。いつでもご自身の支援状況を確認できます。",
               },
               {
-                img: "https://images.unsplash.com/photo-1694792651411-2412d8f235fb?w=600&h=300&fit=crop",
+                img: featureHorseImage.src,
                 title: "支援馬管理",
-                desc: "馬ごとの支援口数・支援者・近況をリアルタイムで把握。写真・プロフィールの更新も管理画面から簡単に行えます。",
+                desc: "支援している馬や口数、支援履歴をわかりやすく表示。応援している馬たちの近況も簡単に確認できます。",
               },
               {
                 img: "https://images.unsplash.com/photo-1556742031-c6961e8560b0?w=600&h=300&fit=crop",
                 title: "決済管理",
-                desc: "Stripe連携による安心・安全なサブスクリプション決済。決済失敗の自動検知・通知機能で取りこぼしをゼロに。",
+                desc: "クレジットカード決済やサブスクリプション管理を安全・スムーズに。登録内容の変更も簡単に行えます。",
               },
               {
-                img: "https://images.unsplash.com/photo-1563830283-12f0a3ec7bf3?w=600&h=300&fit=crop",
+                img: featureEventImage.src,
                 title: "イベント管理",
-                desc: "牧場見学会・個別見学の定員管理・予約受付をオンライン化。参加者への自動確認メールも送信されます。",
+                desc: "見学会や馬とのふれあいイベントの申込みをアプリから簡単予約。参加履歴もまとめて確認できます。",
               },
               {
                 img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=300&fit=crop",
                 title: "分析・レポート",
-                desc: "月次収益・支援口数・会員推移をグラフで可視化。年次報告書の作成に必要なデータをワンクリックで出力できます。",
+                desc: "支援状況や資金の活用状況を見える化。皆様の支援がどのように馬たちの未来につながっているかをご確認いただけます。",
               },
               {
                 img: "https://images.unsplash.com/photo-1596526131083-e8c633c948d2?w=600&h=300&fit=crop",
-                title: "メッセージ",
-                desc: "会員全体・特定プランへのお知らせ配信、個別サポートメール対応を一元化。大切な連絡を確実に届けます。",
+                title: "お知らせ・メッセージ",
+                desc: "Retouchからの活動報告や重要なお知らせをリアルタイムで配信。大切な情報を確実にお届けします。",
               },
             ].map((f) => (
               <div
@@ -137,53 +138,13 @@ export default async function HomePage() {
             <p className="text-brand font-bold tracking-[0.2em] text-xs sm:text-sm mb-3">BUSINESS PRINCIPLES</p>
             <h2 className="text-2xl sm:text-3xl font-bold text-ink mb-4 font-serif">事業方針</h2>
             <p className="text-ink-soft text-sm max-w-2xl mx-auto leading-relaxed">
-              Retouch（リタッチ）は、引退競走馬の安定した余生を支えるため、
-              テクノロジーと人のつながりを活かした持続可能な支援モデルを構築しています。
-              以下の4つの方針を軸に、日々の運営・サービス開発を進めています。
+              Retouch（リタッチ）は、引退競走馬に新たな役割と活躍の場を創出し、
+              人と馬が支え合う社会の実現を目指しています。<br />
+              そのために、テクノロジーと人とのつながりを活かした持続可能な支援の仕組みを構築し、
+              以下の4つの方針を軸に事業を推進しています。
             </p>
           </div>
           <BusinessPrinciplesDeck />
-        </div>
-      </section>
-
-      {/* ── ADMIN PREVIEW ── */}
-      <section className="bg-brand-dark py-20 px-5">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <p className="text-brand-light font-bold tracking-[0.2em] text-xs sm:text-sm mb-3">ADMIN DASHBOARD</p>
-              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-5 leading-snug font-serif">
-                管理者は全体を<br />ひと目で把握できる
-              </h2>
-              <ul className="space-y-3 text-white/80 text-sm leading-relaxed">
-                {[
-                  "会員情報・支援口数を一元管理",
-                  "支援状況や決済をリアルタイムで可視化",
-                  "イベント申込・予約を簡単管理",
-                  "スマホ・PCどちらでも使いやすい設計",
-                  "決済失敗・要対応件数をダッシュボードで即確認",
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-2.5">
-                    <span className="mt-0.5 w-5 h-5 rounded-full bg-brand-light/20 border border-brand-light/40 flex items-center justify-center shrink-0">
-                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 3.5-4" stroke="#95d5b2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-8 flex justify-center lg:justify-start">
-                <Link
-                  href="/admin/login"
-                  className="inline-flex items-center justify-center rounded-full bg-brand-light text-brand-dark font-bold px-6 py-3 hover:brightness-105 transition text-base active:scale-[0.97] shadow-md"
-                >
-                  管理者ログイン →
-                </Link>
-              </div>
-            </div>
-            <div className="overflow-hidden rounded-xl shadow-2xl border border-white/10">
-              <Image src={adminImage} alt="管理者ダッシュボード画面" className="w-full h-auto" />
-            </div>
-          </div>
         </div>
       </section>
 
@@ -250,25 +211,24 @@ export default async function HomePage() {
             <div className="order-2">
               <p className="text-brand font-bold tracking-[0.2em] text-xs sm:text-sm mb-3">RETOUCH PONY TEAM</p>
               <h2 className="text-2xl sm:text-[1.9rem] font-bold text-ink mb-5 leading-snug font-serif">
-                肥育場にいたポニーたちを、<br className="hidden sm:block" />みんなで支えませんか？
+                肥育場からやってきたポニーたちを、<br className="hidden sm:block" />みんなで支えませんか？
               </h2>
               <p className="text-ink-soft text-sm leading-relaxed mb-4">
-                この子たちは、ただ保護されるだけの存在ではありません。これからのRetouchの活動を、より多くの方に知っていただくための
-                <span className="font-bold text-brand-dark">「広報部隊」</span>。
-                イベントやふれあい活動を通じて、引退馬や肥育場にいる馬たちの“いま”を、やさしく伝えていきます。
+                この子たちは、ただ保護されるだけの存在ではありません。イベントやふれあい活動を通じて、引退競走馬や肥育場にいる馬たちの現状を伝える、Retouchの大切な
+                <span className="font-bold text-brand-dark">「広報部隊」</span>です。
               </p>
               <p className="text-ink font-serif text-base sm:text-lg font-bold mb-5 leading-relaxed">
                 小さな体で、大きな役割を担うポニーたち。
               </p>
               <p className="text-ink-soft text-sm leading-relaxed mb-6">
-                その毎日を支えるため、月額3,000円の
+                その毎日と未来を支えるため、月額3,000円の
                 <span className="font-bold text-brand-dark">「Retouchポニーチーム支援メンバー」</span>
-                を募集しています。あなたのご支援が、ポニーたちの毎日と未来を、まっすぐに支えます。
+                を募集しています。あなたのご支援が、ポニーたちの暮らしを支え、そして多くの馬たちの未来につながります。
               </p>
 
               <p className="text-xs font-bold text-ink-mute tracking-wide mb-2">ご支援の使いみち</p>
               <ul className="flex flex-wrap gap-2 mb-7">
-                {["日々の飼育費", "医療費", "移動費", "活動費"].map((t) => (
+                {["飼育費", "医療費", "輸送・移動費", "イベント・広報活動費", "施設維持管理費"].map((t) => (
                   <li
                     key={t}
                     className="inline-flex items-center gap-1.5 bg-white/85 border border-brand-100 text-brand-dark text-xs font-bold px-3 py-1.5 rounded-full shadow-sm"
@@ -339,73 +299,6 @@ export default async function HomePage() {
 
 
 
-      {/* ── CUSTOMER REVIEWS ── */}
-      <section className="relative py-20 px-5 overflow-hidden">
-        {/* Background image */}
-        <Image src={reviewBgImage} alt="" fill className="object-cover object-center" />
-        <div className="absolute inset-0 bg-white/15 backdrop-blur-[1px]" />
-
-        <div aria-hidden className="absolute top-10 left-6 sm:left-16 text-brand-light/10 select-none">
-          <svg width="80" height="64" viewBox="0 0 80 64" fill="currentColor"><path d="M0 40V24C0 10.7 10.7 0 24 0h4v12h-4C16.3 12 12 16.3 12 24v4h16v24H0zm44 0V24C44 10.7 54.7 0 68 0h4v12h-4C60.3 12 56 16.3 56 24v4h16v24H44z" /></svg>
-        </div>
-
-        {/* SVG defs for half-star gradient — rendered once, referenced by all cards */}
-        <svg width="0" height="0" className="absolute">
-          <defs>
-            <linearGradient id="half-star-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="50%" stopColor="#fbbf24" />
-              <stop offset="50%" stopColor="#4b5563" />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        <div className="relative max-w-5xl mx-auto">
-          <p className="text-brand font-bold tracking-[0.2em] text-xs sm:text-sm mb-3 text-center">REVIEWS</p>
-          <h2 className="text-2xl sm:text-3xl font-bold text-ink mb-10 text-center font-serif">お客様の声</h2>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { name: "佐藤 美咲",  role: "一般会員・3年目",  rating: 5,   avatar: "https://images.unsplash.com/photo-1624091844772-554661d10173?w=100&h=100&fit=crop&crop=face", text: "毎月の支援がどの馬に届いているか一目でわかるので安心です。見学会で実際に馬に会えたときは感動しました。" },
-              { name: "田中 健太",  role: "支援会員・1年目",  rating: 5,   avatar: "https://images.unsplash.com/photo-1630572780070-fce8b9e1e7e7?w=100&h=100&fit=crop&crop=face", text: "操作がシンプルで、50代の私でも迷わず使えました。決済の透明性が高く、信頼して支援を続けられます。" },
-              { name: "鈴木 由美子", role: "一般会員・2年目", rating: 4.5, avatar: "https://images.unsplash.com/photo-1778291165732-bca4de5c3b07?w=100&h=100&fit=crop&crop=face", text: "以前は振込で大変でしたが、リニューアルでカード決済ができて格段に便利に。口数の変更もスムーズです。" },
-              { name: "山田 太郎",  role: "支援会員・4年目",  rating: 5,   avatar: "https://images.unsplash.com/photo-1630572780329-e051273e980f?w=100&h=100&fit=crop&crop=face", text: "管理画面で支援状況が可視化されるので、スタッフとしても業務がスムーズになりました。" },
-              { name: "中村 あゆみ", role: "一般会員・1年目", rating: 5,   avatar: "https://images.unsplash.com/photo-1624706477318-2b624c31e2e4?w=100&h=100&fit=crop&crop=face", text: "友人に勧められて登録しました。登録もプラン選択も3分ほどで完了。単発寄付もしやすいです。" },
-              { name: "高橋 誠",   role: "支援会員・2年目",   rating: 4.5, avatar: "https://images.unsplash.com/photo-1701980889802-55ff39e2e973?w=100&h=100&fit=crop&crop=face", text: "見学会の予約がオンラインでできるようになり、家族で気軽に参加できるようになりました。" },
-            ].map((r) => (
-              <div key={r.name} className="bg-white/80 backdrop-blur-sm p-6 border border-white/60 rounded-xl hover:bg-white/90 transition shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={r.avatar}
-                    alt={r.name}
-                    width={40}
-                    height={40}
-                    className="w-10 h-10 rounded-full object-cover shrink-0 ring-2 ring-brand/30"
-                  />
-                  <div>
-                    <p className="text-ink font-bold text-sm">{r.name}</p>
-                    <p className="text-ink-soft text-xs">{r.role}</p>
-                  </div>
-                </div>
-                <div className="flex gap-0.5 mb-3">
-                  {Array.from({ length: 5 }).map((_, i) => {
-                    const filled = i < Math.floor(r.rating);
-                    const half   = !filled && i < r.rating;
-                    return (
-                      <svg key={i} width="14" height="14" viewBox="0 0 14 14"
-                        fill={filled ? "#fbbf24" : half ? "url(#half-star-grad)" : "#4b5563"}>
-                        <path d="M7 1l1.76 3.57 3.94.57-2.85 2.78.67 3.93L7 10.27l-3.52 1.58.67-3.93L1.3 5.14l3.94-.57L7 1z" />
-                      </svg>
-                    );
-                  })}
-                </div>
-                <p className="text-ink-soft text-sm leading-relaxed">{r.text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── FAQ ── */}
       <section className="relative bg-surface-soft py-20 px-5 overflow-hidden">
         <div aria-hidden className="absolute top-0 right-0 w-64 h-64 opacity-[0.04]">
@@ -418,12 +311,22 @@ export default async function HomePage() {
 
           <div className="space-y-3">
             {[
-              { q: "入会金や年会費はかかりますか？", a: "入会金は無料です。月額会員プランは月額3,000円〜、馬匹支援は1口あたり月額5,000円〜となっております。いつでも変更・解約が可能です。" },
-              { q: "支援する馬を選ぶことはできますか？", a: "はい。マイページから支援したい馬を一覧から選び、口数を指定して支援を開始できます。複数頭を同時に支援することも可能です。" },
-              { q: "見学会には誰でも参加できますか？", a: "会員の方はどなたでもご参加いただけます。一般見学会は月1回、個別見学は支援会員限定で随時受付しております。ご家族・ご友人の同伴も可能です。" },
-              { q: "支払い方法は何がありますか？", a: "クレジットカード（Visa / Mastercard / JCB / AMEX）に対応しています。Stripe社のセキュアな決済基盤を利用しており、カード情報は当サイトには保存されません。" },
-              { q: "退会・解約はいつでもできますか？", a: "はい。マイページからいつでもプラン変更・解約が可能です。解約後も当月末までは会員特典をご利用いただけます。" },
-              { q: "寄付金は何に使われますか？", a: "いただいたご支援は、馬の飼料・蹄鉄・獣医療費・牧場運営費・スタッフ人件費に充てられます。年次報告書で詳細な使途を公開しています。" },
+              { q: "Retouchとはどのような活動をしていますか？", a: "引退競走馬や肥育場にいる馬たちに新たな役割や活躍の場をつくり、人と馬が支え合う社会の実現を目指しています。" },
+              { q: "なぜ馬を保護しているのですか？", a: "引退後の進路が見つからず、肥育場へ向かう馬たちがいます。Retouchでは、そのような馬たちに新しい役割や活躍の場をつくり、第二の人生を支える活動を行っています。" },
+              { q: "肥育場とは何ですか？", a: "肥育場とは、食肉用として出荷される前の馬が集められる施設です。Retouchでは、その中から新たな未来をつくれる可能性のある馬たちを受け入れています。" },
+              { q: "保護された馬たちはその後どうなりますか？", a: "乗馬、教育活動、観光、セラピー、ふれあい活動など、それぞれの個性に合った新しい役割を見つけ、人と関わりながら暮らしています。" },
+              { q: "会員になるにはどうすればよいですか？", a: "会員登録ページよりお申し込みいただけます。スマートフォンやパソコンから簡単にお手続きいただけます。" },
+              { q: "支援する馬は選べますか？", a: "はい。一口・半口支援では応援したい馬を選んでご支援いただけます。" },
+              { q: "複数の馬を支援できますか？", a: "はい。複数頭への支援や追加支援も可能です。" },
+              { q: "支援金はどのように使われますか？", a: "馬たちの飼育費、医療費、輸送費、施設維持費、教育活動費などに活用しています。" },
+              { q: "支援した馬に会うことはできますか？", a: "はい。見学会や交流イベントを定期的に開催しております。詳細は会員ページやお知らせをご確認ください。" },
+              { q: "馬たちの近況は知ることができますか？", a: "会員ページや活動報告、動画配信などを通じて定期的にお知らせしています。" },
+              { q: "見学会やイベントには参加できますか？", a: "はい。会員向けイベントや一般参加可能なイベントを開催しております。アプリや会員ページからお申し込みいただけます。" },
+              { q: "支援内容の変更や追加はできますか？", a: "はい。マイページから支援内容の確認・変更・追加支援のお手続きが可能です。" },
+              { q: "支援を停止・退会したい場合はどうすればよいですか？", a: "マイページまたはお問い合わせフォームよりお手続きいただけます。" },
+              { q: "企業や団体として支援することはできますか？", a: "はい。企業・団体様からのご支援や協賛も受け付けております。お気軽にお問い合わせください。" },
+              { q: "ボランティアとして参加できますか？", a: "イベント運営や環境整備など、活動内容に応じて募集を行っています。募集情報はお知らせページをご確認ください。" },
+              { q: "Retouchの目指す未来は何ですか？", a: "馬を「救う」だけでなく、一頭一頭に新たな役割をつくり、人と馬が支え合う社会を実現することです。皆様のご支援が、その未来を支える大きな力になっています。" },
             ].map((item) => (
               <details key={item.q} className="group bg-white shadow-sm rounded-xl overflow-hidden">
                 <summary className="flex items-center justify-between gap-4 p-5 font-bold text-sm text-ink cursor-pointer hover:bg-brand-50/50 transition-colors">

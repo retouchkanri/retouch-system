@@ -10,19 +10,34 @@ const PAGE_SIZE = 50;
 export default async function AdminDonationsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; q?: string; page?: string };
+  searchParams?: { status?: string; q?: string; page?: string; member?: string };
 }) {
   const supabase = createSupabaseServerClient();
   const status = searchParams?.status ?? "";
+  // 会員寄付（会員＝支援契約あり）と、会員以外の単発支援を分けて表示する。
+  const member = searchParams?.member === "member" || searchParams?.member === "single"
+    ? searchParams.member
+    : "";
   const q = (searchParams?.q ?? "").trim();
   const page = Math.max(1, Number(searchParams?.page ?? "1") || 1);
   const from = (page - 1) * PAGE_SIZE;
 
+  // 会員判定は「契約(contracts)を持つ顧客の寄付」かどうかで行う。
+  //  - member : 契約を持つ顧客の寄付のみ（INNER JOIN）
+  //  - single : 顧客はいるが契約がない＝単発支援（左結合 + contracts が空）
+  const selectCols =
+    member === "member"
+      ? "*, customer:customers!inner(full_name, email, contracts!inner(id))"
+      : member === "single"
+        ? "*, customer:customers!inner(full_name, email, contracts(id))"
+        : "*, customer:customers(full_name, email)";
+
   let query = supabase
     .from("donations")
-    .select("*, customer:customers(full_name, email)", { count: "exact" })
+    .select(selectCols, { count: "exact" })
     .order("donated_at", { ascending: false });
   if (status) query = query.eq("status", status);
+  if (member === "single") query = query.is("customer.contracts", null);
 
   // Search the whole table, not just the current page: donor fields live on the
   // donation row; the member's name/email live on the joined customer, so we
@@ -41,6 +56,17 @@ export default async function AdminDonationsPage({
 
   const { data, count } = await query.range(from, from + PAGE_SIZE - 1);
   const rows = (data as any[]) ?? [];
+
+  // Per-row 会員/単発 badge: look up which of the displayed donors hold a contract.
+  const pageCustomerIds = [...new Set(rows.map((d) => d.customer_id).filter(Boolean))] as string[];
+  const memberSet = new Set<string>();
+  if (pageCustomerIds.length) {
+    const { data: mem } = await supabase
+      .from("contracts")
+      .select("customer_id")
+      .in("customer_id", pageCustomerIds);
+    for (const m of mem ?? []) if ((m as any).customer_id) memberSet.add((m as any).customer_id);
+  }
 
   const total = rows.reduce(
     (acc: number, d: any) => (d.status === "succeeded" ? acc + Number(d.amount ?? 0) : acc),
@@ -79,8 +105,16 @@ export default async function AdminDonationsPage({
             <option value="refunded">返金済</option>
           </select>
         </div>
+        <div>
+          <label className="label">区分</label>
+          <select name="member" className="input" defaultValue={member}>
+            <option value="">すべて</option>
+            <option value="member">会員の寄付</option>
+            <option value="single">単発・非会員</option>
+          </select>
+        </div>
         <button className="btn-primary">絞り込む</button>
-        {(q || status) && (
+        {(q || status || member) && (
           <Link className="btn-ghost" href="/admin/donations">
             リセット
           </Link>
@@ -128,6 +162,7 @@ export default async function AdminDonationsPage({
                   note: d.note ?? "",
                   donated_at: formatDate(d.donated_at, true),
                   donated_at_value: d.donated_at ? String(d.donated_at).slice(0, 10) : "",
+                  is_member: !!d.customer_id && memberSet.has(d.customer_id),
                 }}
               />
             ))}
@@ -147,6 +182,7 @@ export default async function AdminDonationsPage({
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => {
             const qs = new URLSearchParams();
             if (status) qs.set("status", status);
+            if (member) qs.set("member", member);
             if (q) qs.set("q", q);
             qs.set("page", String(n));
             return (
