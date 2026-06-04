@@ -21,6 +21,7 @@ type DonationView = {
   confirmed_at_value: string;
   note: string;
   donated_at: string;
+  donated_at_value: string;
 };
 
 export default function DonationRow({ donation, index }: { donation: DonationView; index: number }) {
@@ -34,6 +35,7 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
   const [message, setMessage] = useState(donation.message);
   const [paymentMethod, setPaymentMethod] = useState(donation.payment_method || "card");
   const [confirmedAt, setConfirmedAt] = useState(donation.confirmed_at_value);
+  const [donatedAt, setDonatedAt] = useState(donation.donated_at_value);
   const [note, setNote] = useState(donation.note);
 
   const save = async () => {
@@ -47,6 +49,7 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
       confirmed_at: confirmedAt || null,
       note: note || null,
     };
+    if (donatedAt) payload.donated_at = donatedAt;
     if (donorEmail) payload.donor_email = donorEmail;
     const res = await fetch(`/api/admin/donations/${donation.id}`, {
       method: "PATCH",
@@ -141,6 +144,10 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
                   <option value="card">カード</option>
                   <option value="bank_transfer">銀行振込</option>
                 </select>
+              </div>
+              <div>
+                <label className="label">日時（寄付日）</label>
+                <input type="date" className="input" value={donatedAt} onChange={(e) => setDonatedAt(e.target.value)} />
               </div>
               <div>
                 <label className="label">入金確認日</label>

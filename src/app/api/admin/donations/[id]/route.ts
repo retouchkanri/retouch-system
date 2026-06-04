@@ -13,6 +13,7 @@ const patchSchema = z.object({
   donor_email: z.string().email().optional().nullable(),
   payment_method: z.enum(["card", "bank_transfer"]).optional(),
   confirmed_at: z.string().optional().nullable(),
+  donated_at: z.string().optional().nullable(),
   note: z.string().max(1000).optional().nullable(),
 });
 
@@ -25,6 +26,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const admin = createSupabaseAdminClient();
   const patch: Record<string, unknown> = { ...parsed.data };
   if (patch.confirmed_at === "") patch.confirmed_at = null;
+  // 日時（寄付日）: 日付(YYYY-MM-DD)を受け取り、JST正午のタイムスタンプとして保存。
+  // donated_at は NOT NULL なので、空のときは更新対象から外す。
+  if (typeof patch.donated_at === "string" && patch.donated_at.trim() !== "") {
+    const d = patch.donated_at.trim();
+    patch.donated_at = /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T12:00:00+09:00` : d;
+  } else {
+    delete patch.donated_at;
+  }
   const { error } = await admin.from("donations").update(patch).eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

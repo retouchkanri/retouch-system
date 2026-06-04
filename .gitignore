@@ -22,6 +22,7 @@ horseimage.zip
 
 # Personal data dumps — never commit (members' names / emails / addresses / donations)
 supabase/*.csv
+supabase/*.xlsx
 supabase/backups/
 
 # Editor / OS / stray git

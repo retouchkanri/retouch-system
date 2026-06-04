@@ -127,6 +127,7 @@ export default async function AdminDonationsPage({
                   confirmed_at_value: d.confirmed_at ? String(d.confirmed_at).slice(0, 10) : "",
                   note: d.note ?? "",
                   donated_at: formatDate(d.donated_at, true),
+                  donated_at_value: d.donated_at ? String(d.donated_at).slice(0, 10) : "",
                 }}
               />
             ))}

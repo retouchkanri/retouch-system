@@ -30,7 +30,9 @@ const ROOT = path.resolve(__dirname, "..");
 const SUPA_DIR = path.join(ROOT, "supabase");
 const BACKUP_DIR = path.join(SUPA_DIR, "backups");
 
-const MODE = process.argv.includes("--apply")
+// `--donations-only` re-imports ONLY donations (fix dates) without touching events/bookings.
+const DONATIONS_ONLY = process.argv.includes("--donations-only");
+const MODE = (process.argv.includes("--apply") || DONATIONS_ONLY)
   ? "apply"
   : process.argv.includes("--backup")
     ? "backup"
@@ -151,6 +153,55 @@ function yearOf(v, fallback = 2025) {
 /** JST timestamp at 10:00 for an event date, else now-ish ISO for a YYYY-MM-DD. */
 const atJst = (ymd, hhmm = "10:00") => `${ymd}T${hhmm}:00+09:00`;
 
+const validMD = (mo, d) => mo >= 1 && mo <= 12 && d >= 1 && d <= 31;
+
+/** Parse the form submission timestamp (col "Date", always full e.g. "2025/12/19 20:44"). */
+function parseSubmission(v) {
+  const s = clean(v);
+  const m = s.match(/(\d{4})\s*[\/.\-年]\s*(\d{1,2})\s*[\/.\-月]\s*(\d{1,2})/);
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  return validMD(mo, d) && y >= 2000 && y <= 2100 ? { y, mo, d } : null;
+}
+
+/** Extract month/day (+optional year) from the 入金予定日 cell — many shapes, donors mistype years. */
+function extractMonthDay(v) {
+  const s = clean(v);
+  if (!s) return null;
+  let m;
+  if ((m = s.match(/令和\s*(\d+)\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})/))) return { y: 2018 + Number(m[1]), mo: +m[2], d: +m[3] };
+  if ((m = s.match(/^(\d{4})(\d{2})(\d{2})$/))) return { y: +m[1], mo: +m[2], d: +m[3] };
+  if ((m = s.match(/(\d{4})\s*[年.\/-]\s*(\d{1,2})\s*[月.\/-]\s*(\d{1,2})/))) return { y: +m[1], mo: +m[2], d: +m[3] };
+  if ((m = s.match(/(\d{1,2})\s*月\s*(\d{1,2})/))) return { mo: +m[1], d: +m[2] };
+  return null;
+}
+
+/**
+ * Correct donation date: take the deposit month/day from 入金予定日 (col12), but
+ * SNAP THE YEAR to whichever makes the date closest to the submission date (col1).
+ * Donors frequently mistype the year (e.g. "20261222" submitted 2025/12/19, or
+ * "2026年11月12日" whose message says 2025/11/12) — the submission timestamp is the
+ * reliable anchor. Falls back to the submission date when the deposit cell is unusable.
+ */
+function donationDate(col12, col1) {
+  const sub = parseSubmission(col1);
+  const md = extractMonthDay(col12);
+  if (!md || !validMD(md.mo, md.d)) {
+    return sub ? iso(sub.y, sub.mo, sub.d) : null;
+  }
+  if (!sub) {
+    const y = md.y && md.y >= 2000 && md.y <= 2100 ? md.y : 2025;
+    return iso(y, md.mo, md.d);
+  }
+  const subSerial = Date.UTC(sub.y, sub.mo - 1, sub.d);
+  let best = sub.y, bestDiff = Infinity;
+  for (const y of [sub.y - 1, sub.y, sub.y + 1]) {
+    const diff = Math.abs(Date.UTC(y, md.mo - 1, md.d) - subSerial);
+    if (diff < bestDiff) { bestDiff = diff; best = y; }
+  }
+  return iso(best, md.mo, md.d);
+}
+
 // ── Parse the two 見学会 files (identical positional layout; Osaka header has an
 //    extra "参加ご希望日" label, but DATA columns line up in both). ──
 // Positions: 2姓 3名 4セイ 5メイ 12電話 13email 8〒 9都道府県 10市区町村 11丁目番地
@@ -220,7 +271,7 @@ function parseDonations(name) {
     if (!sei && !mei && !email && !amount) { skipped++; continue; }
     if (!amount) { skipped++; continue; }
 
-    const dateYmd = parseJpDate(r[12], yearOf(r[1])) ?? parseJpDate(r[1], yearOf(r[1]));
+    const dateYmd = donationDate(r[12], r[1]);
     const handle = clean(r[14]);
     const message = clean(r[15]).replace(/\n+/g, " ") || null;
 
@@ -380,23 +431,27 @@ async function main() {
     return data.id;
   }
 
-  // 2) DELETE current visit events + their bookings, and ALL donations.
-  const { data: oldVisitEvents } = await supabase.from("events").select("id").eq("type", "visit");
-  const oldIds = (oldVisitEvents ?? []).map((e) => e.id);
-  for (const c of chunk(oldIds, 100)) {
-    const { error } = await supabase.from("bookings").delete().in("event_id", c);
-    if (error) throw error;
-  }
-  if (oldIds.length) {
-    const { error } = await supabase.from("events").delete().eq("type", "visit");
-    if (error) throw error;
+  // 2) DELETE. Donations are always replaced; visit events+bookings only on a full run.
+  if (!DONATIONS_ONLY) {
+    const { data: oldVisitEvents } = await supabase.from("events").select("id").eq("type", "visit");
+    const oldIds = (oldVisitEvents ?? []).map((e) => e.id);
+    for (const c of chunk(oldIds, 100)) {
+      const { error } = await supabase.from("bookings").delete().in("event_id", c);
+      if (error) throw error;
+    }
+    if (oldIds.length) {
+      const { error } = await supabase.from("events").delete().eq("type", "visit");
+      if (error) throw error;
+    }
+    console.log(`[delete] removed ${oldIds.length} visit events (+bookings)`);
   }
   {
     const { error } = await supabase.from("donations").delete().not("id", "is", null);
     if (error) throw error;
   }
-  console.log(`[delete] removed ${oldIds.length} visit events (+bookings) and all donations`);
+  console.log(`[delete] removed all donations`);
 
+  if (!DONATIONS_ONLY) {
   // 3) Insert events (one per location+date), capture ids.
   const evKeyToId = new Map();
   const evPayloads = [];
@@ -451,6 +506,7 @@ async function main() {
     if (error) throw error;
   }
   console.log(`[bookings] inserted ${bookings.length}`);
+  } // end !DONATIONS_ONLY (events + bookings)
 
   // 5) Insert donations.
   const donoPayloads = donations.rows.map((d) => ({
