@@ -10,6 +10,7 @@ import featureMembersImage from "@/assets/images/feature-members.jpg";
 import featureEventImage from "@/assets/images/feature-event.jpg";
 import featureHorseImage from "@/assets/images/feature-horse.jpg";
 import BottomRightPanel from "@/components/BottomRightPanel";
+import ContactForm from "@/components/ContactForm";
 import HomeHeroEffect from "@/components/HomeHeroEffect";
 import HeroText from "@/components/HeroText";
 import BusinessPrinciplesDeck from "@/components/BusinessPrinciplesDeck";
@@ -373,37 +374,61 @@ export default async function HomePage() {
               <svg viewBox="0 0 20 20" className="w-5 h-5" fill="#2d6a4f"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg>
               お問い合わせフォーム
             </h3>
-            <form className="space-y-4" action="#">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label">お名前</label>
-                  <input type="text" className="input" placeholder="山田 太郎" />
-                </div>
-                <div>
-                  <label className="label">メールアドレス</label>
-                  <input type="email" className="input" placeholder="email@example.com" />
-                </div>
-              </div>
-              <div>
-                <label className="label">件名</label>
-                <input type="text" className="input" placeholder="お問い合わせ内容の件名" />
-              </div>
-              <div>
-                <label className="label">メッセージ</label>
-                <textarea className="input min-h-[120px] resize-y" placeholder="お問い合わせ内容をご記入ください" />
-              </div>
-              <button type="submit" className="btn-primary w-full sm:w-auto btn-pulse">
-                送信する
-              </button>
-            </form>
+            <ContactForm />
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-ink py-10 text-center">
-        <p className="font-serif text-brand-light text-xl mb-2">Retouch</p>
-        <p className="text-white/40 text-xs">© 2026 引退競走馬支援プロジェクト</p>
+      <footer className="bg-ink py-12 px-5">
+        <div className="max-w-5xl mx-auto">
+          <p className="font-serif text-brand-light text-xl mb-8 text-center">Retouch</p>
+
+          {/* Company info (left) + Google Map (right) */}
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <address className="not-italic text-white/75 text-sm leading-relaxed space-y-1.5 text-center md:text-left">
+              <p className="font-bold text-white text-base mb-1">株式会社リタッチ</p>
+              <p>事務局：〒586-0036</p>
+              <p>大阪府河内長野市高向2001　ホースレスト内</p>
+              <p>
+                TEL：
+                <a href="tel:050-6875-3336" className="underline hover:text-white">
+                  050-6875-3336
+                </a>
+              </p>
+              <p className="pt-1">
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    "大阪府河内長野市高向2001 ホースレスト",
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand-light underline hover:text-white"
+                >
+                  Googleマップで見る →
+                </a>
+              </p>
+            </address>
+
+            <div className="overflow-hidden rounded-xl border border-white/10 shadow-lg">
+              <iframe
+                title="株式会社リタッチ 事務局（ホースレスト）所在地"
+                src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                  "大阪府河内長野市高向2001 ホースレスト",
+                )}&z=15&hl=ja&output=embed`}
+                width="100%"
+                height={240}
+                style={{ border: 0 }}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allowFullScreen
+                className="block w-full"
+              />
+            </div>
+          </div>
+
+          <p className="text-white/40 text-xs text-center mt-8">© 2026 引退競走馬支援プロジェクト</p>
+        </div>
       </footer>
 
       {/* Bottom padding for mobile CTA bar + floating controls */}

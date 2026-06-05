@@ -21,14 +21,18 @@ export type NotifyKind =
   | "plan_changed"
   | "support_added"
   | "support_changed"
-  | "support_canceled";
+  | "support_canceled"
+  | "contact_inquiry";
 
 export type NotifyPayload = {
   kind: NotifyKind;
+  /** Recipient(s). Comma-separated string for multiple addresses. */
   to: string | null;
   to_name?: string | null;
   subject: string;
   body_text: string;
+  /** Overrides the default Reply-To (e.g. set to the form submitter's address). */
+  reply_to?: string | null;
   meta?: Record<string, unknown>;
 };
 
@@ -78,7 +82,7 @@ async function sendViaSmtp(p: NotifyPayload): Promise<{ ok: boolean; error?: str
       to: p.to_name ? `${p.to_name} <${p.to}>` : p.to,
       subject: p.subject,
       text: p.body_text,
-      replyTo: contactEmail(),
+      replyTo: p.reply_to ?? contactEmail(),
     });
     return { ok: true };
   } catch (e: any) {
@@ -101,7 +105,7 @@ async function sendViaResend(p: NotifyPayload): Promise<{ ok: boolean; error?: s
         to: [p.to],
         subject: p.subject,
         text: p.body_text,
-        reply_to: contactEmail(),
+        reply_to: p.reply_to ?? contactEmail(),
       }),
     });
     if (!res.ok) {
