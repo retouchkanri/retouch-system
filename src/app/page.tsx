@@ -74,9 +74,9 @@ export default async function HomePage() {
           <h2 className="text-2xl sm:text-3xl font-bold text-ink mb-3 font-serif">
             人と馬をつなぐ<br className="sm:hidden" />Retouch専用プラットフォーム
           </h2>
-          <p className="text-ink-soft text-sm max-w-2xl mx-auto mb-4 leading-relaxed">
-          ここから始まる、人と馬が支え合う未来。<br />
-          Retouchメンバー様の力で、馬たちに新たな役割を。
+          <p className="text-[13px] sm:text-sm max-w-2xl mx-auto mb-4 leading-relaxed text-ink-soft">
+            <span className="block whitespace-nowrap">ここから始まる、人と馬が支え合う未来。</span>
+            <span className="block whitespace-nowrap">Retouchメンバー様の力で、馬たちに新たな役割を。</span>
           </p>
           <p className="text-ink-soft text-sm max-w-2xl mx-auto mb-12 leading-relaxed">
             Retouchは、支援者・スタッフ・馬たちをつなぎ、

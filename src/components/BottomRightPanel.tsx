@@ -73,7 +73,7 @@ export default function BottomRightPanel({
       {showDonate && (
         <a
           href="/donate"
-          className="fixed bottom-0 left-0 z-40 block w-[min(7.5rem,28vw)] transition-transform duration-300 hover:scale-110 focus-visible:scale-110 focus:outline-none drop-shadow-xl sm:w-44 md:w-[22.5rem] md:max-w-[min(22.5rem,40vw)]"
+          className="fixed bottom-0 left-0 z-40 block w-[min(7.5rem,28vw)] transition-transform duration-300 hover:scale-110 focus-visible:scale-110 focus:outline-none drop-shadow-xl max-md:bottom-[4.75rem] sm:w-44 md:w-[22.5rem] md:max-w-[min(22.5rem,40vw)]"
           aria-label="単発寄付をする"
         >
           <Image
@@ -86,8 +86,8 @@ export default function BottomRightPanel({
         </a>
       )}
 
-      {/* ── Fixed bottom-right stack — same inset on PC / tablet / mobile ── */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3">
+      {/* ── Fixed bottom-right stack — lifted above the mobile CTA bar on phones ── */}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 max-md:bottom-[5.5rem] max-md:right-2">
 
         {/* Chatbot button */}
         {showChat && (
@@ -133,7 +133,7 @@ export default function BottomRightPanel({
 
       {/* ── Chat popup ── */}
       {showChat && chatOpen && (
-        <div className="fixed bottom-36 right-4 z-50 w-[min(20rem,calc(100vw-1.5rem))] sm:w-96 flex flex-col bg-white rounded-2xl shadow-2xl border border-surface-line overflow-hidden animate-[scaleIn_200ms_ease]">
+        <div className="fixed bottom-36 right-4 z-50 w-[min(20rem,calc(100vw-1.5rem))] sm:w-96 flex flex-col bg-white rounded-2xl shadow-2xl border border-surface-line overflow-hidden animate-[scaleIn_200ms_ease] max-md:bottom-[9.5rem] max-md:right-2">
           {/* Header */}
           <div className="bg-brand px-4 py-3 flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
