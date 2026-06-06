@@ -38,6 +38,47 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
   const [confirmedAt, setConfirmedAt] = useState(donation.confirmed_at_value);
   const [donatedAt, setDonatedAt] = useState(donation.donated_at_value);
   const [note, setNote] = useState(donation.note);
+  const [statusVal, setStatusVal] = useState(donation.status);
+
+  // 一覧から直接ステータスを変更する（編集を開かずワンタップ）。
+  const changeStatus = async (newStatus: string) => {
+    const prev = statusVal;
+    setStatusVal(newStatus);
+    setBusy(true);
+    const res = await fetch(`/api/admin/donations/${donation.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error ?? "状態を変更できませんでした");
+      setStatusVal(prev);
+      return;
+    }
+    router.refresh();
+  };
+
+  // 銀行振込の入金確認：確認日を本日にし、状態を「成功」に更新する。
+  const confirmBank = async () => {
+    if (!confirm("入金を確認済みにします。よろしいですか？（状態を「成功」に更新します）")) return;
+    setBusy(true);
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await fetch(`/api/admin/donations/${donation.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ confirmed_at: today, status: "succeeded" }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error ?? "入金確認を登録できませんでした");
+      return;
+    }
+    setStatusVal("succeeded");
+    router.refresh();
+  };
 
   const save = async () => {
     setBusy(true);
@@ -107,13 +148,41 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
           )}
         </td>
         <td>{donation.amount_label}</td>
-        <td>{donation.status_label}</td>
+        <td>
+          <select
+            className="border border-surface-line rounded-lg bg-white px-2 py-1 text-sm disabled:opacity-50"
+            value={statusVal}
+            onChange={(e) => changeStatus(e.target.value)}
+            disabled={busy}
+            aria-label="状態を変更"
+          >
+            <option value="succeeded">成功</option>
+            <option value="pending">保留</option>
+            <option value="failed">失敗</option>
+            <option value="refunded">返金済</option>
+            <option value="canceled">取消</option>
+          </select>
+        </td>
         <td>
           <span className={donation.payment_method === "bank_transfer" ? "chip-warn" : "chip-mute"}>
             {donation.payment_method_label}
           </span>
         </td>
-        <td className="whitespace-nowrap">{donation.confirmed_at_label || "—"}</td>
+        <td className="whitespace-nowrap">
+          {donation.confirmed_at_label ? (
+            donation.confirmed_at_label
+          ) : donation.payment_method === "bank_transfer" ? (
+            <button
+              className="text-sm font-semibold text-amber-800 underline disabled:opacity-50"
+              onClick={confirmBank}
+              disabled={busy}
+            >
+              入金確認
+            </button>
+          ) : (
+            "—"
+          )}
+        </td>
         <td className="text-xs max-w-[220px] truncate" title={donation.message}>
           {donation.message || "—"}
         </td>

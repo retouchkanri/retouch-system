@@ -244,7 +244,7 @@ export default async function HomePage() {
 
               {/* Mobile: stacked, centered, equal-width buttons. Desktop: inline row. */}
               <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                <Link href="/donate" className="btn-primary btn-pulse w-full max-w-xs sm:w-auto sm:max-w-none">ポニーチームを支援する</Link>
+                <Link href="/signup" className="btn-primary btn-pulse w-full max-w-xs sm:w-auto sm:max-w-none">ポニーチームを支援する</Link>
                 <Link href="#contact" className="btn-secondary w-full max-w-xs sm:w-auto sm:max-w-none">活動について相談する</Link>
               </div>
               <p className="text-xs text-ink-mute mt-3 text-center sm:text-left">※ 他の会員プランと併用してご参加いただけます。</p>

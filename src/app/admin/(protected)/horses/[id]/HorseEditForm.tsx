@@ -17,8 +17,26 @@ export default function HorseEditForm({ horse }: { horse: Horse }) {
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [delErr, setDelErr] = useState<string | null>(null);
   const set = (k: string) => (e: any) =>
     setForm((p: any) => ({ ...p, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
+
+  const remove = async () => {
+    setDeleting(true);
+    setDelErr(null);
+    const res = await fetch(`/api/admin/horses/${horse.id}`, { method: "DELETE" });
+    if (res.ok) {
+      router.replace("/admin/horses");
+      router.refresh();
+      return;
+    }
+    const j = await res.json().catch(() => ({}));
+    setDelErr(j.error ?? "削除に失敗しました。");
+    setDeleting(false);
+    setConfirmDelete(false);
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +80,32 @@ export default function HorseEditForm({ horse }: { horse: Horse }) {
         </label>
       </div>
       {msg && <p className="text-sm">{msg}</p>}
-      <div><button className="btn-primary" disabled={busy}>{busy ? "保存中..." : "保存する"}</button></div>
+      <div className="flex items-center justify-between gap-3 border-t border-surface-line pt-4">
+        <button className="btn-primary" disabled={busy}>{busy ? "保存中..." : "保存する"}</button>
+
+        {/* 馬マスタからの削除。支援・契約などが紐づく馬はサーバー側(409)で拒否される。 */}
+        {!confirmDelete ? (
+          <button
+            type="button"
+            className="btn-ghost text-danger"
+            onClick={() => { setConfirmDelete(true); setDelErr(null); }}
+            disabled={deleting}
+          >
+            この馬を削除
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-danger">削除しますか？</span>
+            <button type="button" className="btn-ghost" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+              戻る
+            </button>
+            <button type="button" className="btn-danger" onClick={remove} disabled={deleting}>
+              {deleting ? "削除中..." : "削除する"}
+            </button>
+          </div>
+        )}
+      </div>
+      {delErr && <p className="text-sm text-danger">{delErr}</p>}
     </form>
   );
 }

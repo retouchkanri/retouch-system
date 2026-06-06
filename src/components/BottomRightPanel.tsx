@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import doImage from "@/assets/images/do.png";
 
 type Message = { from: "bot" | "user"; text: string };
 
@@ -28,23 +30,19 @@ function getBotReply(input: string): string {
 }
 
 export default function BottomRightPanel({
+  showDonate = true,
   showChat = true,
 }: {
+  /** 単発寄付ボタン（左下）を表示するか。 */
+  showDonate?: boolean;
   /** チャットサポートボタンを表示するか。 */
   showChat?: boolean;
 } = {}) {
-  const [showTop, setShowTop] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onScroll = () => setShowTop(window.scrollY > 300);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,6 +62,23 @@ export default function BottomRightPanel({
 
   return (
     <>
+      {/* ── 単発寄付（左下の画像ボタン do.png） ── */}
+      {showDonate && (
+        <a
+          href="/donate"
+          className="fixed bottom-0 left-0 z-40 block w-[min(7.5rem,28vw)] transition-transform duration-300 hover:scale-110 focus-visible:scale-110 focus:outline-none drop-shadow-xl max-md:bottom-[4.75rem] sm:w-44 md:w-[22.5rem] md:max-w-[min(22.5rem,40vw)]"
+          aria-label="単発寄付をする"
+        >
+          <Image
+            src={doImage}
+            alt="単発寄付をする"
+            width={780}
+            height={780}
+            className="w-full h-auto object-contain"
+          />
+        </a>
+      )}
+
       {/* ── Fixed bottom-right stack — lifted above the mobile CTA bar on phones ── */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 max-md:bottom-[5.5rem] max-md:right-2">
 
@@ -95,18 +110,16 @@ export default function BottomRightPanel({
           </div>
         )}
 
-        {/* Top button */}
-        {showTop && (
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="scroll-top-btn w-12 h-12 rounded-full bg-brand text-white shadow-lg flex items-center justify-center hover:bg-brand-dark transition-colors"
-            aria-label="ページトップへ"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 13V3M3 8l5-5 5 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        )}
+        {/* Top button — ページ読み込み直後から常時表示（右側） */}
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="w-12 h-12 rounded-full bg-brand text-white shadow-lg flex items-center justify-center hover:bg-brand-dark transition-colors"
+          aria-label="ページトップへ"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 13V3M3 8l5-5 5 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
 
       {/* ── Chat popup ── */}
