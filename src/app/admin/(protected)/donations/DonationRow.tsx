@@ -120,7 +120,7 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
         <td className="text-xs max-w-[200px] truncate" title={donation.note}>
           {donation.note || "—"}
         </td>
-        <td className="text-right whitespace-nowrap">
+        <td className="text-right whitespace-nowrap col-actions">
           <button className="text-brand underline text-sm mr-3" onClick={() => setEditing((v) => !v)}>
             編集
           </button>

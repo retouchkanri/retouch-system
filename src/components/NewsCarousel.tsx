@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { NewsItem } from "@/types/db";
 
 export default function NewsCarousel({ items }: { items: NewsItem[] }) {
@@ -43,9 +44,10 @@ export default function NewsCarousel({ items }: { items: NewsItem[] }) {
       onTouchEnd={() => setPaused(false)}
     >
       {doubled.map((n, i) => (
-        <article
+        <Link
+          href={`/news/${n.id}`}
           key={`${n.id}-${i}`}
-          className="bg-white shadow-sm rounded-xl overflow-hidden hover:shadow-lg transition-shadow group shrink-0"
+          className="block bg-white shadow-sm rounded-xl overflow-hidden hover:shadow-lg transition-shadow group shrink-0"
           style={{ width: 320 }}
         >
           {n.image_url && (
@@ -76,7 +78,7 @@ export default function NewsCarousel({ items }: { items: NewsItem[] }) {
               <p className="text-xs text-ink-soft leading-relaxed line-clamp-2">{n.body}</p>
             )}
           </div>
-        </article>
+        </Link>
       ))}
     </div>
   );

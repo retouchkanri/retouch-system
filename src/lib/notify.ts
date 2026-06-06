@@ -25,6 +25,7 @@ export type NotifyKind =
   | "support_changed"
   | "support_canceled"
   | "contact_inquiry"
+  | "contact_auto_reply"
   | "password_reset";
 
 export type NotifyPayload = {
@@ -196,6 +197,27 @@ export function donationThanksTemplate(params: {
       `このたびは引退競走馬への温かいご寄付（${yen(params.amount)}）を賜り、誠にありがとうございます。\n` +
       `いただいたご支援は、馬たちのケア・見学会の運営にありがたく活用させていただきます。\n\n` +
       `本メールは寄付受付の確認としてお送りしております。` +
+      signature(),
+  };
+}
+
+export function contactAutoReplyTemplate(params: {
+  name: string | null;
+  subject: string;
+  message: string;
+}): Pick<NotifyPayload, "subject" | "body_text"> {
+  const who = params.name?.trim() || "お客";
+  return {
+    subject: "【Retouch Members】お問い合わせを受け付けました",
+    body_text:
+      `${who}様\n\n` +
+      `このたびはお問い合わせをいただき、誠にありがとうございます。\n` +
+      `以下の内容で受け付けいたしました。担当者より順次ご返信いたしますので、今しばらくお待ちください。\n\n` +
+      (params.subject ? `件名: ${params.subject}\n` : "") +
+      `── お問い合わせ内容 ──────────────\n` +
+      `${params.message}\n` +
+      `────────────────────────────\n\n` +
+      `※ 本メールは自動送信です。お心当たりのない場合は破棄してください。` +
       signature(),
   };
 }

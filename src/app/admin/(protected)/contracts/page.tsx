@@ -87,7 +87,7 @@ export default async function AdminContractsPage({
               <th>次回決済</th>
               <th>停止</th>
               <th>Stripe</th>
-              <th></th>
+              <th className="col-actions">操作</th>
             </tr>
           </thead>
           <tbody>

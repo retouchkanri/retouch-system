@@ -21,8 +21,8 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
         </div>
       </aside>
       <main className="p-4 md:p-6 md:ml-[240px] overflow-x-auto bg-surface-soft">{children}</main>
-      {/* 管理画面はトップへ戻るボタンのみ（寄付・チャットは非表示）。 */}
-      <BottomRightPanel showDonate={false} showChat={false} />
+      {/* 管理画面はトップへ戻るボタンのみ（チャットは非表示）。 */}
+      <BottomRightPanel showChat={false} />
     </div>
   );
 }

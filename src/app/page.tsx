@@ -42,7 +42,7 @@ export default async function HomePage() {
           fill
           priority
           sizes="100vw"
-          className="absolute inset-0 z-0 object-cover object-center hero-zoom md:hidden"
+          className="absolute inset-0 z-0 object-cover object-top hero-zoom md:hidden"
         />
         <Image
           src={bgDesktopImage}
@@ -50,7 +50,7 @@ export default async function HomePage() {
           fill
           priority
           sizes="100vw"
-          className="absolute inset-0 z-0 hidden object-cover object-center hero-zoom md:block"
+          className="absolute inset-0 z-0 hidden object-cover object-top hero-zoom md:block"
         />
         {/* H1 — hero headline (primary SEO keyword target).
             背景画像は元の色のまま表示するため、暗いオーバーレイは外しています。

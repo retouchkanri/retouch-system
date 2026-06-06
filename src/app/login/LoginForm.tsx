@@ -3,14 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { ROLES, ROLE_LABELS_JP, isStaffRole, toRole, type Role } from "@/lib/roles";
+import { isStaffRole, toRole } from "@/lib/roles";
 
 export default function LoginForm({ next }: { next: string }) {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<Role>("member");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -26,21 +25,14 @@ export default function LoginForm({ next }: { next: string }) {
         return;
       }
 
-      // Verify the selected permission level matches the account's actual role.
+      // 権限はアカウントの実際のロールで判定する（本人に選ばせない）。
+      // スタッフ系は管理画面、それ以外は元の遷移先（既定はマイページ）へ。
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", data.user.id)
         .maybeSingle();
       const actual = toRole(profile?.role);
-      if (actual !== role) {
-        await supabase.auth.signOut();
-        setError(
-          `選択された権限が正しくありません。このアカウントの権限は「${ROLE_LABELS_JP[actual]}」です。正しい権限を選択してください。`,
-        );
-        return;
-      }
-
       const dest = isStaffRole(actual) ? "/admin" : next;
       startTransition(() => {
         router.replace(dest);
@@ -53,21 +45,6 @@ export default function LoginForm({ next }: { next: string }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <div>
-        <label className="label" htmlFor="role">権限</label>
-        <select
-          id="role"
-          className="input"
-          value={role}
-          onChange={(e) => setRole(e.target.value as Role)}
-        >
-          {ROLES.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABELS_JP[r]}
-            </option>
-          ))}
-        </select>
-      </div>
       <div>
         <label className="label" htmlFor="email">メールアドレス</label>
         <input

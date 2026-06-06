@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { notify } from "@/lib/notify";
+import { contactAutoReplyTemplate, notify } from "@/lib/notify";
 
 // 各フォームの送信先（クライアント指定）。環境変数 CONTACT_RECIPIENTS で上書き可。
 const DEFAULT_RECIPIENTS = "info@retouch-members.com, yoshi910019@ezweb.ne.jp";
@@ -60,5 +60,17 @@ export async function POST(req: Request) {
       { status: 502 },
     );
   }
+
+  // 送信者本人への自動返信（受付確認）。失敗してもフォーム送信自体は成功とする。
+  const ack = contactAutoReplyTemplate({ name, subject: subject.trim(), message });
+  await notify({
+    kind: "contact_auto_reply",
+    to: email,
+    to_name: name,
+    subject: ack.subject,
+    body_text: ack.body_text,
+    meta: { source: "home_contact_form_ack" },
+  });
+
   return NextResponse.json({ ok: true });
 }

@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
-import doImage from "@/assets/images/do.png";
 
 type Message = { from: "bot" | "user"; text: string };
 
@@ -30,11 +28,8 @@ function getBotReply(input: string): string {
 }
 
 export default function BottomRightPanel({
-  showDonate = true,
   showChat = true,
 }: {
-  /** 単発寄付ボタン（左下の画像）を表示するか。 */
-  showDonate?: boolean;
   /** チャットサポートボタンを表示するか。 */
   showChat?: boolean;
 } = {}) {
@@ -69,23 +64,6 @@ export default function BottomRightPanel({
 
   return (
     <>
-      {/* ── Donation image — bottom-left (consistent inset on every device) ── */}
-      {showDonate && (
-        <a
-          href="/donate"
-          className="fixed bottom-0 left-0 z-40 block w-[min(7.5rem,28vw)] transition-transform duration-300 hover:scale-110 focus-visible:scale-110 focus:outline-none drop-shadow-xl max-md:bottom-[4.75rem] sm:w-44 md:w-[22.5rem] md:max-w-[min(22.5rem,40vw)]"
-          aria-label="単発寄付をする"
-        >
-          <Image
-            src={doImage}
-            alt="単発寄付をする"
-            width={780}
-            height={780}
-            className="w-full h-auto object-contain"
-          />
-        </a>
-      )}
-
       {/* ── Fixed bottom-right stack — lifted above the mobile CTA bar on phones ── */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 max-md:bottom-[5.5rem] max-md:right-2">
 

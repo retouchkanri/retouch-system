@@ -127,6 +127,20 @@ button, a, input, select, textarea {
   .table td {
     @apply px-3 py-2 border-b border-surface-line align-top;
   }
+  /* 横スクロールする幅広テーブルでも操作ボタン列を常に右端に固定して見えるようにする */
+  .table th.col-actions {
+    @apply bg-surface-soft;
+    position: sticky;
+    right: 0;
+    z-index: 2;
+  }
+  .table td.col-actions {
+    @apply bg-white;
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    box-shadow: -8px 0 8px -8px rgba(0, 0, 0, 0.12);
+  }
 }
 
 /* ── Mobile: larger buttons for elderly users ── */

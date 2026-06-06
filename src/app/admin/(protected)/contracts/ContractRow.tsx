@@ -93,7 +93,7 @@ export default function ContractRow({ contract, index }: { contract: ContractVie
         <td>{periodEndForInput || "—"}</td>
         <td>{contract.canceled_at}</td>
         <td className="font-mono text-[11px]">{contract.stripe_subscription_id ?? "—"}</td>
-        <td className="text-right whitespace-nowrap">
+        <td className="text-right whitespace-nowrap col-actions">
           <button className="text-brand underline text-sm mr-3" onClick={() => setShowEdit((v) => !v)}>
             編集
           </button>

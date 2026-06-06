@@ -135,7 +135,7 @@ export default async function AdminDonationsPage({
               <th>入金確認日</th>
               <th>メッセージ</th>
               <th>備考</th>
-              <th></th>
+              <th className="col-actions">操作</th>
             </tr>
           </thead>
           <tbody>
