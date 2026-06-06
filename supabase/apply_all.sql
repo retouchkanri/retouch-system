@@ -232,6 +232,10 @@ create table if not exists public.bookings (
 );
 create index if not exists bookings_event_idx on public.bookings (event_id);
 create index if not exists bookings_customer_idx on public.bookings (customer_id);
+-- 見学会（千葉・大阪）申込フォームの追加項目（migrations/20260606_booking_visit_fields.sql）
+alter table public.bookings add column if not exists pickup text;
+alter table public.bookings add column if not exists riding boolean not null default false;
+alter table public.bookings add column if not exists companions jsonb not null default '[]'::jsonb;
 
 -- ---------- payments ----------
 create table if not exists public.payments (

@@ -75,6 +75,9 @@ export default function EventForm({ initial, id }: { initial?: any; id?: string 
       <div>
         <label className="label">場所</label>
         <input className="input" value={form.location ?? ""} onChange={set("location")} />
+        <p className="text-xs text-ink-mute mt-1">
+          見学会で「千葉」「大阪」を含めると、申込時に会場別の送迎・体験乗馬の項目が表示されます。
+        </p>
       </div>
       <div className="md:col-span-4">
         <label className="label">説明</label>

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { seatUsage } from "@/lib/bookings";
+import { eventVenue, pickupLabel, relationLabel, venueLabel } from "@/lib/events";
 import { formatDate, statusLabel } from "@/lib/format";
 import EventForm from "../EventForm";
 
@@ -39,6 +40,8 @@ export default async function EditEventPage({ params }: { params: { id: string }
 
   const admin = createSupabaseAdminClient();
   const usage = await seatUsage(admin as any, data as any);
+  const isVisit = (data as any).type === "visit";
+  const venue = eventVenue(data as any);
 
   const bookingIds = (bookings ?? []).map((b: any) => b.id);
   const auditFilters = ["booking.create", "booking.update", "booking.cancel", "booking.delete",
@@ -86,22 +89,59 @@ export default async function EditEventPage({ params }: { params: { id: string }
       <EventForm initial={data} id={params.id} />
 
       <section className="card">
-        <h2 className="section-title">参加者一覧（{(bookings ?? []).length}件）</h2>
+        <h2 className="section-title">
+          参加者一覧（{(bookings ?? []).length}件）
+          {isVisit && venue && <span className="chip-mute ml-2">{venueLabel(venue)}会場</span>}
+        </h2>
         <table className="table">
-          <thead><tr><th className="w-12 text-right">No.</th><th>氏名</th><th>メール</th><th>人数</th><th>状態</th><th>予約日時</th></tr></thead>
+          <thead>
+            <tr>
+              <th className="w-12 text-right">No.</th>
+              <th>氏名</th>
+              <th>メール</th>
+              <th>人数</th>
+              {isVisit && <th>送迎</th>}
+              {isVisit && venue === "chiba" && <th>体験乗馬</th>}
+              {isVisit && <th>同伴者</th>}
+              <th>状態</th>
+              <th>予約日時</th>
+            </tr>
+          </thead>
           <tbody>
-            {(bookings ?? []).map((b: any, i: number) => (
-              <tr key={b.id}>
-                <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
-                <td>{b.customer?.full_name ?? "—"}</td>
-                <td>{b.customer?.email ?? "—"}</td>
-                <td>{b.party_size}</td>
-                <td>{statusLabel(b.status)}</td>
-                <td className="text-xs text-ink-mute">{formatDate(b.booked_at, true)}</td>
-              </tr>
-            ))}
+            {(bookings ?? []).map((b: any, i: number) => {
+              const companions = (b.companions ?? []) as { name: string; relation: string }[];
+              return (
+                <tr key={b.id}>
+                  <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
+                  <td>{b.customer?.full_name ?? "—"}</td>
+                  <td>{b.customer?.email ?? "—"}</td>
+                  <td>{b.party_size}</td>
+                  {isVisit && (
+                    <td className="text-xs">{pickupLabel(venue, b.pickup) ?? "—"}</td>
+                  )}
+                  {isVisit && venue === "chiba" && (
+                    <td className="text-xs">{b.riding ? "希望" : "—"}</td>
+                  )}
+                  {isVisit && (
+                    <td className="text-xs">
+                      {companions.length === 0
+                        ? "—"
+                        : companions
+                            .map((c) => `${c.name}（${relationLabel(c.relation)}）`)
+                            .join("、")}
+                    </td>
+                  )}
+                  <td>{statusLabel(b.status)}</td>
+                  <td className="text-xs text-ink-mute">{formatDate(b.booked_at, true)}</td>
+                </tr>
+              );
+            })}
             {(bookings ?? []).length === 0 && (
-              <tr><td colSpan={6} className="text-center text-ink-mute py-3">まだ予約はありません。</td></tr>
+              <tr>
+                <td colSpan={9} className="text-center text-ink-mute py-3">
+                  まだ予約はありません。
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

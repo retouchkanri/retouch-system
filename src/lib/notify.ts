@@ -1,5 +1,7 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { createSupabaseAdminClient } from "./supabase/admin";
+import { pickupLabel, relationLabel, venueLabel, type Venue } from "./events";
+import type { BookingCompanion } from "@/types/db";
 
 /**
  * Notification layer.
@@ -22,7 +24,8 @@ export type NotifyKind =
   | "support_added"
   | "support_changed"
   | "support_canceled"
-  | "contact_inquiry";
+  | "contact_inquiry"
+  | "password_reset";
 
 export type NotifyPayload = {
   kind: NotifyKind;
@@ -68,6 +71,10 @@ function smtpTransport(): Transporter | null {
     port,
     secure,
     auth: { user, pass },
+    // Fail fast if the SMTP host is unreachable/blocked instead of hanging the request.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   });
   return _smtp;
 }
@@ -143,7 +150,10 @@ export async function notify(payload: NotifyPayload): Promise<{
         to: payload.to,
         to_name: payload.to_name ?? null,
         subject: payload.subject,
-        preview: payload.body_text.slice(0, 400),
+        // パスワード再設定メールには使い捨ての再設定URL（トークン）が含まれるため、
+        // 監査ログに本文プレビューを残さない（管理者にもトークンを見せない）。
+        preview:
+          payload.kind === "password_reset" ? "[redacted]" : payload.body_text.slice(0, 400),
         transport,
         sent: result.ok,
         error: result.error ?? null,
@@ -190,6 +200,28 @@ export function donationThanksTemplate(params: {
   };
 }
 
+export function passwordResetTemplate(params: {
+  name: string | null;
+  /** パスワード再設定ページの完全なURL（token_hash 付き）。 */
+  url: string;
+}): Pick<NotifyPayload, "subject" | "body_text"> {
+  const who = params.name?.trim() || "会員";
+  return {
+    subject: "【Retouch Members】パスワード再設定のご案内",
+    body_text:
+      `${who}様\n\n` +
+      `Retouchメンバーズサイトのパスワード再設定のお申し込みを受け付けました。\n` +
+      `下記のURLを開き、新しいパスワードを設定してください。\n\n` +
+      `▼ パスワード再設定URL（有効期限：1時間）\n` +
+      `${params.url}\n\n` +
+      `【ご案内】\n` +
+      `・上記URLが青いリンクにならない場合は、URL全体をコピーし、ブラウザのアドレスバーに貼り付けて開いてください。\n` +
+      `・うまく開けないときは、お申し込みをされたブラウザでお試しください。\n` +
+      `・このお申し込みに心当たりがない場合は、本メールを破棄してください。パスワードは変更されません。` +
+      signature(),
+  };
+}
+
 export function paymentFailedTemplate(params: {
   name: string | null;
   contractId: string;
@@ -210,21 +242,41 @@ export function bookingConfirmedTemplate(params: {
   name: string | null;
   eventTitle: string;
   startsAt: string | Date;
+  venue?: Venue | null;
+  pickup?: string | null;
+  riding?: boolean;
+  companions?: BookingCompanion[];
 }): Pick<NotifyPayload, "subject" | "body_text"> {
   const who = params.name?.trim() || "会員";
   const d = typeof params.startsAt === "string" ? new Date(params.startsAt) : params.startsAt;
   const when = Number.isNaN(d.getTime())
     ? String(params.startsAt)
     : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+  // 見学会の申込内容（送迎・体験乗馬・同伴者）を本文に反映。
+  const lines: string[] = [
+    `・イベント: ${params.eventTitle}`,
+    `・日時: ${when}`,
+  ];
+  if (params.venue) lines.push(`・会場: ${venueLabel(params.venue)}`);
+  const pickup = pickupLabel(params.venue ?? null, params.pickup ?? null);
+  lines.push(`・送迎: ${pickup ?? "希望しない"}`);
+  if (params.venue === "chiba") lines.push(`・体験乗馬（約5分）: ${params.riding ? "希望する" : "希望しない"}`);
+  const companions = params.companions ?? [];
+  if (companions.length > 0) {
+    lines.push(`・同伴者（${companions.length}名）:`);
+    for (const c of companions) lines.push(`    - ${c.name}（${relationLabel(c.relation)}）`);
+  }
+
   return {
     subject: `【Retouch Members】ご予約完了のお知らせ — ${params.eventTitle}`,
     body_text:
       `${who}様\n\n` +
       `以下の見学会のご予約を承りました。\n\n` +
-      `・イベント: ${params.eventTitle}\n` +
-      `・日時: ${when}\n\n` +
-      `当日の詳細・集合場所は別途ご連絡いたします。\n` +
-      `ご予約のキャンセル・人数変更はマイページからお手続きいただけます。` +
+      lines.join("\n") +
+      `\n\n` +
+      `当日の詳細・集合時間は別途ご連絡いたします。\n` +
+      `ご予約のキャンセル・内容変更はマイページからお手続きいただけます。` +
       signature(),
   };
 }

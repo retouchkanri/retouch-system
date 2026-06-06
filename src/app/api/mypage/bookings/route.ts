@@ -5,12 +5,78 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { bookingConfirmedTemplate, notify } from "@/lib/notify";
 import { writeAudit } from "@/lib/audit";
 import { hasActiveSupport, seatUsage } from "@/lib/bookings";
+import {
+  ALL_PICKUP_CODES,
+  eventVenue,
+  MAX_COMPANIONS,
+  PICKUP_NONE,
+  ridingAvailable,
+  type Venue,
+} from "@/lib/events";
+import type { BookingCompanion } from "@/types/db";
+
+const companionSchema = z.object({
+  name: z.string().max(100),
+  relation: z.enum(["family", "friend", "other"]),
+});
 
 const schema = z.object({
   event_id: z.string().uuid(),
   party_size: z.number().int().min(1).max(20).optional(),
   note: z.string().max(500).optional().nullable(),
+  pickup: z.string().max(64).optional().nullable(),
+  riding: z.boolean().optional(),
+  companions: z.array(companionSchema).max(MAX_COMPANIONS).optional(),
 });
+
+type EventForBooking = {
+  id: string;
+  type: "visit" | "private_visit";
+  title: string;
+  location: string | null;
+  starts_at: string;
+  capacity: number;
+  supporters_only: boolean;
+  is_published: boolean;
+};
+
+type VisitInput = z.infer<typeof schema>;
+
+/**
+ * 見学会の追加項目を正規化する。
+ *   - 同伴者は氏名のある先頭3件まで
+ *   - 送迎は会場の有効コードのみ（希望しない／不明は null）
+ *   - 体験乗馬は千葉のみ
+ *   - 人数 = 申込者本人(1) + 同伴者数
+ */
+function normalizeVisit(venue: Venue | null, input: VisitInput) {
+  const companions: BookingCompanion[] = (input.companions ?? [])
+    .map((c) => ({ name: c.name.trim(), relation: c.relation }))
+    .filter((c) => c.name.length > 0)
+    .slice(0, MAX_COMPANIONS);
+  let pickup: string | null = input.pickup ?? null;
+  if (pickup === PICKUP_NONE || (pickup && !ALL_PICKUP_CODES.includes(pickup))) pickup = null;
+  const riding = ridingAvailable(venue) ? Boolean(input.riding) : false;
+  const party_size = 1 + companions.length;
+  return { companions, pickup, riding, party_size };
+}
+
+/** 何らかの有料会員か（A/B/C・支援・RPT・特別チームのいずれか）。無料会員は false。 */
+async function isPaidMember(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  customerId: string,
+): Promise<boolean> {
+  const { data } = await admin
+    .from("v_customer_summary")
+    .select("member_class_code, rpt_active, special_team_count")
+    .eq("customer_id", customerId)
+    .maybeSingle();
+  if (!data) return false;
+  const d = data as any;
+  return Boolean(
+    d.member_class_code || d.rpt_active || Number(d.special_team_count ?? 0) > 0,
+  );
+}
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -25,21 +91,37 @@ export async function POST(req: Request) {
   const admin = createSupabaseAdminClient();
   const { data: ev } = await admin
     .from("events")
-    .select("id, title, starts_at, capacity, supporters_only, is_published")
+    .select("id, type, title, location, starts_at, capacity, supporters_only, is_published")
     .eq("id", parsed.data.event_id)
     .maybeSingle();
   if (!ev || !(ev as any).is_published) {
     return NextResponse.json({ error: "対象のイベントが見つかりません" }, { status: 404 });
   }
+  const event = ev as EventForBooking;
+  const isVisit = event.type === "visit";
 
-  if ((ev as any).supporters_only) {
+  // 見学会は会員限定（無料会員は除外）。
+  if (isVisit && !(await isPaidMember(admin, session.customerId))) {
+    return NextResponse.json(
+      { error: "見学会のご予約は会員様限定です。会員登録後にお申し込みください。" },
+      { status: 403 },
+    );
+  }
+
+  if (event.supporters_only) {
     const ok = await hasActiveSupport(admin as any, session.customerId);
     if (!ok) return NextResponse.json({ error: "このイベントは支援者限定です" }, { status: 403 });
   }
 
-  const partySize = parsed.data.party_size ?? 1;
+  const venue = eventVenue(event);
+  const visit = normalizeVisit(venue, parsed.data);
+  const partySize = isVisit ? visit.party_size : parsed.data.party_size ?? 1;
   const note = parsed.data.note ?? null;
-  const usage = await seatUsage(admin as any, ev as any);
+  const pickup = isVisit ? visit.pickup : null;
+  const riding = isVisit ? visit.riding : false;
+  const companions = isVisit ? visit.companions : [];
+
+  const usage = await seatUsage(admin as any, event);
   if (usage.used + partySize > usage.capacity) {
     return NextResponse.json({ error: "定員を超えるため予約できません" }, { status: 409 });
   }
@@ -48,12 +130,20 @@ export async function POST(req: Request) {
     .from("bookings")
     .select("id, status")
     .eq("customer_id", session.customerId)
-    .eq("event_id", (ev as any).id)
+    .eq("event_id", event.id)
     .maybeSingle();
 
   if (existing && (existing as any).status !== "canceled") {
     return NextResponse.json({ error: "すでにこのイベントを予約しています" }, { status: 409 });
   }
+
+  const fields = {
+    party_size: partySize,
+    note,
+    pickup,
+    riding,
+    companions,
+  };
 
   let bookingId: string | null = null;
   if (existing) {
@@ -63,8 +153,7 @@ export async function POST(req: Request) {
         status: "reserved",
         canceled_at: null,
         booked_at: new Date().toISOString(),
-        party_size: partySize,
-        note,
+        ...fields,
       })
       .eq("id", (existing as any).id)
       .select("id")
@@ -76,10 +165,9 @@ export async function POST(req: Request) {
       .from("bookings")
       .insert({
         customer_id: session.customerId,
-        event_id: (ev as any).id,
-        party_size: partySize,
-        note,
+        event_id: event.id,
         status: "reserved",
+        ...fields,
       })
       .select("id")
       .single();
@@ -93,10 +181,13 @@ export async function POST(req: Request) {
     targetTable: "bookings",
     targetId: bookingId,
     meta: {
-      event_id: (ev as any).id,
-      event_title: (ev as any).title,
+      event_id: event.id,
+      event_title: event.title,
       party_size: partySize,
       note,
+      pickup,
+      riding,
+      companions,
     },
   });
 
@@ -107,8 +198,12 @@ export async function POST(req: Request) {
     .maybeSingle();
   const tpl = bookingConfirmedTemplate({
     name: (cust as any)?.full_name ?? null,
-    eventTitle: (ev as any).title,
-    startsAt: (ev as any).starts_at,
+    eventTitle: event.title,
+    startsAt: event.starts_at,
+    venue,
+    pickup,
+    riding,
+    companions,
   });
   await notify({
     kind: "booking_confirmed",
@@ -116,24 +211,18 @@ export async function POST(req: Request) {
     to_name: (cust as any)?.full_name ?? null,
     subject: tpl.subject,
     body_text: tpl.body_text,
-    meta: { event_id: (ev as any).id, party_size: partySize },
+    meta: { event_id: event.id, party_size: partySize },
   });
 
   return NextResponse.json({ ok: true, id: bookingId });
 }
-
-const patchSchema = z.object({
-  event_id: z.string().uuid(),
-  party_size: z.number().int().min(1).max(20).optional(),
-  note: z.string().max(500).optional().nullable(),
-});
 
 export async function PATCH(req: Request) {
   const session = await getSession();
   if (!session?.customerId) {
     return NextResponse.json({ error: "認証されていません" }, { status: 401 });
   }
-  const parsed = patchSchema.safeParse(await req.json().catch(() => ({})));
+  const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: "入力が不正です" }, { status: 400 });
   }
@@ -141,7 +230,7 @@ export async function PATCH(req: Request) {
 
   const { data: existing } = await admin
     .from("bookings")
-    .select("id, status, party_size, note")
+    .select("id, status, party_size, note, pickup, riding, companions")
     .eq("customer_id", session.customerId)
     .eq("event_id", parsed.data.event_id)
     .maybeSingle();
@@ -149,22 +238,36 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "予約が見つかりません" }, { status: 404 });
   }
 
-  if (parsed.data.party_size !== undefined) {
-    const { data: ev } = await admin
-      .from("events")
-      .select("id, capacity")
-      .eq("id", parsed.data.event_id)
-      .maybeSingle();
-    if (!ev) return NextResponse.json({ error: "イベントが見つかりません" }, { status: 404 });
-    const usage = await seatUsage(admin as any, ev as any, session.customerId);
-    if (usage.used + parsed.data.party_size > usage.capacity) {
+  const { data: ev } = await admin
+    .from("events")
+    .select("id, type, title, location, starts_at, capacity, supporters_only, is_published")
+    .eq("id", parsed.data.event_id)
+    .maybeSingle();
+  if (!ev) return NextResponse.json({ error: "イベントが見つかりません" }, { status: 404 });
+  const event = ev as EventForBooking;
+  const isVisit = event.type === "visit";
+  const venue = eventVenue(event);
+  const visit = normalizeVisit(venue, parsed.data);
+
+  const update: Record<string, unknown> = {};
+  if (isVisit) {
+    update.party_size = visit.party_size;
+    update.pickup = visit.pickup;
+    update.riding = visit.riding;
+    update.companions = visit.companions;
+  } else if (parsed.data.party_size !== undefined) {
+    update.party_size = parsed.data.party_size;
+  }
+  if (parsed.data.note !== undefined) update.note = parsed.data.note;
+
+  const nextPartySize = update.party_size as number | undefined;
+  if (nextPartySize !== undefined) {
+    const usage = await seatUsage(admin as any, event, session.customerId);
+    if (usage.used + nextPartySize > usage.capacity) {
       return NextResponse.json({ error: "定員を超えるため変更できません" }, { status: 409 });
     }
   }
 
-  const update: Record<string, unknown> = {};
-  if (parsed.data.party_size !== undefined) update.party_size = parsed.data.party_size;
-  if (parsed.data.note !== undefined) update.note = parsed.data.note;
   const { error } = await admin
     .from("bookings")
     .update(update)
@@ -178,7 +281,13 @@ export async function PATCH(req: Request) {
     targetId: (existing as any).id,
     meta: {
       event_id: parsed.data.event_id,
-      prev: { party_size: (existing as any).party_size, note: (existing as any).note },
+      prev: {
+        party_size: (existing as any).party_size,
+        note: (existing as any).note,
+        pickup: (existing as any).pickup,
+        riding: (existing as any).riding,
+        companions: (existing as any).companions,
+      },
       next: update,
     },
   });

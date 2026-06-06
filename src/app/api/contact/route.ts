@@ -51,6 +51,10 @@ export async function POST(req: Request) {
   });
 
   if (!res.sent) {
+    // Surface the underlying reason in the server log to aid diagnosis
+    // (e.g. "smtp not configured" → restart after editing .env.local;
+    //  a connection timeout → outbound SMTP is blocked on this network).
+    console.error(`[contact] send failed via ${res.transport}: ${res.error ?? "unknown error"}`);
     return NextResponse.json(
       { error: "送信に失敗しました。時間をおいて再度お試しいただくか、お電話でお問い合わせください。" },
       { status: 502 },

@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export default function ResetRequestForm() {
-  const supabase = getSupabaseBrowserClient();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -16,10 +14,16 @@ export default function ResetRequestForm() {
     setBusy(true);
     setError(null);
     try {
-      const redirectTo = `${window.location.origin}/login/reset/update`;
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
-      if (error) {
-        setError("送信に失敗しました。時間をおいて再度お試しください。");
+      // アプリ独自の日本語メール（/api/auth/password-reset）で送信する。
+      // Supabase の英語デフォルトメールは使わない。
+      const res = await fetch("/api/auth/password-reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error ?? "送信に失敗しました。時間をおいて再度お試しください。");
         return;
       }
       setSent(true);

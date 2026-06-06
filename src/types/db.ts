@@ -118,6 +118,12 @@ export type EventRow = {
   is_published: boolean;
 };
 
+/** 同伴者（見学会の申込項目）。relation: ご家族／ご友人／その他。 */
+export type BookingCompanion = {
+  name: string;
+  relation: "family" | "friend" | "other";
+};
+
 export type Booking = {
   id: string;
   customer_id: string;
@@ -127,6 +133,12 @@ export type Booking = {
   status: BookingStatus;
   booked_at: string;
   canceled_at: string | null;
+  /** 送迎の希望（集合場所コード。希望なし／未設定は null）。 */
+  pickup: string | null;
+  /** 体験乗馬（約5分）の希望（千葉のみ）。 */
+  riding: boolean;
+  /** 同伴者（最大3名）。 */
+  companions: BookingCompanion[];
   event?: EventRow | null;
 };
 
