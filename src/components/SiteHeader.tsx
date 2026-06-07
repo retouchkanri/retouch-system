@@ -41,7 +41,7 @@ export default async function SiteHeader() {
         <div className="w-full max-w-[100vw] flex items-center justify-between gap-3 py-3 px-[5vw] overflow-x-clip overflow-y-visible">
           <Link
             href="/"
-            className="flex items-center min-w-0 gap-3 shrink"
+            className="flex items-center min-w-0 gap-3 shrink transition-transform duration-200 hover:scale-105"
             aria-label="Retouchメンバーズサイト"
           >
             <Image
@@ -50,16 +50,26 @@ export default async function SiteHeader() {
               width={220}
               height={64}
               priority
-              className="h-12 w-auto"
+              className="h-9 w-auto md:h-12"
             />
           </Link>
 
           {/* Desktop: phone + nav */}
           <div className="hidden md:flex items-center gap-4">
-            <a href="tel:050-6875-3336" className="flex items-center gap-1.5 text-sm text-ink-soft hover:text-brand transition">
-              <svg viewBox="0 0 20 20" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M17.5 14.1v2.4a1.6 1.6 0 01-1.7 1.6A15.8 15.8 0 012 4.2 1.6 1.6 0 013.6 2.5H6a1.6 1.6 0 011.6 1.4c.1.8.3 1.5.6 2.2a1.6 1.6 0 01-.4 1.7l-1 1a12.8 12.8 0 004.8 4.8l1-1a1.6 1.6 0 011.7-.4c.7.3 1.4.5 2.2.6a1.6 1.6 0 011.4 1.6z" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+            <a
+              href="tel:050-6875-3336"
+              className="flex items-center gap-2 text-[1.3125rem] leading-none text-ink-soft hover:text-brand transition"
+              aria-label="電話でお問い合わせ: 050-6875-3336"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://api.iconify.design/fluent-emoji-flat/telephone-receiver.svg?height=28"
+                alt=""
+                width={28}
+                height={28}
+                className="w-7 h-7 shrink-0"
+                aria-hidden
+              />
               <span className="font-semibold">050-6875-3336</span>
             </a>
             {session ? (
@@ -82,8 +92,23 @@ export default async function SiteHeader() {
             )}
           </div>
 
-          {/* Mobile: only user menu if logged in */}
-          <div className="md:hidden">
+          {/* Mobile: phone icon only (+ user menu when logged in) */}
+          <div className="md:hidden flex items-center gap-3">
+            <a
+              href="tel:050-6875-3336"
+              className="flex items-center text-ink-soft hover:text-brand transition"
+              aria-label="電話でお問い合わせ: 050-6875-3336"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://api.iconify.design/fluent-emoji-flat/telephone-receiver.svg?height=24"
+                alt=""
+                width={24}
+                height={24}
+                className="w-6 h-6 shrink-0"
+                aria-hidden
+              />
+            </a>
             {session && (
               <HeaderUserMenu
                 name={name}

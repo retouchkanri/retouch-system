@@ -4,16 +4,20 @@ import { useEffect } from "react";
 
 export default function HomeHeroEffect() {
   useEffect(() => {
-    const onScroll = () => {
-      const threshold = window.innerHeight * 0.55;
-      document.body.classList.toggle("hero-active", window.scrollY < threshold);
-    };
+    const hero = document.getElementById("home-hero");
+    if (!hero) return;
 
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        document.body.classList.toggle("hero-active", entry.isIntersecting);
+      },
+      { threshold: 0 },
+    );
+
+    observer.observe(hero);
 
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      observer.disconnect();
       document.body.classList.remove("hero-active");
     };
   }, []);

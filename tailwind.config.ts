@@ -3,6 +3,17 @@ import type { Config } from "tailwindcss";
 const config: Config = {
   content: ["./src/**/*.{ts,tsx,js,jsx,mdx}"],
   theme: {
+    borderRadius: {
+      none: "0",
+      sm: "2px",
+      DEFAULT: "3px",
+      md: "4px",
+      lg: "5px",
+      xl: "5px",
+      "2xl": "5px",
+      "3xl": "5px",
+      full: "5px",
+    },
     extend: {
       colors: {
         brand: {
@@ -47,15 +58,6 @@ const config: Config = {
           "Pacifico",
           "cursive",
         ],
-      },
-      borderRadius: {
-        none: "0",
-        sm: "0.375rem",
-        md: "0.5rem",
-        lg: "0.75rem",
-        xl: "1rem",
-        "2xl": "1.25rem",
-        full: "9999px",
       },
       boxShadow: {
         card: "0 1px 2px rgba(16,24,40,0.06), 0 1px 3px rgba(16,24,40,0.10)",

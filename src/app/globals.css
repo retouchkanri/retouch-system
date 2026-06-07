@@ -41,13 +41,12 @@ button, a, input, select, textarea {
 
 @layer components {
   /* ── Buttons ── */
-  /* Pill-shaped buttons (rounded-full) with a soft shadow and a thin inner
-     border, matching the site button style. */
+  /* Buttons with a soft shadow and a thin inner border. */
   .btn {
     @apply inline-flex items-center justify-center gap-1.5 px-6 py-3 font-bold
            transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-brand/30
            disabled:opacity-50 disabled:cursor-not-allowed text-base shadow-md;
-    border-radius: 9999px;
+    border-radius: 4px;
   }
   .btn-primary {
     @apply btn bg-brand text-white border border-brand-light/50 hover:bg-brand-dark hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97];
@@ -95,7 +94,7 @@ button, a, input, select, textarea {
   .badge-full {
     @apply inline-flex items-center justify-center w-5 h-5 text-[11px] leading-none text-white;
     background: linear-gradient(135deg, #fbbf24, #b45309);
-    border-radius: 9999px;
+    border-radius: 3px;
   }
 
   /* ── Membership / role badges (gold / silver / bronze) ── */
@@ -174,7 +173,7 @@ button, a, input, select, textarea {
   .mobile-cta-btn {
     @apply inline-flex flex-1 items-center justify-center px-4 py-3 text-sm font-bold
            text-center shadow-md transition-all active:scale-[0.97];
-    border-radius: 9999px;
+    border-radius: 4px;
     min-height: 48px;
     max-width: 11rem;
   }
@@ -259,6 +258,7 @@ button, a, input, select, textarea {
 }
 body.hero-active .scroll-top-btn {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
 }
 

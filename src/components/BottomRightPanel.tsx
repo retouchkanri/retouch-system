@@ -110,10 +110,10 @@ export default function BottomRightPanel({
           </div>
         )}
 
-        {/* Top button — ページ読み込み直後から常時表示（右側） */}
+        {/* Top button — hidden while hero is in view (see .scroll-top-btn + body.hero-active) */}
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="w-12 h-12 rounded-full bg-brand text-white shadow-lg flex items-center justify-center hover:bg-brand-dark transition-colors"
+          className="scroll-top-btn w-12 h-12 rounded-full bg-brand text-white shadow-lg flex items-center justify-center hover:bg-brand-dark transition-colors"
           aria-label="ページトップへ"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

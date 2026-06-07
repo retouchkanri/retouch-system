@@ -132,9 +132,11 @@ export default function ContactForm() {
         <p className="text-danger text-sm">{errorMsg}</p>
       )}
 
-      <button type="submit" disabled={busy} className="btn-primary w-full sm:w-auto btn-pulse disabled:opacity-60">
-        {busy ? "送信中..." : "送信する"}
-      </button>
+      <div className="text-right">
+        <button type="submit" disabled={busy} className="btn-primary w-full sm:w-auto btn-pulse disabled:opacity-60">
+          {busy ? "送信中..." : "送信する"}
+        </button>
+      </div>
     </form>
   );
 }

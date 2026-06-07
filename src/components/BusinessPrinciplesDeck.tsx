@@ -75,53 +75,53 @@ export default function BusinessPrinciplesDeck() {
       >
         {principles.map((p, i) => {
           const isActive = i === activeIndex;
+          const activate = () =>
+            isActive ? setModalIndex(i) : setActiveIndex(i);
+
           return (
             <div
               key={p.num}
-              role="button"
-              tabIndex={0}
-              onClick={() =>
-                isActive ? setModalIndex(i) : setActiveIndex(i)
-              }
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  isActive ? setModalIndex(i) : setActiveIndex(i);
-                }
-              }}
-              className="absolute inset-x-0 bottom-0 cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+              className="absolute inset-x-0 bottom-0 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
               style={{
                 transformOrigin: "50% 100%",
                 transform: `rotate(${FAN_ANGLES[i]}deg) translateY(${isActive ? -30 : 0}px) scale(${isActive ? 1.05 : 0.95})`,
                 zIndex: isActive ? 40 : 10 + i,
               }}
             >
-              <div
-                className={`bg-white overflow-hidden rounded-lg transition-shadow duration-500 ${
-                  isActive
-                    ? "shadow-2xl ring-2 ring-brand/40"
-                    : "shadow-md border border-surface-line"
-                }`}
-              >
-                <Image
-                  src={p.img}
-                  alt={p.title}
-                  className="w-full h-auto"
-                />
-                <div className="p-4">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-brand font-bold text-xs tracking-widest">
-                      {p.num}
-                    </span>
-                    <div className="flex-1 h-px bg-brand-100" />
+              <div className="relative">
+                <div
+                  className={`bg-white overflow-hidden rounded-lg transition-shadow duration-500 ${
+                    isActive
+                      ? "shadow-2xl ring-2 ring-brand/40"
+                      : "shadow-md border border-surface-line"
+                  }`}
+                >
+                  <Image
+                    src={p.img}
+                    alt={p.title}
+                    className="w-full h-auto"
+                  />
+                  <div className="p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-brand font-bold text-xs tracking-widest">
+                        {p.num}
+                      </span>
+                      <div className="flex-1 h-px bg-brand-100" />
+                    </div>
+                    <h3 className="font-bold text-base text-ink mb-2 font-serif">
+                      {p.title}
+                    </h3>
+                    <p className="text-xs text-ink-soft leading-relaxed line-clamp-3">
+                      {p.body}
+                    </p>
                   </div>
-                  <h3 className="font-bold text-base text-ink mb-2 font-serif">
-                    {p.title}
-                  </h3>
-                  <p className="text-xs text-ink-soft leading-relaxed line-clamp-3">
-                    {p.body}
-                  </p>
                 </div>
+                <button
+                  type="button"
+                  aria-label={`${p.title}の詳細を見る`}
+                  onClick={activate}
+                  className="absolute top-1/4 left-1/4 z-10 h-1/2 w-1/2 cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                />
               </div>
             </div>
           );
@@ -169,7 +169,7 @@ export default function BusinessPrinciplesDeck() {
             />
 
             {/* Card content */}
-            <div className="relative z-10 bg-white rounded-[9px] overflow-hidden">
+            <div className="relative z-10 bg-white rounded-md overflow-hidden">
                 <Image
                 src={principles[modalIndex].img}
                 alt={principles[modalIndex].title}
