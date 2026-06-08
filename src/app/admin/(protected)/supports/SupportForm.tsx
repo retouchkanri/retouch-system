@@ -47,13 +47,13 @@ export default function SupportForm({ horses }: { horses: Horse[] }) {
   return (
     <form onSubmit={submit} className="grid md:grid-cols-5 gap-3">
       <div className="md:col-span-2">
-        <label className="label">顧客 ID</label>
+        <label className="label">顧客ID または メールアドレス</label>
         <input
-          className="input font-mono text-xs"
+          className="input text-sm"
           required
           value={form.customer_id}
           onChange={set("customer_id")}
-          placeholder="UUID（顧客詳細画面のURLから取得）"
+          placeholder="メールアドレス、または顧客ID（顧客詳細画面のURL）"
         />
       </div>
       <div>

@@ -5,7 +5,7 @@ import { formatDate, formatUnits, formatYen, memberClassLabel, statusLabel } fro
 import InfoEditor from "./InfoEditor";
 import MemoEditor from "./MemoEditor";
 import StatusEditor from "./StatusEditor";
-import TeamNameEditor from "./TeamNameEditor";
+import SpecialMembershipsManager from "./SpecialMembershipsManager";
 import VisitHistory from "./VisitHistory";
 
 export default async function CustomerDetail({ params }: { params: { id: string } }) {
@@ -21,6 +21,8 @@ export default async function CustomerDetail({ params }: { params: { id: string 
     { data: payments },
     { data: memos },
     { data: specialTeams },
+    { data: horses },
+    { data: rptPlan },
   ] = await Promise.all([
     supabase.from("customers").select("*").eq("id", params.id).maybeSingle(),
     supabase.from("v_customer_summary").select("*").eq("customer_id", params.id).maybeSingle(),
@@ -31,11 +33,25 @@ export default async function CustomerDetail({ params }: { params: { id: string 
     supabase.from("payments").select("*").eq("customer_id", params.id).order("occurred_at", { ascending: false }).limit(50),
     supabase.from("admin_memos").select("*").eq("customer_id", params.id).order("slot"),
     supabase.from("special_team_memberships").select("*, horse:horses(*)").eq("customer_id", params.id).order("started_at", { ascending: false }),
+    supabase.from("horses").select("id, name").order("sort_order", { ascending: true }),
+    supabase.from("membership_plans").select("id, monthly_amount").eq("code", "RPT").eq("is_active", true).order("sort_order").limit(1).maybeSingle(),
   ]);
 
   if (!customer) return notFound();
   const c: any = customer;
   const s: any = summary;
+
+  // リタポ（RPT）契約を契約一覧から抽出。月額合計には含まれない「特別参加」枠。
+  const rptMonthly = (rptPlan as any)?.monthly_amount ?? 3000;
+  const rptContracts = ((contracts as any[]) ?? [])
+    .filter((x) => x.plan?.code === "RPT")
+    .map((x) => ({
+      id: x.id,
+      status: x.status,
+      started_at: x.started_at,
+      canceled_at: x.canceled_at ?? null,
+      monthly_amount: x.plan?.monthly_amount ?? rptMonthly,
+    }));
 
   const supportIds = (supports ?? []).map((x: any) => x.id);
   const { data: supportAudits } = supportIds.length
@@ -149,25 +165,25 @@ export default async function CustomerDetail({ params }: { params: { id: string 
       </section>
 
       <section className="card">
-        <h2 className="section-title">特別チーム会員</h2>
-        <table className="table">
-          <thead><tr><th className="w-12 text-right">No.</th><th>馬</th><th>チーム名</th><th>月額</th><th>状態</th><th>開始</th><th>停止</th></tr></thead>
-          <tbody>
-            {(specialTeams ?? []).map((x: any, i: number) => (
-              <tr key={x.id}>
-                <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
-                <td>{x.horse?.name ?? "—"}</td>
-                <td><TeamNameEditor membershipId={x.id} initialName={x.team_name ?? ""} /></td>
-                <td>{formatYen(x.monthly_amount)}</td>
-                <td>{statusLabel(x.status)}</td>
-                <td>{formatDate(x.started_at)}</td>
-                <td>{x.canceled_at ? formatDate(x.canceled_at) : "—"}</td>
-              </tr>
-            ))}
-            {(specialTeams ?? []).length === 0 && <tr><td colSpan={7} className="text-center text-ink-mute py-3">特別チーム会員の登録はありません。</td></tr>}
-          </tbody>
-        </table>
-        <p className="mt-2 text-xs text-ink-soft">チーム名は「目の負傷『ガンガン支援チーム』」のように、特別参加のタグとして顧客一覧に表示されます。未入力の場合は馬名で表示されます。</p>
+        <h2 className="section-title">特別参加（特別チーム・リタポ）</h2>
+        <SpecialMembershipsManager
+          customerId={c.id}
+          specialTeams={((specialTeams as any[]) ?? []).map((x) => ({
+            id: x.id,
+            horse_id: x.horse_id ?? null,
+            horse: x.horse ? { name: x.horse.name } : null,
+            team_name: x.team_name ?? null,
+            monthly_amount: x.monthly_amount,
+            status: x.status,
+            started_at: x.started_at,
+            canceled_at: x.canceled_at ?? null,
+          }))}
+          rptContracts={rptContracts}
+          horses={((horses as any[]) ?? []).map((h) => ({ id: h.id, name: h.name }))}
+          rptPlanId={(rptPlan as any)?.id ?? null}
+          rptMonthly={rptMonthly}
+        />
+        <p className="mt-2 text-xs text-ink-soft">チーム名は「目の負傷『ガンガン支援チーム』」のように、特別参加のタグとして顧客一覧に表示されます。未入力の場合は馬名で表示されます。特別チーム・リタポは月額合計には加算されません。</p>
       </section>
 
       <section className="card">

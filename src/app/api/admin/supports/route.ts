@@ -4,7 +4,8 @@ import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({
-  customer_id: z.string().uuid(),
+  // 顧客ID（UUID）またはメールアドレスのどちらでも受け付ける。
+  customer_id: z.string().trim().min(1),
   horse_id: z.string().uuid(),
   units: z.coerce.number().positive().max(99),
   unit_amount: z.coerce.number().int().positive().optional(),
@@ -19,17 +20,47 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const { customer_id, horse_id, units, unit_amount } = parsed.data;
+  const { horse_id, units, unit_amount } = parsed.data;
   const admin = createSupabaseAdminClient();
 
-  const { data: customer } = await admin
-    .from("customers")
-    .select("id")
-    .eq("id", customer_id)
-    .maybeSingle();
-  if (!customer) {
+  // 入力された識別子から顧客を特定する。
+  //   - UUID形式 → 顧客ID（customers.id）で照合
+  //   - "@" を含む → メールアドレスで大文字小文字を無視して照合
+  //   - それ以外 → 入力不正
+  const identifier = parsed.data.customer_id.trim();
+  let resolvedId: string | null = null;
+  if (z.string().uuid().safeParse(identifier).success) {
+    const { data } = await admin
+      .from("customers")
+      .select("id")
+      .eq("id", identifier)
+      .maybeSingle();
+    resolvedId = data?.id ?? null;
+  } else if (identifier.includes("@")) {
+    // ilike のワイルドカード(%/_)とエスケープ文字(\)をリテラル化し、完全一致で照合する。
+    const escaped = identifier.replace(/([\\%_])/g, "\\$1");
+    const { data } = await admin
+      .from("customers")
+      .select("id")
+      .ilike("email", escaped)
+      .limit(2);
+    if (data && data.length > 1) {
+      return NextResponse.json(
+        { error: "同じメールアドレスの顧客が複数登録されています。顧客IDで指定してください。" },
+        { status: 409 },
+      );
+    }
+    resolvedId = data?.[0]?.id ?? null;
+  } else {
+    return NextResponse.json(
+      { error: "顧客IDまたはメールアドレスを入力してください" },
+      { status: 400 },
+    );
+  }
+  if (!resolvedId) {
     return NextResponse.json({ error: "顧客が見つかりません" }, { status: 404 });
   }
+  const customer_id = resolvedId;
 
   const { data: horse } = await admin
     .from("horses")
