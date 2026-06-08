@@ -86,7 +86,17 @@ export default async function MyPageTop() {
     (sum, s) => sum + Number(s.monthly_amount ?? 0),
     0
   );
-  const basicMonthly = contract?.plan?.monthly_amount ?? 0;
+  // 月額合計に加算するのは基本会員区分(A/B/C)の月額のみ。
+  // ・ヘルパーズ(SUPPORT)契約は「1口支援馬会員」の区分マーカーであり、実際の課金額は
+  //   support_subscriptions（馬ごとの支援額）に計上済み。これを足すと二重計上になる
+  //   （ヘルパーズ会員でマイページの月額がちょうど12,000円多く表示されていた原因）。
+  // ・リタポ(RPT)・特別チーム(SPECIAL_TEAM)は「特別参加」として別タグで表示する追加項目で、
+  //   管理画面の月額合計(v_customer_summary.monthly_total)にも含めていない。
+  // → これによりマイページと管理画面の月額合計を一致させる。
+  const basicMonthly =
+    contract?.plan && ["A", "B", "C"].includes(contract.plan.code)
+      ? Number(contract.plan.monthly_amount ?? 0)
+      : 0;
   const monthlyGrandTotal = supportMonthlyTotal + basicMonthly;
 
   // Tenure/payment-based badge (bronze: 登録2か月+ / silver: 支払い6か月+ /

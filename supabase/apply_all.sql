@@ -753,7 +753,9 @@ select
   ) as member_class_code,
   coalesce(support_agg.total_units, 0)  as total_support_units,
   coalesce(support_agg.horse_count, 0)  as total_support_horses,
-  coalesce(support_agg.monthly_total, 0) as monthly_total,
+  -- 月額合計 = 馬ごとの支援額合計 + 基本会費(A/B/C)。
+  -- 詳細は migrations/20260608_monthly_total_include_basic.sql を参照。
+  coalesce(support_agg.monthly_total, 0) + coalesce(basic_plan.plan_monthly, 0) as monthly_total,
   contract_agg.current_period_end as next_payment_at,
   contract_agg.contract_status as contract_status,
   -- 特別参加
@@ -762,7 +764,7 @@ select
   team_agg.team_names as special_team_names
 from public.customers c
 left join lateral (
-  select mp.code as plan_code, mp.name as plan_name
+  select mp.code as plan_code, mp.name as plan_name, mp.monthly_amount as plan_monthly
   from public.contracts ct
   join public.membership_plans mp on mp.id = ct.plan_id
   where ct.customer_id = c.id and ct.status = 'active'

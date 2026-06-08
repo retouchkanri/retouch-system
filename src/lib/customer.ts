@@ -60,10 +60,14 @@ export async function loadActiveContract(customerId: string): Promise<Contract |
     .select("*, plan:membership_plans(*)")
     .eq("customer_id", customerId)
     .in("status", ["active", "past_due"])
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return (data as Contract | null) ?? null;
+    .order("started_at", { ascending: false });
+  const rows = (data as Contract[] | null) ?? [];
+  // 基本会員区分(A/B/C)の契約を優先して返す。リタポ(RPT)・特別チーム(SPECIAL_TEAM)・
+  // 支援(SUPPORT) は基本区分ではなく追加・マーカー扱いのため、A/B/C があればそれを採用する。
+  // A/B/C が無い場合（ヘルパーズ単独・リタポ単独など）は従来どおり最新契約を返し、
+  // ステータス表示等の後方互換を保つ。
+  const basic = rows.find((c) => ["A", "B", "C"].includes(c.plan?.code ?? ""));
+  return basic ?? rows[0] ?? null;
 }
 
 export async function loadDonations(customerId: string, limit = 20): Promise<Donation[]> {
