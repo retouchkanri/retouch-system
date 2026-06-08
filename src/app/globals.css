@@ -294,3 +294,31 @@ details[open] .faq-chevron { transform: rotate(180deg); }
     transform: none !important;
   }
 }
+
+/* ── Mobile density & motion (画面幅 < 640px = Tailwind の sm 未満) ──
+   スマホでは本文と余白を約80%に圧縮し、装飾アニメを抑えて見やすさ・収まりを改善する。
+   Tailwind の文字サイズ・余白(p-*, m-*, gap-* 等)は rem 基準のため、html の基準サイズを
+   下げるだけで「文字」と「余白」がまとめて縮小される（個別ページの改修は不要）。
+   ・入力系コントロールは 16px に固定（iOS でのフォーカス時自動ズームを防ぐための機能的措置）。
+   ・フォーカスリング・FAQ開閉・ホバー等の機能的トランジションは変更しない。 */
+@media (max-width: 639px) {
+  html {
+    font-size: 13px; /* デスクトップ基準 16px の約80%（≒81%）。文字も余白も連動して縮小 */
+  }
+  /* 文中リンク・装飾なしボタンは縮小後の基準に合わせる
+     （従来の 16px 固定だと本文より大きく浮いてしまうため）。 */
+  a, button {
+    font-size: inherit;
+  }
+  /* 文字入力系は 16px を維持（iOS の自動ズーム回避）。.input クラスも明示的に固定。 */
+  input, select, textarea, .input {
+    font-size: 16px !important;
+  }
+  /* ループ系・登場系の装飾アニメをスマホでは停止（上の prefers-reduced-motion と同じ安全な解除）。 */
+  .hero-fade, .hero-zoom, .hero-pulse, .hero-scale-loop,
+  .feature-float, .feature-card, .btn-pulse, .deck-border-spin {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

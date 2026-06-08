@@ -143,7 +143,7 @@ export default async function AdminSupportsPage({
               <th>状態</th>
               <th>開始</th>
               <th>停止</th>
-              <th></th>
+              <th className="col-actions">操作</th>
             </tr>
           </thead>
           <tbody>

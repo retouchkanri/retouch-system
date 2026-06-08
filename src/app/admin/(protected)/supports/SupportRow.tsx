@@ -3,6 +3,34 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+function PencilIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 20h4l10.5-10.5a2.12 2.12 0 0 0-3-3L5 17v3z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.5 6.5l3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="6" y="6" width="12" height="12" rx="1" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const iconBtn =
+  "w-8 h-8 shrink-0 rounded-[50%] border border-surface-line bg-white shadow-sm flex items-center justify-center transition-colors disabled:opacity-50";
+
 type SupportView = {
   id: string;
   customer_id: string;
@@ -91,18 +119,55 @@ export default function SupportRow({ support, index }: { support: SupportView; i
         <td>{support.status_label}</td>
         <td>{support.started_at}</td>
         <td>{support.canceled_at}</td>
-        <td className="text-right whitespace-nowrap">
-          <button className="text-brand underline text-sm mr-3" onClick={() => setEditing((v) => !v)}>
-            編集
-          </button>
-          {support.status !== "canceled" && (
-            <button className="text-amber-700 underline text-sm mr-3" onClick={cancelSupport} disabled={busy}>
-              停止
+        <td className="col-actions text-right whitespace-nowrap min-w-[7.5rem]">
+          {/* Mobile: sticky right — icon buttons always visible */}
+          <div className="flex items-center justify-end gap-1 md:hidden">
+            <button
+              type="button"
+              onClick={() => setEditing((v) => !v)}
+              aria-label="編集"
+              title="編集"
+              className={`${iconBtn} text-brand hover:bg-brand-50 hover:border-brand`}
+            >
+              <PencilIcon />
             </button>
-          )}
-          <button className="text-danger underline text-sm" onClick={hardDelete} disabled={busy}>
-            削除
-          </button>
+            {support.status !== "canceled" && (
+              <button
+                type="button"
+                onClick={cancelSupport}
+                disabled={busy}
+                aria-label="停止"
+                title="停止"
+                className={`${iconBtn} text-amber-700 hover:bg-amber-50 hover:border-amber-400`}
+              >
+                <StopIcon />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={hardDelete}
+              disabled={busy}
+              aria-label="削除"
+              title="削除"
+              className={`${iconBtn} text-danger hover:bg-red-50 hover:border-red-300`}
+            >
+              <TrashIcon />
+            </button>
+          </div>
+          {/* Desktop: text links */}
+          <div className="hidden md:block">
+            <button className="text-brand underline text-sm mr-3" onClick={() => setEditing((v) => !v)}>
+              編集
+            </button>
+            {support.status !== "canceled" && (
+              <button className="text-amber-700 underline text-sm mr-3" onClick={cancelSupport} disabled={busy}>
+                停止
+              </button>
+            )}
+            <button className="text-danger underline text-sm" onClick={hardDelete} disabled={busy}>
+              削除
+            </button>
+          </div>
         </td>
       </tr>
       {editing && (
