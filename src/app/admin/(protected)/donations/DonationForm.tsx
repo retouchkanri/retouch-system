@@ -10,7 +10,8 @@ export default function DonationForm() {
     donor_email: "",
     amount: "3000",
     message: "",
-    status: "succeeded" as "succeeded" | "pending" | "failed" | "refunded",
+    // 既定は「保留」。銀行振込は入金確認(入金確認日の入力)までは保留とする。
+    status: "pending" as "succeeded" | "pending" | "failed" | "refunded",
     payment_method: "bank_transfer" as "card" | "bank_transfer",
     confirmed_at: "",
     note: "",
@@ -56,7 +57,7 @@ export default function DonationForm() {
       donor_email: "",
       amount: "3000",
       message: "",
-      status: "succeeded",
+      status: "pending",
       payment_method: "bank_transfer",
       confirmed_at: "",
       note: "",

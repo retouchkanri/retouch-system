@@ -43,6 +43,16 @@ export async function POST(req: Request) {
     }
   }
 
+  const confirmedAt = parsed.data.confirmed_at || null;
+  // 銀行振込は入金確認の有無で状態を確定する。
+  //   入金確認日なし → 保留 / 入金確認日あり → 成功。
+  // （カード・失敗・返金・取消はそのまま尊重する。）
+  let status = parsed.data.status;
+  if (parsed.data.payment_method === "bank_transfer") {
+    if (!confirmedAt && status === "succeeded") status = "pending";
+    else if (confirmedAt && status === "pending") status = "succeeded";
+  }
+
   const { data: inserted, error } = await admin
     .from("donations")
     .insert({
@@ -51,9 +61,9 @@ export async function POST(req: Request) {
       donor_email: donor_email ?? null,
       amount: parsed.data.amount,
       message: parsed.data.message ?? null,
-      status: parsed.data.status,
+      status,
       payment_method: parsed.data.payment_method,
-      confirmed_at: parsed.data.confirmed_at || null,
+      confirmed_at: confirmedAt,
       note: parsed.data.note ?? null,
       donated_at: parsed.data.donated_at ?? new Date().toISOString(),
     })
@@ -63,7 +73,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error?.message ?? "登録に失敗しました" }, { status: 500 });
   }
 
-  if (parsed.data.status === "succeeded") {
+  if (status === "succeeded") {
     await admin.from("payments").insert({
       customer_id: parsed.data.customer_id ?? null,
       donation_id: inserted.id,
@@ -79,7 +89,7 @@ export async function POST(req: Request) {
     action: "donation.create",
     target_table: "donations",
     target_id: inserted.id,
-    meta: { amount: parsed.data.amount, status: parsed.data.status },
+    meta: { amount: parsed.data.amount, status },
   });
 
   return NextResponse.json({ ok: true, id: inserted.id });
