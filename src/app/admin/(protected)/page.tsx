@@ -90,8 +90,8 @@ export default async function AdminDashboardPage() {
   const activeOffset = C / 4; // start at top
 
   const cards = [
-    { label: "会員数", value: customersTotal ?? 0, href: "/admin/customers", icon: "https://api.iconify.design/fluent-emoji-flat/bust-in-silhouette.svg", sub: "登録済み" },
-    { label: "継続契約", value: activeContracts ?? 0, href: "/admin/contracts", icon: "https://api.iconify.design/fluent-emoji-flat/page-facing-up.svg", sub: "有効中" },
+    { label: "会員数", value: customersTotal ?? 0, href: "/admin/customers", icon: "https://api.iconify.design/fluent-emoji-flat/bust-in-silhouette.svg", sub: "登録済み", accentBar: "from-emerald-400 to-emerald-600", iconBg: "bg-emerald-50" },
+    { label: "継続契約", value: activeContracts ?? 0, href: "/admin/contracts", icon: "https://api.iconify.design/fluent-emoji-flat/page-facing-up.svg", sub: "有効中", accentBar: "from-sky-400 to-sky-600", iconBg: "bg-sky-50" },
     {
       label: "決済失敗",
       value: pastDueCount ?? 0,
@@ -99,8 +99,10 @@ export default async function AdminDashboardPage() {
       href: "/admin/payments?status=failed",
       icon: "https://api.iconify.design/fluent-emoji-flat/warning.svg",
       sub: "要対応",
+      accentBar: "from-amber-400 to-amber-600",
+      iconBg: "bg-amber-50",
     },
-    { label: "本日の予約", value: bookingsToday ?? 0, href: "/admin/bookings", icon: "https://api.iconify.design/fluent-emoji-flat/spiral-calendar.svg", sub: "本日" },
+    { label: "本日の予約", value: bookingsToday ?? 0, href: "/admin/bookings", icon: "https://api.iconify.design/fluent-emoji-flat/spiral-calendar.svg", sub: "本日", accentBar: "from-violet-400 to-violet-600", iconBg: "bg-violet-50" },
   ];
 
   return (
@@ -114,31 +116,36 @@ export default async function AdminDashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {cards.map((c) => {
           const inner = (
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-ink-soft mb-1">{c.label}</p>
-                <p className={`text-3xl font-bold tabular-nums ${c.warn ? "text-danger" : "text-ink"}`}>
-                  {c.value.toLocaleString()}
-                </p>
-                <p className={`text-xs mt-1 ${c.warn ? "text-danger" : "text-ink-mute"}`}>
-                  {c.warn ? "→ 対応が必要です" : c.sub}
-                </p>
+            <>
+              {/* 上部アクセントバー */}
+              <span className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.accentBar}`} />
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-ink-mute mb-1.5 tracking-wide">{c.label}</p>
+                  <p className={`text-[2rem] leading-none font-bold tabular-nums ${c.warn ? "text-danger" : "text-ink"}`}>
+                    {c.value.toLocaleString()}
+                  </p>
+                  <p className={`text-xs mt-2 ${c.warn ? "text-danger font-semibold" : "text-ink-mute"}`}>
+                    {c.warn ? "→ 対応が必要です" : c.sub}
+                  </p>
+                </div>
+                <span className={`shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center ${c.warn ? "bg-red-50" : c.iconBg}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={c.icon} alt="" className="w-7 h-7" />
+                </span>
               </div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={c.icon} alt="" className="w-9 h-9 mt-0.5 shrink-0" />
-
-            </div>
+            </>
           );
           return c.href ? (
             <Link
               key={c.label}
               href={c.href}
-              className={`card hover:shadow-lg transition-shadow ${c.warn ? "ring-2 ring-danger/40 bg-red-50/60" : ""}`}
+              className={`card relative !p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all ${c.warn ? "ring-2 ring-danger/40 bg-red-50/60" : ""}`}
             >
               {inner}
             </Link>
           ) : (
-            <div key={c.label} className="card">{inner}</div>
+            <div key={c.label} className="card relative !p-5">{inner}</div>
           );
         })}
       </div>
@@ -151,11 +158,13 @@ export default async function AdminDashboardPage() {
           { href: "/admin/contracts", label: "契約一覧", sub: "A/B/C・停止処理", icon: "https://api.iconify.design/fluent-emoji-flat/page-with-curl.svg" },
           { href: "/admin/payments", label: "決済履歴", sub: "成功・失敗・返金", icon: "https://api.iconify.design/fluent-emoji-flat/credit-card.svg" },
         ].map((l) => (
-          <Link key={l.href} href={l.href} className="card hover:shadow-lg transition-shadow flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={l.icon} alt="" className="w-8 h-8 shrink-0" />
+          <Link key={l.href} href={l.href} className="card !p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-3 group">
+            <span className="shrink-0 w-10 h-10 rounded-xl bg-surface-soft flex items-center justify-center group-hover:bg-brand-50 transition-colors">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={l.icon} alt="" className="w-6 h-6" />
+            </span>
             <div>
-              <p className="font-bold text-sm">{l.label}</p>
+              <p className="font-bold text-sm group-hover:text-brand-dark transition-colors">{l.label}</p>
               <p className="text-xs text-ink-soft mt-0.5">{l.sub}</p>
             </div>
           </Link>
