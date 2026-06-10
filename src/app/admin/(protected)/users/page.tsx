@@ -14,6 +14,7 @@ import {
   type Role,
 } from "@/lib/roles";
 import { loadPaymentStats } from "@/lib/badge";
+import { isHiddenAccountEmail } from "@/lib/hiddenAccounts";
 import RoleBadge from "@/components/RoleBadge";
 
 export const dynamic = "force-dynamic";
@@ -107,7 +108,9 @@ export default async function AdminUsersPage({
       avatar_url: cust?.avatar_url ?? null,
       created_at: p.created_at,
     };
-  });
+  })
+    // 内部テスト用アカウントは一覧・件数から除外（Supabase 上には存在する）。
+    .filter((r) => !isHiddenAccountEmail(r.email));
 
   const filtered = rows.filter((r) => {
     if (role && r.role !== role) return false;

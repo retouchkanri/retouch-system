@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { getSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/format";
 import type { NewsItem } from "@/types/db";
+
+const BOOKINGS_PATH = "/mypage/bookings";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +35,11 @@ export async function generateMetadata({
 }
 
 export default async function NewsDetailPage({ params }: { params: { id: string } }) {
-  const news = await loadNews(params.id);
+  const [news, session] = await Promise.all([loadNews(params.id), getSession()]);
   if (!news) return notFound();
+
+  const isEvent = news.tag === "イベント";
+  const applyHref = session ? BOOKINGS_PATH : `/login?next=${BOOKINGS_PATH}`;
 
   return (
     <main className="max-w-3xl mx-auto px-5 py-12">
@@ -58,6 +64,22 @@ export default async function NewsDetailPage({ params }: { params: { id: string 
           <h1 className="text-2xl font-bold text-ink mb-5 leading-snug">{news.title}</h1>
           {news.body && (
             <div className="text-ink-soft leading-relaxed whitespace-pre-wrap">{news.body}</div>
+          )}
+          {isEvent && (
+            <div className="mt-6 pt-6 border-t border-surface-line text-center">
+              <Link href={applyHref} className="btn-primary inline-flex">
+                {session ? "予約・申し込みはこちら" : "ログインして申し込む"}
+              </Link>
+              {!session && (
+                <p className="text-xs text-ink-mute mt-2">
+                  会員登録がお済みでない方は
+                  <Link href="/signup" className="text-brand underline mx-1">
+                    新規会員登録
+                  </Link>
+                  からお手続きください。
+                </p>
+              )}
+            </div>
           )}
         </div>
       </article>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isHiddenAccountEmail } from "@/lib/hiddenAccounts";
 
 export async function GET(req: Request) {
   await requireAdmin();
@@ -20,5 +21,7 @@ export async function GET(req: Request) {
     .order("full_name")
     .limit(limit);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ results: data ?? [] });
+  // 内部テスト用アカウントは候補に表示しない。
+  const results = (data ?? []).filter((r: any) => !isHiddenAccountEmail(r.email));
+  return NextResponse.json({ results });
 }

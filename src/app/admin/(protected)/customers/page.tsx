@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatYen, formatUnits, memberClassLabel, statusLabel } from "@/lib/format";
+import { isHiddenAccountEmail } from "@/lib/hiddenAccounts";
 
 export default async function CustomersListPage({
   searchParams,
@@ -30,7 +31,8 @@ export default async function CustomersListPage({
   if (pay) query = query.eq("contract_status", pay);
 
   const { data, error } = await query.limit(200);
-  const rows = (data as any[]) ?? [];
+  // 内部テスト用アカウントは一覧・件数から除外（Supabase 上には存在する）。
+  const rows = ((data as any[]) ?? []).filter((r) => !isHiddenAccountEmail(r.email));
 
   return (
     <div className="space-y-4">

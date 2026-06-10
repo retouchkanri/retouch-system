@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatYen } from "@/lib/format";
 import { syncStripePayments } from "@/lib/stripeSync";
 import { buildRevenueSeries, type RawPayment } from "@/lib/revenueSeries";
+import { HIDDEN_ACCOUNT_EMAILS } from "@/lib/hiddenAccounts";
 import RevenueChart from "./RevenueChart";
 import horseImage from "@/assets/images/horse.png";
 
@@ -41,7 +42,8 @@ export default async function AdminDashboardPage() {
   fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
 
   const [
-    { count: customersTotal },
+    { count: customersTotalRaw },
+    { count: hiddenCustomers },
     { count: pastDueCount },
     { count: activeContracts },
     { count: canceledContracts },
@@ -52,6 +54,11 @@ export default async function AdminDashboardPage() {
     { data: upcomingEvents },
   ] = await Promise.all([
     supabase.from("customers").select("*", { count: "exact", head: true }),
+    // 内部テスト用アカウント分を会員数から差し引くためのカウント。
+    supabase
+      .from("customers")
+      .select("*", { count: "exact", head: true })
+      .in("email", HIDDEN_ACCOUNT_EMAILS as string[]),
     supabase.from("contracts").select("*", { count: "exact", head: true }).eq("status", "past_due"),
     supabase.from("contracts").select("*", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("contracts").select("*", { count: "exact", head: true }).eq("status", "canceled"),
@@ -77,6 +84,9 @@ export default async function AdminDashboardPage() {
       .order("starts_at")
       .limit(5),
   ]);
+
+  // 会員数は内部テスト用アカウントを除いた数を表示する（顧客一覧と一致）。
+  const customersTotal = Math.max(0, (customersTotalRaw ?? 0) - (hiddenCustomers ?? 0));
 
   // ── Revenue chart series (day / week / month / year) ──
   const revenueSeries = buildRevenueSeries(revenuePayments);
