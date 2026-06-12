@@ -26,7 +26,9 @@ export type NotifyKind =
   | "support_canceled"
   | "contact_inquiry"
   | "contact_auto_reply"
-  | "password_reset";
+  | "password_reset"
+  | "member_welcome"
+  | "staff_notify";
 
 export type NotifyPayload = {
   kind: NotifyKind;
@@ -43,6 +45,12 @@ export type NotifyPayload = {
 const FROM_NAME_DEFAULT = "Retouchメンバーズ事務局";
 const SITE_URL_DEFAULT = "https://retouch-members.local";
 const CONTACT_EMAIL_DEFAULT = "info@retouch-members.local";
+const STAFF_RECIPIENTS_DEFAULT = "info@retouch-members.com, yoshi910019@ezweb.ne.jp";
+
+/** スタッフ通知の宛先。CONTACT_RECIPIENTS 環境変数で上書き可。 */
+export function staffRecipients(): string {
+  return process.env.CONTACT_RECIPIENTS ?? STAFF_RECIPIENTS_DEFAULT;
+}
 
 function siteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL ?? SITE_URL_DEFAULT;
@@ -386,6 +394,45 @@ export function supportCanceledTemplate(params: {
         ? `・終了予定日: ${when}\n  当日まではご支援を継続いただけます。\n\n`
         : `・即日で停止いたしました。\n\n`) +
       `これまでの温かいご支援、誠にありがとうございました。` +
+      signature(),
+  };
+}
+
+export function memberWelcomeTemplate(params: {
+  name: string | null;
+}): Pick<NotifyPayload, "subject" | "body_text"> {
+  const who = params.name?.trim() || "会員";
+  return {
+    subject: "【Retouch Members】ご入会ありがとうございます",
+    body_text:
+      `${who}様\n\n` +
+      `このたびはRetouchメンバーズにご入会いただき、誠にありがとうございます。\n` +
+      `アカウントの設定が完了しました。下記よりログインしてマイページをご利用ください。\n\n` +
+      `▼ ログイン\n` +
+      `${siteUrl()}/login\n\n` +
+      `ご不明な点がございましたら、お気軽にお問い合わせください。` +
+      signature(),
+  };
+}
+
+export function bookingCanceledTemplate(params: {
+  name: string | null;
+  eventTitle: string;
+  startsAt: string | Date;
+}): Pick<NotifyPayload, "subject" | "body_text"> {
+  const who = params.name?.trim() || "会員";
+  const d = typeof params.startsAt === "string" ? new Date(params.startsAt) : params.startsAt;
+  const when = Number.isNaN(d.getTime())
+    ? String(params.startsAt)
+    : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return {
+    subject: `【Retouch Members】ご予約のキャンセル — ${params.eventTitle}`,
+    body_text:
+      `${who}様\n\n` +
+      `以下のご予約をキャンセルいたしました。\n\n` +
+      `・イベント: ${params.eventTitle}\n` +
+      `・日時: ${when}\n\n` +
+      `またのご参加をお待ちしております。` +
       signature(),
   };
 }

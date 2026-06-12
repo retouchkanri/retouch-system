@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSupportCreate } from "@/lib/stripeSupport";
 import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
-import { notify, supportAddedTemplate } from "@/lib/notify";
+import { notify, staffRecipients, supportAddedTemplate } from "@/lib/notify";
 
 const schema = z.object({
   horse_id: z.string().uuid(),
@@ -211,6 +211,22 @@ export async function POST(req: Request) {
       meta: { support_id: (existingRow as any).id, horse_name: horse.name, units: newUnits },
     });
 
+    // スタッフへの支援申込通知（追加口数マージ）
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【一口支援 申込】${(customer as any).full_name} — ${horse.name}`,
+      body_text:
+        `一口支援のお申し込みがありました（既存支援への追加）。\n\n` +
+        `・会員名: ${(customer as any).full_name}\n` +
+        `・メール: ${(customer as any).email}\n` +
+        `・対象馬: ${horse.name}\n` +
+        `・口数（合計）: ${newUnits}口\n` +
+        `・月額: ¥${Math.round(newMonthly).toLocaleString("ja-JP")}`,
+      reply_to: (customer as any).email,
+      meta: { support_id: (existingRow as any).id, horse_name: horse.name, units: newUnits, source: "support_merge" },
+    });
+
     return NextResponse.json({
       ok: true,
       contract_id: contractId,
@@ -304,6 +320,22 @@ export async function POST(req: Request) {
     subject: tpl.subject,
     body_text: tpl.body_text,
     meta: { support_id: inserted.id, horse_name: horse.name, units },
+  });
+
+  // スタッフへの支援申込通知（新規）
+  await notify({
+    kind: "staff_notify",
+    to: staffRecipients(),
+    subject: `【一口支援 申込】${(customer as any).full_name} — ${horse.name}`,
+    body_text:
+      `一口支援の新規お申し込みがありました。\n\n` +
+      `・会員名: ${(customer as any).full_name}\n` +
+      `・メール: ${(customer as any).email}\n` +
+      `・対象馬: ${horse.name}\n` +
+      `・口数: ${Number(units)}口\n` +
+      `・月額: ¥${Math.round(monthly).toLocaleString("ja-JP")}`,
+    reply_to: (customer as any).email,
+    meta: { support_id: inserted.id, horse_name: horse.name, units, source: "support_create" },
   });
 
   return NextResponse.json({

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { memberWelcomeTemplate, notify, staffRecipients } from "@/lib/notify";
 
 // Public sign-up always creates a "member". Staff roles (owner/admin/moderator)
 // are assigned only from the admin user-management screen — never self-elected.
@@ -134,6 +135,32 @@ export async function POST(req: Request) {
     id: userData.user.id,
     role: "member",
     customer_id: customerId,
+  });
+
+  // 新規会員へのウェルカムメール
+  const welcomeTpl = memberWelcomeTemplate({ name: fullName });
+  await notify({
+    kind: "member_welcome",
+    to: email,
+    to_name: fullName,
+    subject: welcomeTpl.subject,
+    body_text: welcomeTpl.body_text,
+    meta: { customer_id: customerId },
+  });
+
+  // スタッフへの新規登録通知
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  await notify({
+    kind: "staff_notify",
+    to: staffRecipients(),
+    subject: `【新規会員登録】${fullName}`,
+    body_text:
+      `新規会員登録がありました。\n\n` +
+      `・お名前: ${fullName}\n` +
+      `・メール: ${email}\n` +
+      `・登録日時: ${dateStr}`,
+    meta: { customer_id: customerId, source: "signup" },
   });
 
   return NextResponse.json({ ok: true });

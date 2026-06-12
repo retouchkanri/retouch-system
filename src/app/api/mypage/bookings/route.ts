@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { bookingConfirmedTemplate, notify } from "@/lib/notify";
+import { bookingCanceledTemplate, bookingConfirmedTemplate, notify, staffRecipients } from "@/lib/notify";
 import { writeAudit } from "@/lib/audit";
 import { hasActiveSupport, seatUsage } from "@/lib/bookings";
 import {
@@ -214,6 +214,32 @@ export async function POST(req: Request) {
     meta: { event_id: event.id, party_size: partySize },
   });
 
+  // スタッフへの予約申込通知
+  {
+    const d = new Date(event.starts_at);
+    const when = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    const custName = (cust as any)?.full_name ?? "（不明）";
+    const custEmail = (cust as any)?.email ?? session.email;
+    const pickupText = pickup ? `\n・送迎: ${pickup}` : "";
+    const companionsText = companions.length > 0 ? `\n・同伴者: ${companions.length}名` : "";
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【見学会・面会 予約申込】${custName} — ${event.title}`,
+      body_text:
+        `見学会・面会の予約申込が入りました。\n\n` +
+        `・会員名: ${custName}\n` +
+        `・メール: ${custEmail}\n` +
+        `・イベント: ${event.title}\n` +
+        `・日時: ${when}\n` +
+        `・人数: ${partySize}名` +
+        pickupText +
+        companionsText,
+      reply_to: custEmail,
+      meta: { event_id: event.id, booking_id: bookingId, source: "booking_create" },
+    });
+  }
+
   return NextResponse.json({ ok: true, id: bookingId });
 }
 
@@ -292,6 +318,34 @@ export async function PATCH(req: Request) {
     },
   });
 
+  // スタッフへの予約変更通知
+  {
+    const { data: cust } = await admin
+      .from("customers")
+      .select("full_name, email")
+      .eq("id", session.customerId)
+      .maybeSingle();
+    const d = new Date(event.starts_at);
+    const when = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    const custName = (cust as any)?.full_name ?? "（不明）";
+    const custEmail = (cust as any)?.email ?? session.email;
+    const newPartySize = (update.party_size as number | undefined) ?? (existing as any).party_size;
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【見学会・面会 予約変更】${custName} — ${event.title}`,
+      body_text:
+        `見学会・面会の予約内容が変更されました。\n\n` +
+        `・会員名: ${custName}\n` +
+        `・メール: ${custEmail}\n` +
+        `・イベント: ${event.title}\n` +
+        `・日時: ${when}\n` +
+        `・変更後人数: ${newPartySize}名`,
+      reply_to: custEmail,
+      meta: { event_id: parsed.data.event_id, booking_id: (existing as any).id, source: "booking_update" },
+    });
+  }
+
   return NextResponse.json({ ok: true });
 }
 
@@ -329,6 +383,49 @@ export async function DELETE(req: Request) {
     targetId: (existing as any).id,
     meta: { event_id: parsed.data.event_id, party_size: (existing as any).party_size },
   });
+
+  // キャンセル確認メール + スタッフ通知
+  const [{ data: cancelCust }, { data: cancelEv }] = await Promise.all([
+    admin.from("customers").select("full_name, email").eq("id", session.customerId).maybeSingle(),
+    admin.from("events").select("title, starts_at").eq("id", parsed.data.event_id).maybeSingle(),
+  ]);
+  if (cancelEv) {
+    const cancelTpl = bookingCanceledTemplate({
+      name: (cancelCust as any)?.full_name ?? null,
+      eventTitle: (cancelEv as any).title,
+      startsAt: (cancelEv as any).starts_at,
+    });
+    await notify({
+      kind: "booking_canceled",
+      to: (cancelCust as any)?.email ?? session.email,
+      to_name: (cancelCust as any)?.full_name ?? null,
+      subject: cancelTpl.subject,
+      body_text: cancelTpl.body_text,
+      meta: { event_id: parsed.data.event_id, booking_id: (existing as any).id },
+    });
+  }
+  {
+    const custName = (cancelCust as any)?.full_name ?? "（不明）";
+    const custEmail = (cancelCust as any)?.email ?? session.email;
+    const evTitle = (cancelEv as any)?.title ?? "（不明）";
+    const d = new Date((cancelEv as any)?.starts_at ?? "");
+    const when = Number.isNaN(d.getTime())
+      ? ""
+      : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【見学会・面会 予約キャンセル】${custName} — ${evTitle}`,
+      body_text:
+        `見学会・面会の予約がキャンセルされました。\n\n` +
+        `・会員名: ${custName}\n` +
+        `・メール: ${custEmail}\n` +
+        `・イベント: ${evTitle}` +
+        (when ? `\n・日時: ${when}` : ""),
+      reply_to: custEmail,
+      meta: { event_id: parsed.data.event_id, booking_id: (existing as any).id, source: "booking_cancel" },
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

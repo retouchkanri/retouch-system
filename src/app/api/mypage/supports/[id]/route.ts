@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSupportUpdate } from "@/lib/stripeSupport";
 import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
-import { notify, supportChangedTemplate } from "@/lib/notify";
+import { notify, staffRecipients, supportChangedTemplate } from "@/lib/notify";
 
 const schema = z.object({
   plan_id: z.string().uuid(),
@@ -137,6 +137,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     body_text: tpl.body_text,
     meta: { support_id: params.id, prev_units: prevUnits, new_units: units },
   });
+
+  // スタッフへの支援変更通知
+  {
+    const fmt = (n: number) => (Number.isInteger(n) ? `${n}口` : `${n.toFixed(1)}口`);
+    const custName = (cust as any)?.full_name ?? "（不明）";
+    const custEmail = (cust as any)?.email ?? session.email;
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【一口支援 変更】${custName} — ${horseName ?? "（不明）"}`,
+      body_text:
+        `一口支援内容の変更がありました。\n\n` +
+        `・会員名: ${custName}\n` +
+        `・メール: ${custEmail}\n` +
+        `・対象馬: ${horseName ?? "（不明）"}\n` +
+        `・変更前: ${fmt(prevUnits)} / 月額 ¥${Math.round(prevMonthly).toLocaleString("ja-JP")}\n` +
+        `・変更後: ${fmt(Number(units))} / 月額 ¥${Math.round(monthly).toLocaleString("ja-JP")}`,
+      reply_to: custEmail,
+      meta: { support_id: params.id, prev_units: prevUnits, new_units: units, source: "support_update" },
+    });
+  }
 
   return NextResponse.json({ ok: true, stripe: sync });
 }

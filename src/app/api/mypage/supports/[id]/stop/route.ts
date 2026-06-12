@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSupportCancel } from "@/lib/stripeSupport";
-import { notify, supportCanceledTemplate } from "@/lib/notify";
+import { notify, staffRecipients, supportCanceledTemplate } from "@/lib/notify";
 
 /**
  * 支援停止API。
@@ -113,6 +113,30 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
       meta: { support_id: params.id, scheduled_cancel_at: scheduledAt },
     });
 
+    // スタッフへの支援停止通知（スケジュール）
+    {
+      const custName = (cust as any)?.full_name ?? "（不明）";
+      const custEmail = (cust as any)?.email ?? session.email;
+      const horseName = (existing as any).horse?.name ?? "（不明）";
+      const d = new Date(scheduledAt);
+      const whenStr = Number.isNaN(d.getTime())
+        ? scheduledAt
+        : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+      await notify({
+        kind: "staff_notify",
+        to: staffRecipients(),
+        subject: `【一口支援 停止申込】${custName} — ${horseName}`,
+        body_text:
+          `一口支援の停止申込がありました。\n\n` +
+          `・会員名: ${custName}\n` +
+          `・メール: ${custEmail}\n` +
+          `・対象馬: ${horseName}\n` +
+          `・停止予定日: ${whenStr}`,
+        reply_to: custEmail,
+        meta: { support_id: params.id, scheduled_cancel_at: scheduledAt, source: "support_cancel_scheduled" },
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       scheduled_cancel_at: scheduledAt,
@@ -162,6 +186,26 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
     body_text: tplImmediate.body_text,
     meta: { support_id: params.id, immediate: true },
   });
+
+  // スタッフへの支援停止通知（即時）
+  {
+    const custName = (cust as any)?.full_name ?? "（不明）";
+    const custEmail = (cust as any)?.email ?? session.email;
+    const horseName = (existing as any).horse?.name ?? "（不明）";
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【一口支援 停止申込】${custName} — ${horseName}`,
+      body_text:
+        `一口支援の停止申込がありました。\n\n` +
+        `・会員名: ${custName}\n` +
+        `・メール: ${custEmail}\n` +
+        `・対象馬: ${horseName}\n` +
+        `・停止区分: 即時停止`,
+      reply_to: custEmail,
+      meta: { support_id: params.id, immediate: true, source: "support_cancel_immediate" },
+    });
+  }
 
   return NextResponse.json({ ok: true, stripe: sync });
 }

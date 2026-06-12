@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { cancelBasicPlan, subscribeBasicPlan } from "@/lib/plan";
-import { donationThanksTemplate, notify, planChangedTemplate } from "@/lib/notify";
+import { donationThanksTemplate, notify, planChangedTemplate, staffRecipients } from "@/lib/notify";
 
 const schema = z.object({
   plan_id: z.string().uuid(),
@@ -78,6 +78,21 @@ export async function POST(req: Request) {
     body_text: tpl.body_text,
     meta: { contract_id: result.contractId, plan_id: (plan as any).id },
   });
+
+  // スタッフへの会員種別変更通知
+  await notify({
+    kind: "staff_notify",
+    to: staffRecipients(),
+    subject: `【会員種別変更】${(customer as any).full_name} — ${(plan as any).name}`,
+    body_text:
+      `会員種別の変更がありました。\n\n` +
+      `・会員名: ${(customer as any).full_name}\n` +
+      `・メール: ${(customer as any).email}\n` +
+      `・変更後プラン: ${(plan as any).name}（月額 ¥${Math.round((plan as any).monthly_amount).toLocaleString("ja-JP")}）`,
+    reply_to: (customer as any).email,
+    meta: { contract_id: result.contractId, plan_id: (plan as any).id, source: "plan_subscribe" },
+  });
+
   // Silence unused-import warning kept for future reuse.
   void donationThanksTemplate;
 
