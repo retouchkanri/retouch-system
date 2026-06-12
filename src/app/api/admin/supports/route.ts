@@ -74,12 +74,20 @@ export async function POST(req: Request) {
 
   const { data: existingContract } = await admin
     .from("contracts")
-    .select("id, plan_id")
+    .select("id, plan_id, plan:membership_plans(code)")
     .eq("customer_id", customer_id)
     .eq("status", "active")
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  const existingPlanCode = (existingContract as any)?.plan?.code as string | undefined;
+  if (existingPlanCode && ["A", "B", "C"].includes(existingPlanCode)) {
+    return NextResponse.json(
+      { error: "A/B/C会員の契約が有効です。先に契約を停止してから支援を追加してください。" },
+      { status: 409 },
+    );
+  }
 
   let contractId = existingContract?.id as string | undefined;
   if (!contractId) {
