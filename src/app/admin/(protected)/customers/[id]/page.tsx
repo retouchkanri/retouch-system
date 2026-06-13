@@ -6,6 +6,7 @@ import InfoEditor from "./InfoEditor";
 import MemoEditor from "./MemoEditor";
 import StatusEditor from "./StatusEditor";
 import SpecialMembershipsManager from "./SpecialMembershipsManager";
+import BasicPlanManager from "./BasicPlanManager";
 import VisitHistory from "./VisitHistory";
 
 export default async function CustomerDetail({ params }: { params: { id: string } }) {
@@ -23,6 +24,7 @@ export default async function CustomerDetail({ params }: { params: { id: string 
     { data: specialTeams },
     { data: horses },
     { data: rptPlan },
+    { data: basicPlans },
   ] = await Promise.all([
     supabase.from("customers").select("*").eq("id", params.id).maybeSingle(),
     supabase.from("v_customer_summary").select("*").eq("customer_id", params.id).maybeSingle(),
@@ -35,6 +37,7 @@ export default async function CustomerDetail({ params }: { params: { id: string 
     supabase.from("special_team_memberships").select("*, horse:horses(*)").eq("customer_id", params.id).order("started_at", { ascending: false }),
     supabase.from("horses").select("id, name").order("sort_order", { ascending: true }),
     supabase.from("membership_plans").select("id, monthly_amount").eq("code", "RPT").eq("is_active", true).order("sort_order").limit(1).maybeSingle(),
+    supabase.from("membership_plans").select("id, code, name, monthly_amount").in("code", ["A", "B", "C"]).eq("is_active", true).order("sort_order"),
   ]);
 
   if (!customer) return notFound();
@@ -52,6 +55,23 @@ export default async function CustomerDetail({ params }: { params: { id: string 
       canceled_at: x.canceled_at ?? null,
       monthly_amount: x.plan?.monthly_amount ?? rptMonthly,
     }));
+
+  // 基本会員（A/B/C）契約を抽出。
+  const basicContracts = ((contracts as any[]) ?? [])
+    .filter((x) => ["A", "B", "C"].includes(x.plan?.code ?? ""))
+    .map((x) => ({
+      id: x.id,
+      plan: x.plan ? { id: x.plan.id, code: x.plan.code, name: x.plan.name, monthly_amount: x.plan.monthly_amount } : null,
+      status: x.status,
+      started_at: x.started_at,
+      canceled_at: x.canceled_at ?? null,
+    }));
+  const basicPlanOptions = ((basicPlans as any[]) ?? []).map((p) => ({
+    id: p.id,
+    code: p.code,
+    name: p.name,
+    monthly_amount: p.monthly_amount,
+  }));
 
   const supportIds = (supports ?? []).map((x: any) => x.id);
   const { data: supportAudits } = supportIds.length
@@ -162,6 +182,15 @@ export default async function CustomerDetail({ params }: { params: { id: string 
             {(supports ?? []).length === 0 && <tr><td colSpan={7} className="text-center text-ink-mute py-3">支援履歴はまだありません。</td></tr>}
           </tbody>
         </table>
+      </section>
+
+      <section className="card">
+        <h2 className="section-title">基本会員（手動登録）</h2>
+        <BasicPlanManager
+          customerId={c.id}
+          contracts={basicContracts}
+          plans={basicPlanOptions}
+        />
       </section>
 
       <section className="card">

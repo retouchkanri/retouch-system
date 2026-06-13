@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import { getStripe } from "./stripe";
 import { createSupabaseAdminClient } from "./supabase/admin";
+import { SUPPORT_STRIPE_QUANTUM } from "./constraints";
 
 /**
  * Stripe sync for per-horse support subscriptions.
@@ -9,9 +10,11 @@ import { createSupabaseAdminClient } from "./supabase/admin";
  *   - One Stripe Subscription per contract (contracts.stripe_subscription_id).
  *   - One Stripe Subscription Item per support_subscription
  *     (support_subscriptions.stripe_subscription_item_id).
- *   - Quantity on each item is derived from the support base plan's
- *     `unit_amount` (yen) so half/full/multi-unit support all map to
- *     the same price id with different quantities.
+ *   - Quantity on each item is derived from the support row's
+ *     `monthly_amount` divided by the HALF-口 quantum (¥6,000) so that
+ *     half/full/multi-unit support all map to the same price id with
+ *     different quantities. See SUPPORT_STRIPE_QUANTUM in constraints.ts
+ *     for why the quantum is the half-口 amount and not the full ¥12,000.
  *
  * Stripe is OPTIONAL: when Stripe or the base price id is not configured,
  * helpers degrade to a no-op while returning `{ synced: false }` so the
@@ -41,56 +44,69 @@ type ContractRow = {
   status: string;
 };
 
-async function loadSupportBasePlan() {
-  const admin = createSupabaseAdminClient();
-  const { data } = await admin
-    .from("membership_plans")
-    .select("id, unit_amount, monthly_amount, stripe_price_id, name")
-    .eq("code", "SUPPORT")
-    .eq("is_active", true)
-    .order("unit_amount", { ascending: true, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
-  return data as {
-    id: string;
-    name: string;
-    unit_amount: number | null;
-    monthly_amount: number;
-    stripe_price_id: string | null;
-  } | null;
-}
-
 /**
- * Ensure the SUPPORT base plan has a Stripe price. If not, create one
- * dynamically using the plan's `unit_amount` (yen per 1口) and persist
- * the price id back to the DB. This lets us keep zero-config setup —
- * no manual Stripe dashboard steps required.
+ * Ensure there is a Stripe price whose `unit_amount` equals the half-口
+ * quantum (¥6,000). Support items are billed as `quantity × this price`,
+ * so the quantum MUST be the half-口 amount for 半口 to charge correctly.
+ *
+ * Resolution order (zero-config, no manual Stripe dashboard steps):
+ *   1. Reuse a SUPPORT plan that already carries a stripe_price_id created
+ *      at the quantum amount (e.g. the 半口支援 plan, ¥6,000).
+ *   2. Otherwise create a ¥6,000 recurring price and persist it onto a
+ *      SUPPORT plan whose unit_amount matches the quantum, if one exists.
  */
 async function ensureSupportBasePrice(): Promise<{
-  id: string;
   unit_amount: number;
   stripe_price_id: string;
 } | null> {
   const stripe = getStripe();
   if (!stripe) return null;
-  const base = await loadSupportBasePlan();
-  if (!base?.unit_amount) return null;
-  if (base.stripe_price_id) {
-    return {
-      id: base.id,
-      unit_amount: base.unit_amount,
-      stripe_price_id: base.stripe_price_id,
-    };
+  const quantum = SUPPORT_STRIPE_QUANTUM;
+  const admin = createSupabaseAdminClient();
+
+  const { data: existing } = await admin
+    .from("membership_plans")
+    .select("id, stripe_price_id")
+    .eq("code", "SUPPORT")
+    .eq("unit_amount", quantum)
+    .not("stripe_price_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  if ((existing as any)?.stripe_price_id) {
+    // Verify the actual Stripe price amount matches the quantum.
+    // A stale DB record pointing to a ¥12,000 price (created before the
+    // quantum was halved) would otherwise charge 半口 supporters ¥12,000.
+    try {
+      const sp = await stripe.prices.retrieve((existing as any).stripe_price_id);
+      if (sp.unit_amount === quantum) {
+        return { unit_amount: quantum, stripe_price_id: sp.id };
+      }
+      // Amount mismatch — fall through to create a correctly-priced price.
+    } catch {
+      // Price deleted from Stripe — fall through to create a fresh one.
+    }
   }
+
   const price = await stripe.prices.create({
     currency: "jpy",
-    unit_amount: base.unit_amount,
+    unit_amount: quantum,
     recurring: { interval: "month" },
-    product_data: { name: `Retouchメンバーズ ${base.name}` },
+    product_data: { name: "Retouchメンバーズ 支援（半口単位）" },
   });
-  const admin = createSupabaseAdminClient();
-  await admin.from("membership_plans").update({ stripe_price_id: price.id }).eq("id", base.id);
-  return { id: base.id, unit_amount: base.unit_amount, stripe_price_id: price.id };
+  const { data: target } = await admin
+    .from("membership_plans")
+    .select("id")
+    .eq("code", "SUPPORT")
+    .eq("unit_amount", quantum)
+    .limit(1)
+    .maybeSingle();
+  if ((target as any)?.id) {
+    await admin
+      .from("membership_plans")
+      .update({ stripe_price_id: price.id })
+      .eq("id", (target as any).id);
+  }
+  return { unit_amount: quantum, stripe_price_id: price.id };
 }
 
 export async function ensureStripeCustomer(customer: CustomerRow): Promise<string | null> {
@@ -286,10 +302,9 @@ export async function syncSupportUpdate(params: {
   const stripe = getStripe();
   if (!stripe) return { synced: false, reason: "stripe_disabled" };
   if (!params.stripe_subscription_item_id) return { synced: false, reason: "item_missing" };
-  const base = await loadSupportBasePlan();
-  if (!base?.unit_amount) return { synced: false, reason: "base_price_missing" };
 
-  const qty = toQuantity(params.monthly_amount, base.unit_amount);
+  // Items are priced at the half-口 quantum (¥6,000); quantity scales the amount.
+  const qty = toQuantity(params.monthly_amount, SUPPORT_STRIPE_QUANTUM);
   const item = await stripe.subscriptionItems.update(params.stripe_subscription_item_id, {
     quantity: qty,
     metadata: { support_id: params.support_id, horse_name: params.horse_name ?? "" },

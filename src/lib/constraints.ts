@@ -19,6 +19,18 @@ export type PlanCode = "A" | "B" | "C" | "SPECIAL_TEAM" | "SUPPORT" | "RPT";
  */
 export const SUPPORT_UNIT_PRICE = 12000;
 
+/**
+ * Stripe charges support via quantity-based pricing (one shared price ×
+ * quantity). Because 口数 can be 0.5 (半口), the Stripe price must use the
+ * HALF-口 amount as its quantum — otherwise 半口 (monthly ¥6,000) rounds up to
+ * quantity 1 of a ¥12,000 price and the member is billed the full ¥12,000.
+ *
+ * With a ¥6,000 quantum: 半口 → qty 1 (¥6,000), 1口 → qty 2 (¥12,000),
+ * 1.5口 → qty 3 (¥18,000), … Every monthly amount is a multiple of ¥6,000,
+ * so the quantity is always a clean integer.
+ */
+export const SUPPORT_STRIPE_QUANTUM = SUPPORT_UNIT_PRICE / 2;
+
 export function canCoexist(existing: PlanCode[], incoming: PlanCode): { ok: boolean; reason?: string } {
   const has = (c: PlanCode) => existing.includes(c);
   const basicExclusive: PlanCode[] = ["A", "B", "C"];
