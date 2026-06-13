@@ -14,6 +14,7 @@ import HomeHeroEffect from "@/components/HomeHeroEffect";
 import HeroText from "@/components/HeroText";
 import BusinessPrinciplesDeck from "@/components/BusinessPrinciplesDeck";
 import NewsCarousel from "@/components/NewsCarousel";
+import HorsesSupportSection from "@/components/HorsesSupportSection";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { NewsItem } from "@/types/db";
 
@@ -280,6 +281,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ── HORSES ── */}
+      <HorsesSupportSection />
 
       {/* ── NEWS ── */}
       <section className="relative bg-surface-soft py-20 overflow-hidden">
