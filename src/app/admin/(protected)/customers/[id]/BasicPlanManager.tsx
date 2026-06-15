@@ -64,7 +64,7 @@ export default function BasicPlanManager({
     <div className="space-y-2">
       {err && <p className="text-danger text-sm">{err}</p>}
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">基本会員（アテンダー / メンバーズ / サポーター / リェリーフ / オーナーズ）</h3>
+        <h3 className="font-semibold">基本会員（メンバーズ / サポーター / リェリーフ / オーナーズ）</h3>
         {!addOpen ? (
           <button
             className="btn-primary !py-1.5 !px-3 text-sm"

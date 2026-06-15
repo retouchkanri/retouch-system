@@ -42,14 +42,14 @@ export function formatUnits(units: number | null | undefined): string {
 /**
  * 会員種別（基本区分）の表示ラベル。DBのプランコードは A/B/C のまま、
  * 表示のみ大分類に統一する：
- *   A→アテンダー会員 / B→メンバーズ会員 or サポーター会員 / C→リェリーフ会員 /
+ *   A→メンバーズ会員 / B→サポーター会員 / C→リェリーフ会員 /
  *   OWNER→オーナーズ会員 / SUPPORT→ヘルパーズ会員。
  * 口数（半口/1口/1.5口…）は会員種別名に含めず、「支援数／支援口数」で別管理。
  */
 export function memberClassLabel(code: string | null | undefined): string {
   switch (code) {
     case "A":
-      return "アテンダー会員";
+      return "メンバーズ会員";
     case "B":
       return "メンバーズ会員";
     case "C":
