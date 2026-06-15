@@ -548,17 +548,22 @@ exception when others then
   raise notice 'RPT plan seed skipped (enum value not yet committed — re-run this script once more): %', sqlerrm;
 end $$;
 
-insert into public.membership_plans (
-  code, name, monthly_amount, unit_amount,
-  allow_with_support, allow_with_team, sort_order, description, is_active
-)
-select
-  'OWNER', 'オーナーズ会員', 0, null,
-  false, true, 35, '馬オーナー向け無料会員（決済・Stripe なし・管理画面から手動登録）', true
-where not exists (
-  select 1 from public.membership_plans
-  where code = 'OWNER' and name = 'オーナーズ会員' and is_active = true
-);
+do $$
+begin
+  insert into public.membership_plans (
+    code, name, monthly_amount, unit_amount,
+    allow_with_support, allow_with_team, sort_order, description, is_active
+  )
+  select
+    'OWNER', 'オーナーズ会員', 0, null,
+    false, true, 35, '馬オーナー向け無料会員（決済・Stripe なし・管理画面から手動登録）', true
+  where not exists (
+    select 1 from public.membership_plans
+    where code = 'OWNER' and name = 'オーナーズ会員' and is_active = true
+  );
+exception when others then
+  raise notice 'OWNER plan seed skipped (enum value not yet committed — re-run this script once more): %', sqlerrm;
+end $$;
 
 -- 重複プランの自動整理（要件 #5）。会員名変更後にこのseedが再実行されると
 -- 旧名称（A会員 等）が空の重複として再作成されるため、契約0件かつ「契約ありの
@@ -824,7 +829,7 @@ left join lateral (
   from public.contracts ct
   join public.membership_plans mp on mp.id = ct.plan_id
   where ct.customer_id = c.id and ct.status = 'active'
-    and mp.code in ('A', 'B', 'C', 'OWNER')
+    and mp.code::text in ('A', 'B', 'C', 'OWNER')
   order by ct.started_at desc limit 1
 ) basic_plan on true
 left join lateral (
