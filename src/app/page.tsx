@@ -284,7 +284,7 @@ export default async function HomePage() {
       </section>
 
       {/* ── HORSES ── */}
-      <HorsesSupportSection />
+      <HorsesSupportSection limit={6} showViewMore />
 
       {/* ── NEWS ── */}
       <section className="relative bg-surface-soft py-20 overflow-hidden">

@@ -17,7 +17,14 @@ type SupportInfo = {
   nicknames: string[];
 };
 
-export default async function HorsesSupportSection() {
+type Props = {
+  /** 表示件数（省略時は全件） */
+  limit?: number;
+  /** 一覧ページへの「View More」リンクを表示 */
+  showViewMore?: boolean;
+};
+
+export default async function HorsesSupportSection({ limit, showViewMore = false }: Props = {}) {
   const admin = createSupabaseAdminClient();
 
   const [{ data: horses }, { data: supporters }] = await Promise.all([
@@ -51,6 +58,9 @@ export default async function HorsesSupportSection() {
     return ua - ub;
   });
 
+  const displayed = limit != null ? sorted.slice(0, limit) : sorted;
+  const hasMore = limit != null && sorted.length > limit;
+
   return (
     <section id="horses" className="bg-[#faf9f6] py-20 px-5">
       <div className="max-w-5xl mx-auto">
@@ -66,7 +76,7 @@ export default async function HorsesSupportSection() {
 
         {/* Grid */}
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {sorted.map((horse) => {
+          {displayed.map((horse) => {
             const info = byHorse.get(horse.id);
             const units = info?.totalUnits ?? 0;
             const supporters = info?.supporters ?? 0;
@@ -138,6 +148,16 @@ export default async function HorsesSupportSection() {
         </div>
 
         <div className="mt-10 text-center space-y-3">
+          {showViewMore && hasMore && (
+            <a
+              href="/horses"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary inline-flex"
+            >
+              View More
+            </a>
+          )}
           <p className="text-ink-soft text-sm">あなたの応援が、馬たちの毎日を支えます。</p>
           <div className="flex flex-wrap justify-center gap-3">
             <Link href="/signup" className="btn-primary btn-pulse">
