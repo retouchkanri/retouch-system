@@ -93,6 +93,19 @@ export default async function CsvPage() {
         />
       </div>
 
+      <div className="card">
+        <h2 className="section-title">馬の面会 申込</h2>
+        <p className="text-sm text-ink-soft mb-3">
+          支援会員からの個別面会希望を出力します（イベントマスタとは別管理）。
+          <code>?status=pending</code> などで状態を絞れます。
+        </p>
+        <CsvTools
+          exportHref="/api/admin/csv/horse-meetings"
+          exportLabel="馬の面会CSVをエクスポート"
+          downloadName="horse_meetings.csv"
+        />
+      </div>
+
       <div className="card text-sm">
         <h2 className="section-title">CSV 列定義</h2>
         <p className="font-bold mt-2">顧客 customers.csv</p>

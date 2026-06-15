@@ -2,6 +2,7 @@ import type Stripe from "stripe";
 import { getStripe } from "./stripe";
 import { createSupabaseAdminClient } from "./supabase/admin";
 import { ensureStripeCustomer } from "./stripeSupport";
+import { isBasicMemberPlanCode } from "./constraints";
 
 /**
  * A/B/C primary-plan subscription lifecycle.
@@ -74,7 +75,7 @@ export async function subscribeBasicPlan(params: {
     .in("status", ["active", "past_due"]);
 
   const existing = (existingContracts ?? []).find((c: any) =>
-    ["A", "B", "C"].includes(c.membership_plans?.code ?? ""),
+    isBasicMemberPlanCode(c.membership_plans?.code ?? ""),
   ) as any;
 
   const priceId = await getOrCreateStripePriceForPlan(params.plan.id, params.plan.monthly_amount, params.plan.name);
@@ -193,7 +194,7 @@ export async function cancelBasicPlan(customerId: string): Promise<{ canceled: n
     .in("status", ["active", "past_due", "paused"]);
 
   const basics = (contracts ?? []).filter((c: any) =>
-    ["A", "B", "C"].includes(c.membership_plans?.code ?? ""),
+    isBasicMemberPlanCode(c.membership_plans?.code ?? ""),
   ) as any[];
 
   let anySynced = false;

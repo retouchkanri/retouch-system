@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSupportCreate } from "@/lib/stripeSupport";
-import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
+import { SUPPORT_UNIT_PRICE, isBasicMemberPlanCode } from "@/lib/constraints";
 import { notify, staffRecipients, supportAddedTemplate } from "@/lib/notify";
 
 const schema = z.object({
@@ -58,9 +58,9 @@ export async function POST(req: Request) {
     .in("status", ["active", "past_due"])
     .maybeSingle();
   const basicCode = (activeContract as any)?.plan?.code as string | undefined;
-  if (basicCode && ["A", "B", "C"].includes(basicCode)) {
+  if (basicCode && isBasicMemberPlanCode(basicCode)) {
     return NextResponse.json(
-      { error: "A/B/C会員と支援会員は併用できません。現在の会員種別を変更してください。" },
+      { error: "基本会員区分と支援会員は併用できません。現在の会員種別を変更してください。" },
       { status: 400 },
     );
   }

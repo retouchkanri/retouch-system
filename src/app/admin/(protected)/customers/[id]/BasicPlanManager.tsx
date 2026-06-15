@@ -64,7 +64,7 @@ export default function BasicPlanManager({
     <div className="space-y-2">
       {err && <p className="text-danger text-sm">{err}</p>}
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">基本会員（アテンダー / メンバーズ / リェリーフ）</h3>
+        <h3 className="font-semibold">基本会員（アテンダー / メンバーズ / サポーター / リェリーフ / オーナーズ）</h3>
         {!addOpen ? (
           <button
             className="btn-primary !py-1.5 !px-3 text-sm"
@@ -103,7 +103,7 @@ export default function BasicPlanManager({
             </button>
           </div>
           <p className="md:col-span-2 text-xs text-ink-soft">
-            Stripe決済を発生させずに記録として登録します。既にStripe等で課金中の会員の手動登録にご利用ください。月額合計に加算されます。
+            Stripe決済を発生させずに記録として登録します。オーナーズ会員は無料（¥0）です。既にStripe等で課金中の会員の手動登録にご利用ください。
           </p>
         </div>
       )}

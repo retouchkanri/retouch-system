@@ -12,7 +12,8 @@
  * Rank → plan (by membership_plans NAME; アテンダー→メンバーズ, オーナーズ→リェリーフ per user):
  *   メンバーズ会員 / アテンダー会員        → メンバーズ会員 (A, ¥1800)
  *   サポーター会員                          → サポーター会員 (B, ¥3600)
- *   リェリーフ会員 / オーナーズ会員        → リェリーフ会員 (C, ¥7200)
+ *   リェリーフ会員                          → リェリーフ会員 (C, ¥7200)
+ *   オーナーズ会員                          → オーナーズ会員 (OWNER, ¥0)
  *   ヘルパーズ会員                          → 1口支援馬会員 (SUPPORT) + per-horse supports
  *   Retouch Ponys Team（RPT）支援メンバー   → RetouchPony【リタポ】メンバー (RPT, ¥3000)
  *   番外編 …ポニー救済支援チーム            → 目が負傷の「ガンガン」支援チーム (SPECIAL_TEAM, ¥1000)
@@ -70,7 +71,8 @@ function rankToPlanName(rank) {
   if (!r || /無料/.test(r)) return null;
   if (/メンバーズ|アテンダー/.test(r)) return "メンバーズ会員";
   if (/サポーター/.test(r)) return "サポーター会員";
-  if (/リェリーフ|リリーフ|オーナーズ/.test(r)) return "リェリーフ会員";
+  if (/オーナーズ/.test(r)) return "オーナーズ会員";
+  if (/リェリーフ|リリーフ/.test(r)) return "リェリーフ会員";
   if (/ヘルパーズ/.test(r)) return "1口支援馬会員";
   if (/RPT|Retouch|リタポ|ポニーズ|Ponys/i.test(r)) return "RetouchPony【リタポ】メンバー";
   if (/番外編|ポニー|ガンガン|救済/.test(r)) return "目が負傷の「ガンガン」支援チーム";

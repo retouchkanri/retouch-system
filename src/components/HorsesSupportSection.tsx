@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formatUnits } from "@/lib/format";
 import horsePortrait from "@/assets/images/horse-portrait.jpg";
@@ -136,10 +137,16 @@ export default async function HorsesSupportSection() {
           })}
         </div>
 
-        {/* CTA */}
-        <div className="mt-10 text-center">
-          <p className="text-ink-soft text-sm mb-4">あなたの応援が、馬たちの毎日を支えます。</p>
-          <a href="/signup" className="btn-primary btn-pulse">支援を始める</a>
+        <div className="mt-10 text-center space-y-3">
+          <p className="text-ink-soft text-sm">あなたの応援が、馬たちの毎日を支えます。</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link href="/signup" className="btn-primary btn-pulse">
+              支援を始める
+            </Link>
+            <Link href="/support-guide" className="btn-secondary">
+              1口支援制度のご案内
+            </Link>
+          </div>
         </div>
       </div>
     </section>

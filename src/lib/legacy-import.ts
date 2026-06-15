@@ -182,8 +182,9 @@ export function rankToPlan(rank: string | null): LegacyPlanKey | null {
   if (!r || /無料|一般/.test(r)) return null;
   if (/メンバーズ|^b会員|^b$/i.test(r)) return { code: "B", name: "B会員" };
   if (/アテンダー|^a会員|^a$/i.test(r)) return { code: "A", name: "A会員" };
-  if (/オーナーズ|^c会員|^c$/i.test(r)) return { code: "C", name: "C会員" };
-  if (/リェリーフ|リリーフ|retouch|rpt|ポニー|サポーター|特別/i.test(r))
+  if (/オーナーズ/i.test(r)) return { code: "OWNER", name: "オーナーズ会員" };
+  if (/リェリーフ|リリーフ|^c会員|^c$/i.test(r)) return { code: "C", name: "リェリーフ会員" };
+  if (/retouch|rpt|ポニー|サポーター|特別/i.test(r))
     return { code: "SPECIAL_TEAM", name: "特別チーム会員" };
   if (/半口/.test(r)) return { code: "SUPPORT", name: "半口支援" };
   if (/支援/.test(r)) return { code: "SUPPORT", name: "1口支援" };

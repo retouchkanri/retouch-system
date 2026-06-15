@@ -1,5 +1,6 @@
 import { requireMember } from "@/lib/auth";
 import BottomRightPanel from "@/components/BottomRightPanel";
+import PublicFooterNav from "@/components/PublicFooterNav";
 
 export default async function MyPageLayout({
   children,
@@ -14,7 +15,8 @@ export default async function MyPageLayout({
       </main>
       {/* 浮遊ボタン: 寄付・チャット・トップ（全デバイスで同じ位置） */}
       <BottomRightPanel />
-      <footer className="py-6 text-center text-xs text-ink-mute space-y-1">
+      <footer className="py-6 text-center text-xs text-ink-mute space-y-3 border-t border-surface-line">
+        <PublicFooterNav linkClassName="text-brand hover:underline" />
         <p>© Retouchメンバーズサイト</p>
         {process.env.CONTACT_EMAIL && (
           <p>

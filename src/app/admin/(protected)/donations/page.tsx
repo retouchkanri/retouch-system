@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { donationMethodLabel, formatDate, formatYen, statusLabel } from "@/lib/format";
+import { donationMethodLabel, formatDate, formatYen, memberClassLabel, statusLabel } from "@/lib/format";
 import { resolveMatchingIds, sanitizeSearch } from "@/lib/adminSearch";
 import DonationRow from "./DonationRow";
 import DonationForm from "./DonationForm";
@@ -57,15 +57,25 @@ export default async function AdminDonationsPage({
   const { data, count } = await query.range(from, from + PAGE_SIZE - 1);
   const rows = (data as any[]) ?? [];
 
-  // Per-row 会員/単発 badge: look up which of the displayed donors hold a contract.
+  // Per-row 会員/単発 badge + 会員種別（アテンダー／メンバーズ／サポーター／リェリーフ 等）
   const pageCustomerIds = [...new Set(rows.map((d) => d.customer_id).filter(Boolean))] as string[];
   const memberSet = new Set<string>();
+  const memberTypeByCustomer = new Map<string, string>();
   if (pageCustomerIds.length) {
-    const { data: mem } = await supabase
-      .from("contracts")
-      .select("customer_id")
-      .in("customer_id", pageCustomerIds);
+    const [{ data: mem }, { data: summaries }] = await Promise.all([
+      supabase.from("contracts").select("customer_id").in("customer_id", pageCustomerIds),
+      supabase
+        .from("v_customer_summary")
+        .select("customer_id, primary_plan_name, member_class_code")
+        .in("customer_id", pageCustomerIds),
+    ]);
     for (const m of mem ?? []) if ((m as any).customer_id) memberSet.add((m as any).customer_id);
+    for (const s of summaries ?? []) {
+      const label =
+        (s as any).primary_plan_name ??
+        ((s as any).member_class_code ? memberClassLabel((s as any).member_class_code) : null);
+      if ((s as any).customer_id && label) memberTypeByCustomer.set((s as any).customer_id, label);
+    }
   }
 
   const total = rows.reduce(
@@ -128,7 +138,7 @@ export default async function AdminDonationsPage({
               <th className="w-12 text-right">No.</th>
               <th>日時</th>
               <th>寄付者</th>
-              <th>会員</th>
+              <th>会員種別</th>
               <th>金額</th>
               <th>状態</th>
               <th>支払方法</th>
@@ -163,6 +173,9 @@ export default async function AdminDonationsPage({
                   donated_at: formatDate(d.donated_at, true),
                   donated_at_value: d.donated_at ? String(d.donated_at).slice(0, 10) : "",
                   is_member: !!d.customer_id && memberSet.has(d.customer_id),
+                  member_type_label: d.customer_id
+                    ? memberTypeByCustomer.get(d.customer_id) ?? null
+                    : null,
                 }}
               />
             ))}

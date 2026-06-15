@@ -42,7 +42,7 @@ export default function DonationsManager({
   const [addOpen, setAddOpen] = useState(false);
   const [amount, setAmount] = useState("3000");
   const [message, setMessage] = useState("");
-  const [status, setStatus] = useState("succeeded");
+  const [status, setStatus] = useState("pending");
 
   const create = async () => {
     setErr(null);

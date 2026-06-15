@@ -23,6 +23,7 @@ type DonationView = {
   donated_at: string;
   donated_at_value: string;
   is_member: boolean;
+  member_type_label: string | null;
 };
 
 export default function DonationRow({ donation, index }: { donation: DonationView; index: number }) {
@@ -136,7 +137,9 @@ export default function DonationRow({ donation, index }: { donation: DonationVie
               donation.is_member ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"
             }`}
           >
-            {donation.is_member ? "会員" : "単発支援"}
+            {donation.is_member
+              ? donation.member_type_label ?? "会員"
+              : "単発支援"}
           </span>
           <br />
           {donation.customer_id ? (

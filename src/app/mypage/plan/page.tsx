@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import { loadActiveContract, loadActiveSupports, loadPlans } from "@/lib/customer";
-import { formatYen, memberClassLabel } from "@/lib/format";
+import { formatYen } from "@/lib/format";
 import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED } from "@/lib/featureFlags";
 import PlanSelector from "./PlanSelector";
 
@@ -27,17 +27,27 @@ export default async function PlanPage() {
         <Link href="/mypage" className="text-brand underline">戻る</Link>
       </div>
 
+      <div className="card bg-brand-50/40 border border-brand/20">
+        <p className="text-sm text-ink-soft leading-relaxed">
+          会員制度の詳細（特典・会費の使い道・免責事項など）は
+          <Link href="/guide" className="text-brand underline mx-1">
+            ご入会のご案内
+          </Link>
+          をご覧ください。
+        </p>
+      </div>
+
       <section className="card">
         <p className="label">現在の会員種別</p>
         <p className="text-2xl font-bold">
           {currentBasic
-            ? memberClassLabel(currentBasic.code)
+            ? currentBasic.name
             : hasSupport
             ? "ヘルパーズ会員"
             : "未加入"}
         </p>
         {currentBasic && (
-          <p className="text-sm text-ink-soft mt-1">月額 {formatYen(currentBasic.monthly_amount)}</p>
+          <p className="text-sm text-ink-soft mt-1">月額 {formatYen(currentBasic.monthly_amount)}（{currentBasic.name}）</p>
         )}
       </section>
 
@@ -45,7 +55,7 @@ export default async function PlanPage() {
         <div className="card border-2 border-amber-400 bg-amber-50">
           <p className="font-bold text-warn">ご注意：ヘルパーズ会員と併用はできません</p>
           <p className="text-sm mt-1">
-            現在、{supports.length}頭の馬をご支援中です。会員種別（サポーター／メンバーズ／リェリーフ会員）へ切り替える場合は、先にすべての支援を停止してください。
+            現在、{supports.length}頭の馬をご支援中です。会員種別（アテンダー／メンバーズ／サポーター／リェリーフ会員）へ切り替える場合は、先にすべての支援を停止してください。
           </p>
         </div>
       )}
@@ -53,13 +63,13 @@ export default async function PlanPage() {
       <section className="card space-y-3">
         <h2 className="section-title mb-0">プランを選ぶ</h2>
         <p className="text-sm text-ink-soft">
-          会員種別（サポーター／メンバーズ／リェリーフ会員）は1つだけお選びいただけます。いつでも変更・停止が可能です。
+          会員種別（アテンダー／メンバーズ／サポーター／リェリーフ会員）は1つだけお選びいただけます。いつでも変更・停止が可能です。
         </p>
         <PlanSelector
           plans={basicPlans.map((p) => ({
             id: p.id,
             code: p.code,
-            name: memberClassLabel(p.code),
+            name: p.name,
             monthly_amount: p.monthly_amount,
             description: p.description,
           }))}

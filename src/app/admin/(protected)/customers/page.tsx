@@ -48,9 +48,10 @@ export default async function CustomersListPage({
         <input name="q" defaultValue={q} placeholder="氏名 / メールで検索" className="input md:col-span-2" />
         <select name="cls" defaultValue={cls} className="input">
           <option value="">会員種別：すべて</option>
-          <option value="A">サポーター会員</option>
-          <option value="B">メンバーズ会員</option>
+          <option value="A">アテンダー会員</option>
+          <option value="B">メンバーズ／サポーター会員</option>
           <option value="C">リェリーフ会員</option>
+          <option value="OWNER">オーナーズ会員</option>
           <option value="SUPPORT">ヘルパーズ会員</option>
         </select>
         <select name="special" defaultValue={special} className="input">
@@ -104,7 +105,7 @@ export default async function CustomersListPage({
                   <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
                   <td className="font-semibold">{r.full_name}</td>
                   <td>{r.email ?? "—"}</td>
-                  <td>{memberClassLabel(r.member_class_code)}</td>
+                  <td>{r.primary_plan_name ?? memberClassLabel(r.member_class_code)}</td>
                   <td className="whitespace-nowrap">
                     {(r.total_support_horses ?? 0) > 0
                       ? `${r.total_support_horses}頭 / ${formatUnits(r.total_support_units ?? 0)}`

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isBasicMemberPlanCode } from "@/lib/constraints";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatUnits, formatYen, memberClassLabel, statusLabel } from "@/lib/format";
@@ -8,6 +9,11 @@ import StatusEditor from "./StatusEditor";
 import SpecialMembershipsManager from "./SpecialMembershipsManager";
 import BasicPlanManager from "./BasicPlanManager";
 import VisitHistory from "./VisitHistory";
+import {
+  horseMeetingArrivalLabel,
+  horseMeetingFacilityLabel,
+  horseMeetingStatusLabel,
+} from "@/lib/horseMeetings";
 
 export default async function CustomerDetail({ params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient();
@@ -19,6 +25,7 @@ export default async function CustomerDetail({ params }: { params: { id: string 
     { data: supports },
     { data: donations },
     { data: bookings },
+    { data: horseMeetings },
     { data: payments },
     { data: memos },
     { data: specialTeams },
@@ -32,12 +39,17 @@ export default async function CustomerDetail({ params }: { params: { id: string 
     supabase.from("support_subscriptions").select("*, horse:horses(*)").eq("customer_id", params.id).order("started_at", { ascending: false }),
     supabase.from("donations").select("*").eq("customer_id", params.id).order("donated_at", { ascending: false }),
     supabase.from("bookings").select("*, event:events(*)").eq("customer_id", params.id).order("booked_at", { ascending: false }),
+    supabase
+      .from("horse_meeting_requests")
+      .select("*")
+      .eq("customer_id", params.id)
+      .order("requested_at", { ascending: false }),
     supabase.from("payments").select("*").eq("customer_id", params.id).order("occurred_at", { ascending: false }).limit(50),
     supabase.from("admin_memos").select("*").eq("customer_id", params.id).order("slot"),
     supabase.from("special_team_memberships").select("*, horse:horses(*)").eq("customer_id", params.id).order("started_at", { ascending: false }),
     supabase.from("horses").select("id, name").order("sort_order", { ascending: true }),
     supabase.from("membership_plans").select("id, monthly_amount").eq("code", "RPT").eq("is_active", true).order("sort_order").limit(1).maybeSingle(),
-    supabase.from("membership_plans").select("id, code, name, monthly_amount").in("code", ["A", "B", "C"]).eq("is_active", true).order("sort_order"),
+    supabase.from("membership_plans").select("id, code, name, monthly_amount").in("code", ["A", "B", "C", "OWNER"]).eq("is_active", true).order("sort_order"),
   ]);
 
   if (!customer) return notFound();
@@ -58,7 +70,7 @@ export default async function CustomerDetail({ params }: { params: { id: string 
 
   // 基本会員（A/B/C）契約を抽出。
   const basicContracts = ((contracts as any[]) ?? [])
-    .filter((x) => ["A", "B", "C"].includes(x.plan?.code ?? ""))
+    .filter((x) => isBasicMemberPlanCode(x.plan?.code ?? ""))
     .map((x) => ({
       id: x.id,
       plan: x.plan ? { id: x.plan.id, code: x.plan.code, name: x.plan.name, monthly_amount: x.plan.monthly_amount } : null,
@@ -111,7 +123,7 @@ export default async function CustomerDetail({ params }: { params: { id: string 
       <div className="grid md:grid-cols-4 gap-3">
         <div className="card">
           <p className="text-xs text-ink-soft">会員種別</p>
-          <p className="text-lg font-bold">{memberClassLabel(s?.member_class_code)}</p>
+          <p className="text-lg font-bold">{s?.primary_plan_name ?? memberClassLabel(s?.member_class_code)}</p>
           {(s?.rpt_active || (s?.special_team_count ?? 0) > 0) && (
             <p className="mt-1 flex flex-wrap gap-1">
               {s?.rpt_active && <span className="chip-mute">リタポ</span>}
@@ -294,6 +306,54 @@ export default async function CustomerDetail({ params }: { params: { id: string 
               </tr>
             ))}
             {(donations ?? []).length === 0 && <tr><td colSpan={5} className="text-center text-ink-mute py-3">寄付履歴はまだありません。</td></tr>}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="card">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="section-title mb-0">馬の面会 申込履歴</h2>
+          <Link href="/admin/horse-meetings" className="text-brand underline text-sm">
+            一覧へ
+          </Link>
+        </div>
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="w-12 text-right">No.</th>
+              <th>申込日時</th>
+              <th>施設</th>
+              <th>希望日時</th>
+              <th>人数</th>
+              <th>来場</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(horseMeetings ?? []).map((r: any, i: number) => (
+              <tr key={r.id}>
+                <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
+                <td>{formatDate(r.requested_at, true)}</td>
+                <td className="text-sm">{horseMeetingFacilityLabel(r.facility)}</td>
+                <td>
+                  {r.preferred_date}
+                  <br />
+                  <span className="text-xs text-ink-mute">{r.preferred_time_slot}</span>
+                </td>
+                <td>{r.party_size}</td>
+                <td className="text-xs">
+                  {horseMeetingArrivalLabel(r.arrival_method, r.pickup_time)}
+                </td>
+                <td>{horseMeetingStatusLabel(r.status)}</td>
+              </tr>
+            ))}
+            {(horseMeetings ?? []).length === 0 && (
+              <tr>
+                <td colSpan={7} className="text-center text-ink-mute py-3">
+                  馬の面会の申込履歴はまだありません。
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </section>

@@ -516,10 +516,10 @@ async function main() {
     amount: d.amount,
     message: d.message,
     note: d.note,
-    status: "succeeded",
+    status: "pending",
     payment_method: "bank_transfer",
     donated_at: d.donatedAt ?? new Date().toISOString(),
-    confirmed_at: d.donatedAt ?? new Date().toISOString(),
+    confirmed_at: null,
   }));
   for (const c of chunk(donoPayloads, 500)) {
     const { error } = await supabase.from("donations").insert(c);

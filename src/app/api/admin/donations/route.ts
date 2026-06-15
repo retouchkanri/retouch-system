@@ -11,7 +11,7 @@ const schema = z.object({
   message: z.string().max(1000).optional().nullable(),
   status: z
     .enum(["succeeded", "failed", "pending", "refunded", "canceled"])
-    .default("succeeded"),
+    .default("pending"),
   payment_method: z.enum(["card", "bank_transfer"]).default("card"),
   confirmed_at: z.string().optional().nullable(),
   note: z.string().max(1000).optional().nullable(),

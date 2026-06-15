@@ -88,7 +88,7 @@ function PlanSelector({ plans, currentPlanId, disabled }: Props) {
       </div>
       {disabled && (
         <p className="text-xs text-ink-mute">
-          ※ 支援中の馬があるため、現在は会員種別（サポーター／メンバーズ／リェリーフ会員）への変更はできません。
+          ※ 支援中の馬があるため、現在は会員種別（アテンダー／メンバーズ／サポーター／リェリーフ会員）への変更はできません。
         </p>
       )}
     </div>

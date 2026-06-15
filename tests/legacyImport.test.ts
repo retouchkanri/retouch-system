@@ -42,7 +42,8 @@ test("buildHeaderIndex: accepts English headers too", () => {
 test("rankToPlan: standard membership ranks", () => {
   assert.deepEqual(rankToPlan("メンバーズ"), { code: "B", name: "B会員" });
   assert.deepEqual(rankToPlan("アテンダー会員"), { code: "A", name: "A会員" });
-  assert.deepEqual(rankToPlan("オーナーズ"), { code: "C", name: "C会員" });
+  assert.deepEqual(rankToPlan("オーナーズ"), { code: "OWNER", name: "オーナーズ会員" });
+  assert.deepEqual(rankToPlan("リェリーフ"), { code: "C", name: "リェリーフ会員" });
   assert.deepEqual(rankToPlan("特別チーム"), {
     code: "SPECIAL_TEAM",
     name: "特別チーム会員",

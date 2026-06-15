@@ -1,11 +1,21 @@
 /**
  * Business rules around which plans can coexist.
- * - Only one of A / B / C can be active.
- * - SUPPORT (支援会員) cannot coexist with A/B/C.
+ * - Only one of A / B / C / OWNER can be active.
+ * - SUPPORT (支援会員) cannot coexist with A/B/C/OWNER.
  * - SPECIAL_TEAM can coexist with anything.
  * - RPT (RetouchPony【リタポ】メンバー) can coexist with anything.
  */
-export type PlanCode = "A" | "B" | "C" | "SPECIAL_TEAM" | "SUPPORT" | "RPT";
+export type PlanCode = "A" | "B" | "C" | "OWNER" | "SPECIAL_TEAM" | "SUPPORT" | "RPT";
+
+/** 基本会員区分（管理画面手動登録・v_customer_summary の primary_plan）。Stripe 自己申込は A/B/C のみ。 */
+export const BASIC_MEMBER_PLAN_CODES: PlanCode[] = ["A", "B", "C", "OWNER"];
+
+export function isBasicMemberPlanCode(code: string | null | undefined): boolean {
+  return !!code && BASIC_MEMBER_PLAN_CODES.includes(code as PlanCode);
+}
+
+/** マイページから Stripe 申込できる基本プラン（オーナーズは管理画面のみ）。 */
+export const SELF_SERVICE_BASIC_PLAN_CODES = ["A", "B", "C"] as const;
 
 /**
  * Canonical price for ONE support 口. A half share is `units = 0.5`, so a
@@ -33,20 +43,20 @@ export const SUPPORT_STRIPE_QUANTUM = SUPPORT_UNIT_PRICE / 2;
 
 export function canCoexist(existing: PlanCode[], incoming: PlanCode): { ok: boolean; reason?: string } {
   const has = (c: PlanCode) => existing.includes(c);
-  const basicExclusive: PlanCode[] = ["A", "B", "C"];
+  const basicExclusive = BASIC_MEMBER_PLAN_CODES;
 
   if (basicExclusive.includes(incoming)) {
-    if (has("A") || has("B") || has("C")) {
-      return { ok: false, reason: "A/B/C会員のいずれかと併用はできません。変更してください。" };
+    if (basicExclusive.some((c) => has(c) && c !== incoming)) {
+      return { ok: false, reason: "基本会員区分は1つのみ登録できます。変更してください。" };
     }
     if (has("SUPPORT")) {
-      return { ok: false, reason: "支援会員とA/B/C会員は併用できません。" };
+      return { ok: false, reason: "支援会員と基本会員区分は併用できません。" };
     }
     return { ok: true };
   }
   if (incoming === "SUPPORT") {
-    if (has("A") || has("B") || has("C")) {
-      return { ok: false, reason: "A/B/C会員と支援会員は併用できません。" };
+    if (basicExclusive.some(has)) {
+      return { ok: false, reason: "基本会員区分と支援会員は併用できません。" };
     }
     return { ok: true };
   }

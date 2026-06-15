@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type Capability, type Role, can } from "@/lib/roles";
 
-type NavItem = { href: string; label: string; cap?: Capability };
+type NavItem = { href: string; label: string; cap?: Capability; external?: boolean };
 
 const navGroups: { label: string; items: NavItem[] }[] = [
   {
@@ -29,9 +29,12 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     label: "マスタ",
     items: [
       { href: "/admin/plans", label: "会員プラン", cap: "plans.manage" },
+      { href: "/guide", label: "入会案内（公開）", external: true },
+      { href: "/support-guide", label: "1口支援案内（公開）", external: true },
       { href: "/admin/horses", label: "馬マスタ" },
       { href: "/admin/events", label: "イベントマスタ" },
       { href: "/admin/bookings", label: "予約管理" },
+      { href: "/admin/horse-meetings", label: "馬の面会" },
       { href: "/admin/news", label: "ニュース" },
     ],
   },
@@ -70,6 +73,8 @@ export default function AdminNav({ role }: { role: Role }) {
               <Link
                 key={n.href}
                 href={n.href}
+                target={n.external ? "_blank" : undefined}
+                rel={n.external ? "noopener noreferrer" : undefined}
                 aria-current={active ? "page" : undefined}
                 className={`relative px-3 py-2 rounded-lg whitespace-nowrap text-sm block transition-colors ${
                   active

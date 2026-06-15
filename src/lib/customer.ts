@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "./supabase/server";
+import { isBasicMemberPlanCode } from "./constraints";
 import type {
   Booking,
   Contract,
@@ -66,7 +67,7 @@ export async function loadActiveContract(customerId: string): Promise<Contract |
   // 支援(SUPPORT) は基本区分ではなく追加・マーカー扱いのため、A/B/C があればそれを採用する。
   // A/B/C が無い場合（ヘルパーズ単独・リタポ単独など）は従来どおり最新契約を返し、
   // ステータス表示等の後方互換を保つ。
-  const basic = rows.find((c) => ["A", "B", "C"].includes(c.plan?.code ?? ""));
+  const basic = rows.find((c) => isBasicMemberPlanCode(c.plan?.code ?? ""));
   return basic ?? rows[0] ?? null;
 }
 

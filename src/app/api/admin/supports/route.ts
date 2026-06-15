@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isBasicMemberPlanCode } from "@/lib/constraints";
 
 const schema = z.object({
   // 顧客ID（UUID）またはメールアドレスのどちらでも受け付ける。
@@ -82,9 +83,9 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   const existingPlanCode = (existingContract as any)?.plan?.code as string | undefined;
-  if (existingPlanCode && ["A", "B", "C"].includes(existingPlanCode)) {
+  if (existingPlanCode && isBasicMemberPlanCode(existingPlanCode)) {
     return NextResponse.json(
-      { error: "A/B/C会員の契約が有効です。先に契約を停止してから支援を追加してください。" },
+      { error: "基本会員区分の契約が有効です。先に契約を停止してから支援を追加してください。" },
       { status: 409 },
     );
   }

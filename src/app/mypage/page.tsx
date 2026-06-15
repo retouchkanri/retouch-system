@@ -16,6 +16,7 @@ import {
 import SpecialTeamStopButton from "./SpecialTeamStopButton";
 import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED } from "@/lib/featureFlags";
 import { formatDate, formatUnits, formatYen, memberClassLabel } from "@/lib/format";
+import { isBasicMemberPlanCode } from "@/lib/constraints";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   describePaymentDisplay,
@@ -94,7 +95,7 @@ export default async function MyPageTop() {
   //   管理画面の月額合計(v_customer_summary.monthly_total)にも含めていない。
   // → これによりマイページと管理画面の月額合計を一致させる。
   const basicMonthly =
-    contract?.plan && ["A", "B", "C"].includes(contract.plan.code)
+    contract?.plan && isBasicMemberPlanCode(contract.plan.code)
       ? Number(contract.plan.monthly_amount ?? 0)
       : 0;
   const monthlyGrandTotal = supportMonthlyTotal + basicMonthly;
@@ -471,6 +472,20 @@ export default async function MyPageTop() {
               </div>
             </div>
           </Link>
+          {supports.length > 0 && (
+            <Link href="/mypage/horse-meeting" className="card hover:shadow-lg transition-shadow group">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-brand-50 group-hover:bg-brand-100 flex items-center justify-center text-2xl transition-colors shrink-0">
+                  🐴
+                </div>
+                <div>
+                  <p className="text-xs text-ink-mute mb-0.5">支援会員限定</p>
+                  <p className="text-lg font-bold">馬の面会</p>
+                  <p className="text-xs text-ink-soft mt-0.5">支援している馬との個別面会を申し込みます。</p>
+                </div>
+              </div>
+            </Link>
+          )}
         </div>
       </section>
 

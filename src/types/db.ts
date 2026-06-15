@@ -10,7 +10,7 @@ export type PaymentKind = "subscription" | "donation" | "one_time";
 export type EventType = "visit" | "private_visit";
 export type BookingStatus = "reserved" | "canceled" | "attended" | "no_show";
 export type CustomerStatus = "active" | "suspended" | "withdrawn";
-export type MemberPlanCode = "A" | "B" | "C" | "SPECIAL_TEAM" | "SUPPORT" | "RPT";
+export type MemberPlanCode = "A" | "B" | "C" | "OWNER" | "SPECIAL_TEAM" | "SUPPORT" | "RPT";
 
 export type Customer = {
   id: string;
@@ -140,6 +140,28 @@ export type Booking = {
   /** 同伴者（最大3名）。 */
   companions: BookingCompanion[];
   event?: EventRow | null;
+};
+
+export type HorseMeetingStatus = "pending" | "approved" | "canceled" | "completed";
+
+export type HorseMeetingRequest = {
+  id: string;
+  customer_id: string;
+  applicant_name: string;
+  facility: string;
+  party_size: number;
+  preferred_date: string;
+  preferred_time_slot: string;
+  supported_horses: string;
+  arrival_method: string;
+  pickup_time: string | null;
+  note: string | null;
+  status: HorseMeetingStatus;
+  admin_note: string | null;
+  requested_at: string;
+  canceled_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Payment = {

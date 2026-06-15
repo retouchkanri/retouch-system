@@ -11,7 +11,8 @@ export type AuditAction =
   | `plan.${string}`
   | `notify.${string}`
   | `news.${string}`
-  | `special_team.${string}`;
+  | `special_team.${string}`
+  | `horse_meeting.${string}`;
 
 export type AuditEntry = {
   actorId: string | null;

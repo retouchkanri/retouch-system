@@ -14,6 +14,11 @@ export default function SignupPage() {
             <p className="text-xs text-ink-mute mt-2">
               ログイン不要で、どなたでも登録いただけます。
             </p>
+            <p className="text-sm mt-3">
+              <Link href="/guide" className="text-brand underline font-semibold">
+                ご入会のご案内（会員制度・特典）を読む
+              </Link>
+            </p>
           </div>
           <div className="card">
             <SignupForm />

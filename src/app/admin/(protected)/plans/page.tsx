@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireCapability } from "@/lib/auth";
 import { formatYen } from "@/lib/format";
@@ -30,6 +31,29 @@ export default async function AdminPlansPage() {
         （無効プランは下部にまとめて薄く表示されます）。新規の会員登録では「有効」プランのみ選択されます。
         旧プランを整理する場合は、各行の「編集」から「有効」チェックを外して無効化してください。
       </p>
+
+      <div className="card border-2 border-brand/20 bg-brand-50/30">
+        <h2 className="section-title mb-2">公開ページ：ご入会のご案内</h2>
+        <p className="text-sm text-ink-soft mb-3 leading-relaxed">
+          会員制度・会員特典・会費の使い道・免責事項などを、一般公開ページで表示しています。
+          1口支援制度は
+          <Link href="/support-guide" target="_blank" rel="noopener noreferrer" className="text-brand underline mx-1">
+            /support-guide
+          </Link>
+          でもご案内しています。
+        </p>
+        <Link href="/guide" target="_blank" rel="noopener noreferrer" className="btn-secondary inline-flex">
+          /guide をプレビュー
+        </Link>
+        <Link
+          href="/support-guide"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-secondary inline-flex ml-2"
+        >
+          /support-guide をプレビュー
+        </Link>
+      </div>
 
       <details className="card">
         <summary className="cursor-pointer font-semibold">＋ 新しいプランを追加</summary>

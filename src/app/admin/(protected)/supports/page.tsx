@@ -87,6 +87,16 @@ export default async function AdminSupportsPage({
         <span className="text-sm text-ink-soft">全 {count ?? 0} 件</span>
       </div>
 
+      <div className="card border-2 border-brand/20 bg-brand-50/30">
+        <h2 className="section-title mb-2">公開ページ：1口支援制度のご案内</h2>
+        <p className="text-sm text-ink-soft mb-3 leading-relaxed">
+          半口支援・8口達成・支援特典・譲渡条件などを、一般公開ページで事前にご案内しています。
+        </p>
+        <Link href="/support-guide" target="_blank" rel="noopener noreferrer" className="btn-secondary inline-flex">
+          /support-guide をプレビュー
+        </Link>
+      </div>
+
       {/* 馬ごとの支援状況（画像・名称の編集 / 追加 / 削除つき） */}
       <HorseSupportStatus items={horseStatusItems} canManage={canManageHorses} />
 

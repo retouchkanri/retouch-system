@@ -16,10 +16,11 @@ create extension if not exists "citext";
 
 -- ---------- enums ----------
 do $$ begin
-  create type member_plan_code as enum ('A','B','C','SPECIAL_TEAM','SUPPORT','RPT');
+  create type member_plan_code as enum ('A','B','C','SPECIAL_TEAM','SUPPORT','RPT','OWNER');
 exception when duplicate_object then null; end $$;
 -- Backfill the RPT value for installations created before it was added.
 alter type member_plan_code add value if not exists 'RPT';
+alter type member_plan_code add value if not exists 'OWNER';
 
 do $$ begin
   create type contract_status as enum ('active','past_due','canceled','paused','incomplete');
@@ -182,7 +183,7 @@ create table if not exists public.donations (
   message text,
   stripe_payment_intent_id text unique,
   stripe_checkout_session_id text,
-  status payment_status not null default 'succeeded',
+  status payment_status not null default 'pending',
   payment_method text not null default 'card' check (payment_method in ('card','bank_transfer')),
   confirmed_at timestamptz,
   note text,
@@ -236,6 +237,34 @@ create index if not exists bookings_customer_idx on public.bookings (customer_id
 alter table public.bookings add column if not exists pickup text;
 alter table public.bookings add column if not exists riding boolean not null default false;
 alter table public.bookings add column if not exists companions jsonb not null default '[]'::jsonb;
+
+-- ---------- horse meeting requests (馬の面会) ----------
+create table if not exists public.horse_meeting_requests (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  applicant_name text not null,
+  facility text not null,
+  party_size integer not null check (party_size > 0 and party_size <= 20),
+  preferred_date date not null,
+  preferred_time_slot text not null,
+  supported_horses text not null,
+  arrival_method text not null,
+  pickup_time text,
+  note text,
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'canceled', 'completed')),
+  admin_note text,
+  requested_at timestamptz not null default now(),
+  canceled_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists horse_meeting_requests_customer_idx
+  on public.horse_meeting_requests (customer_id);
+create index if not exists horse_meeting_requests_status_idx
+  on public.horse_meeting_requests (status);
+create index if not exists horse_meeting_requests_date_idx
+  on public.horse_meeting_requests (preferred_date desc);
 
 -- ---------- payments ----------
 create table if not exists public.payments (
@@ -431,6 +460,21 @@ drop policy if exists "bookings admin all" on public.bookings;
 create policy "bookings admin all" on public.bookings
   for all using (public.is_admin()) with check (public.is_admin());
 
+alter table public.horse_meeting_requests enable row level security;
+drop policy if exists "horse_meetings self read" on public.horse_meeting_requests;
+create policy "horse_meetings self read" on public.horse_meeting_requests
+  for select using (customer_id = public.current_customer_id() or public.is_admin());
+drop policy if exists "horse_meetings self insert" on public.horse_meeting_requests;
+create policy "horse_meetings self insert" on public.horse_meeting_requests
+  for insert with check (customer_id = public.current_customer_id() or public.is_admin());
+drop policy if exists "horse_meetings self update" on public.horse_meeting_requests;
+create policy "horse_meetings self update" on public.horse_meeting_requests
+  for update using (customer_id = public.current_customer_id() or public.is_admin())
+  with check (customer_id = public.current_customer_id() or public.is_admin());
+drop policy if exists "horse_meetings admin all" on public.horse_meeting_requests;
+create policy "horse_meetings admin all" on public.horse_meeting_requests
+  for all using (public.is_admin()) with check (public.is_admin());
+
 drop policy if exists "payments scope" on public.payments;
 create policy "payments scope" on public.payments
   for select using (customer_id = public.current_customer_id() or public.is_admin());
@@ -503,6 +547,18 @@ begin
 exception when others then
   raise notice 'RPT plan seed skipped (enum value not yet committed — re-run this script once more): %', sqlerrm;
 end $$;
+
+insert into public.membership_plans (
+  code, name, monthly_amount, unit_amount,
+  allow_with_support, allow_with_team, sort_order, description, is_active
+)
+select
+  'OWNER', 'オーナーズ会員', 0, null,
+  false, true, 35, '馬オーナー向け無料会員（決済・Stripe なし・管理画面から手動登録）', true
+where not exists (
+  select 1 from public.membership_plans
+  where code = 'OWNER' and name = 'オーナーズ会員' and is_active = true
+);
 
 -- 重複プランの自動整理（要件 #5）。会員名変更後にこのseedが再実行されると
 -- 旧名称（A会員 等）が空の重複として再作成されるため、契約0件かつ「契約ありの
@@ -743,10 +799,10 @@ select
   c.email,
   c.status,
   c.avatar_url,
-  -- 基本会員区分（A/B/C のみ。RPT・特別チームは含めない）
+  -- 基本会員区分（A/B/C/OWNER のみ。RPT・特別チームは含めない）
   basic_plan.plan_code as primary_plan_code,
   basic_plan.plan_name as primary_plan_name,
-  -- 会員種別コード: 基本契約(A/B/C) > 無ければ支援(SUPPORT) > 無ければ null
+  -- 会員種別コード: 基本契約(A/B/C/OWNER) > 無ければ支援(SUPPORT) > 無ければ null
   coalesce(
     basic_plan.plan_code::text,
     case when coalesce(support_agg.horse_count, 0) > 0 then 'SUPPORT' end
@@ -768,7 +824,7 @@ left join lateral (
   from public.contracts ct
   join public.membership_plans mp on mp.id = ct.plan_id
   where ct.customer_id = c.id and ct.status = 'active'
-    and mp.code in ('A', 'B', 'C')
+    and mp.code in ('A', 'B', 'C', 'OWNER')
   order by ct.started_at desc limit 1
 ) basic_plan on true
 left join lateral (

@@ -15,6 +15,7 @@ import HeroText from "@/components/HeroText";
 import BusinessPrinciplesDeck from "@/components/BusinessPrinciplesDeck";
 import NewsCarousel from "@/components/NewsCarousel";
 import HorsesSupportSection from "@/components/HorsesSupportSection";
+import PublicFooterNav from "@/components/PublicFooterNav";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { NewsItem } from "@/types/db";
 
@@ -468,6 +469,13 @@ export default async function HomePage() {
                 className="block w-full"
               />
             </div>
+          </div>
+
+          <div className="border-t border-white/10 mt-10 pt-8">
+            <PublicFooterNav
+              className="text-white/75"
+              linkClassName="text-white/75 hover:text-white underline-offset-2 hover:underline"
+            />
           </div>
 
           <p className="text-white/40 text-xs text-center mt-8">© 2026 引退競走馬支援プロジェクト</p>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import { loadHorses, loadPlans, loadActiveSupports, loadActiveContract } from "@/lib/customer";
-import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
+import { SUPPORT_UNIT_PRICE, isBasicMemberPlanCode } from "@/lib/constraints";
 import NewSupportWizard from "./NewSupportWizard";
 
 export default async function NewSupportPage() {
@@ -23,13 +23,23 @@ export default async function NewSupportPage() {
     supportPlans[0] ??
     null;
   const basicPlan = contract?.plan;
-  const blocksSupport = basicPlan && ["A", "B", "C"].includes(basicPlan.code);
+  const blocksSupport = basicPlan && isBasicMemberPlanCode(basicPlan.code);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">新しい支援を追加</h1>
         <Link href="/mypage" className="text-brand underline">戻る</Link>
+      </div>
+
+      <div className="card bg-brand-50/40 border border-brand/20">
+        <p className="text-sm text-ink-soft leading-relaxed">
+          1口支援制度の詳細（支援特典・8口達成・半口支援・注意事項など）は
+          <Link href="/support-guide" className="text-brand underline mx-1">
+            Retouch馬 1口支援制度のご案内
+          </Link>
+          を必ずご確認ください。
+        </p>
       </div>
 
       {blocksSupport && (
