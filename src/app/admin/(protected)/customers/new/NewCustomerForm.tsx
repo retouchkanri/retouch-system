@@ -78,7 +78,7 @@ export default function NewCustomerForm() {
           <input className="input" value={form.full_name} onChange={set("full_name")} required />
         </div>
         <div>
-          <label className="label">フリガナ</label>
+          <label className="label">ニックネーム</label>
           <input className="input" value={form.full_name_kana} onChange={set("full_name_kana")} />
         </div>
       </div>

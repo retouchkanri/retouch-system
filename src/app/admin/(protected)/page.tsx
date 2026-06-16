@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatYen } from "@/lib/format";
 import { syncStripePayments } from "@/lib/stripeSync";
+import { reconcileSubscriptionStatuses } from "@/lib/stripeReconcile";
 import { buildRevenueSeries, type RawPayment } from "@/lib/revenueSeries";
 import { HIDDEN_ACCOUNT_EMAILS } from "@/lib/hiddenAccounts";
 import RevenueChart from "./RevenueChart";
@@ -36,6 +37,10 @@ export default async function AdminDashboardPage() {
   // Reflect the latest Stripe payments on the dashboard (incremental,
   // best-effort — never blocks the page if Stripe is slow/unreachable).
   await syncStripePayments({}).catch(() => {});
+  // 決済完了済みなのに incomplete のまま固着した支援契約を Stripe の実状態へ
+  // 自己修復（Webhook 取りこぼし対策）。incomplete/past_due だけを対象に
+  // するため軽量。失敗してもページ表示は止めない。
+  await reconcileSubscriptionStatuses({ onlyPending: true }).catch(() => {});
   const supabase = createSupabaseServerClient();
 
   const fiveYearsAgo = new Date();

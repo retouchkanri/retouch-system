@@ -84,7 +84,7 @@ export default function InfoEditor({
       <>
         <dl className="grid md:grid-cols-2 gap-x-6 gap-y-1 text-sm">
           <Row label="氏名" value={initial.full_name} />
-          <Row label="カナ" value={initial.full_name_kana} />
+          <Row label="ニックネーム" value={initial.full_name_kana} />
           <Row label="メール" value={initial.email} />
           <Row label="電話" value={initial.phone} />
           <Row label="生年月日" value={initial.birthday} />
@@ -118,7 +118,7 @@ export default function InfoEditor({
         <Field label="氏名" required>
           <input className="input" value={form.full_name ?? ""} onChange={set("full_name")} required />
         </Field>
-        <Field label="フリガナ">
+        <Field label="ニックネーム">
           <input className="input" value={form.full_name_kana ?? ""} onChange={set("full_name_kana")} />
         </Field>
         <Field label="メール">

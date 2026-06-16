@@ -179,7 +179,7 @@ export default function ProfileForm({
           <input className="input" value={form.full_name} onChange={set("full_name")} required />
         </div>
         <div>
-          <label className="label">お名前（カナ）</label>
+          <label className="label">ニックネーム（表示されることがあります）</label>
           <input className="input" value={form.full_name_kana} onChange={set("full_name_kana")} />
         </div>
         <div>
