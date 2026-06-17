@@ -17,10 +17,13 @@ export default function BasicPlanManager({
   customerId,
   contracts,
   plans,
+  attenderPlanId = null,
 }: {
   customerId: string;
   contracts: Contract[];
   plans: Plan[];
+  /** 「アテンダー会員にする」ワンクリックボタン用の無償アテンダープランID */
+  attenderPlanId?: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -31,20 +34,28 @@ export default function BasicPlanManager({
   const hasActive = contracts.some((c) => c.status === "active" || c.status === "past_due");
   const refresh = () => router.refresh();
 
-  const addContract = async () => {
+  const createContract = async (planId: string, busyKey: string) => {
     setErr(null);
-    if (!selectedPlanId) return setErr("プランを選択してください");
-    setBusy("__add");
+    if (!planId) return setErr("プランを選択してください");
+    setBusy(busyKey);
     const res = await fetch("/api/admin/contracts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ customer_id: customerId, plan_id: selectedPlanId, status: "active" }),
+      body: JSON.stringify({ customer_id: customerId, plan_id: planId, status: "active" }),
     });
     const j = await res.json().catch(() => ({}));
     setBusy(null);
     if (!res.ok) return setErr(j.error ?? "登録に失敗しました");
     setAddOpen(false);
     refresh();
+  };
+
+  const addContract = () => createContract(selectedPlanId, "__add");
+
+  const makeAttender = async () => {
+    if (!attenderPlanId) return;
+    if (!confirm("この会員を「アテンダー会員（無料）」にします。よろしいですか？\n（Stripe決済は発生しません）")) return;
+    await createContract(attenderPlanId, "__attender");
   };
 
   const cancelContract = async (id: string) => {
@@ -63,22 +74,34 @@ export default function BasicPlanManager({
   return (
     <div className="space-y-2">
       {err && <p className="text-danger text-sm">{err}</p>}
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">基本会員（メンバーズ / サポーター / リェリーフ / オーナーズ）</h3>
-        {!addOpen ? (
-          <button
-            className="btn-primary !py-1.5 !px-3 text-sm"
-            onClick={() => setAddOpen(true)}
-            disabled={hasActive}
-            title={hasActive ? "既にアクティブな会員種別があります" : undefined}
-          >
-            ＋ 会員を追加
-          </button>
-        ) : (
-          <button className="btn-ghost !py-1.5 !px-3 text-sm" onClick={() => setAddOpen(false)}>
-            キャンセル
-          </button>
-        )}
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-semibold">基本会員（アテンダー / メンバーズ / サポーター / リェリーフ / オーナーズ）</h3>
+        <div className="flex items-center gap-2">
+          {attenderPlanId && !addOpen && (
+            <button
+              className="btn-secondary !py-1.5 !px-3 text-sm whitespace-nowrap"
+              onClick={makeAttender}
+              disabled={hasActive || busy === "__attender"}
+              title={hasActive ? "既にアクティブな会員種別があります" : "高額寄付者への感謝として無料でアテンダー会員に変更します"}
+            >
+              {busy === "__attender" ? "変更中..." : "アテンダー会員にする（無料）"}
+            </button>
+          )}
+          {!addOpen ? (
+            <button
+              className="btn-primary !py-1.5 !px-3 text-sm"
+              onClick={() => setAddOpen(true)}
+              disabled={hasActive}
+              title={hasActive ? "既にアクティブな会員種別があります" : undefined}
+            >
+              ＋ 会員を追加
+            </button>
+          ) : (
+            <button className="btn-ghost !py-1.5 !px-3 text-sm" onClick={() => setAddOpen(false)}>
+              キャンセル
+            </button>
+          )}
+        </div>
       </div>
 
       {addOpen && (

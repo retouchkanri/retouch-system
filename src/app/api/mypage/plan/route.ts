@@ -41,6 +41,14 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  // ¥0 の枠（アテンダー会員・オーナーズ会員等）は管理画面からの手動付与専用。
+  // 会員側からのセルフ加入（Stripe決済フロー）では扱わない。
+  if (Number((plan as any).monthly_amount) <= 0) {
+    return NextResponse.json(
+      { error: "この会員種別は会員側から選択できません（管理者が付与します）" },
+      { status: 400 },
+    );
+  }
 
   let result;
   try {

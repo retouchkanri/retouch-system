@@ -84,6 +84,9 @@ export default async function CustomerDetail({ params }: { params: { id: string 
     name: p.name,
     monthly_amount: p.monthly_amount,
   }));
+  // 無償アテンダー会員（code A・¥0）— ワンクリック付与ボタン用。
+  const attenderPlanId =
+    basicPlanOptions.find((p) => p.code === "A" && p.name === "アテンダー会員")?.id ?? null;
 
   const supportIds = (supports ?? []).map((x: any) => x.id);
   const { data: supportAudits } = supportIds.length
@@ -202,6 +205,7 @@ export default async function CustomerDetail({ params }: { params: { id: string 
           customerId={c.id}
           contracts={basicContracts}
           plans={basicPlanOptions}
+          attenderPlanId={attenderPlanId}
         />
       </section>
 

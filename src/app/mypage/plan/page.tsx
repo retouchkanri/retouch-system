@@ -16,7 +16,9 @@ export default async function PlanPage() {
     loadActiveSupports(session.customerId),
   ]);
 
-  const basicPlans = plans.filter((p) => ["A", "B", "C"].includes(p.code));
+  // 会員がセルフで選べるのは有料の基本会員(A/B/C)のみ。
+  // ¥0 の枠（アテンダー会員・オーナーズ会員等）は管理画面からの手動付与専用。
+  const basicPlans = plans.filter((p) => ["A", "B", "C"].includes(p.code) && p.monthly_amount > 0);
   const hasSupport = supports.length > 0;
   const currentBasic = contract?.plan && ["A", "B", "C"].includes(contract.plan.code) ? contract.plan : null;
 

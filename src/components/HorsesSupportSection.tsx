@@ -51,11 +51,13 @@ export default async function HorsesSupportSection({ limit, showViewMore = false
     byHorse.set(s.horse_id, cur);
   }
 
-  // Sort: zero-support horses first, then ascending by units
+  // Sort: most-supported horses first (descending by units). Horses with no
+  // support yet — incl. オーナー決定・募集停止中 — fall to the end. Ties keep
+  // the original sort_order (Array.prototype.sort is stable).
   const sorted = [...(horses as HorseRow[])].sort((a, b) => {
     const ua = byHorse.get(a.id)?.totalUnits ?? 0;
     const ub = byHorse.get(b.id)?.totalUnits ?? 0;
-    return ua - ub;
+    return ub - ua;
   });
 
   const displayed = limit != null ? sorted.slice(0, limit) : sorted;
@@ -69,7 +71,7 @@ export default async function HorsesSupportSection({ limit, showViewMore = false
           <p className="text-brand font-bold tracking-[0.2em] text-xs sm:text-sm mb-3">OUR HORSES</p>
           <h2 className="text-2xl sm:text-3xl font-bold text-ink mb-4 font-serif">馬ごとの支援状況</h2>
           <p className="text-ink-soft text-sm max-w-2xl mx-auto leading-relaxed">
-            支援の少ない馬から順に並んでいます。<br />
+            支援の多い馬から順に並んでいます。<br />
             気になった馬をぜひ応援してください。
           </p>
         </div>

@@ -8,6 +8,7 @@ type Props = {
 const links = [
   { href: "/guide", label: "ご入会のご案内" },
   { href: "/support-guide", label: "1口支援制度のご案内" },
+  { href: "/supporters", label: "支援者のみなさま" },
   { href: "/#overview", label: "Retouch（リタッチ）とは？" },
   { href: "/donate", label: "単発寄付" },
   { href: "/#contact", label: "お問い合わせ" },
