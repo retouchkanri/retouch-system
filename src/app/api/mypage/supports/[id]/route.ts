@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { memberMutationGuard } from "@/lib/memberGuard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSupportUpdate } from "@/lib/stripeSupport";
@@ -21,6 +22,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!session?.customerId) {
     return NextResponse.json({ error: "認証されていません" }, { status: 401 });
   }
+  const forbidden = memberMutationGuard(session);
+  if (forbidden) return forbidden;
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });

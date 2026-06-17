@@ -1,12 +1,21 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import { loadHorses, loadPlans, loadActiveSpecialTeam } from "@/lib/customer";
-import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED } from "@/lib/featureFlags";
+import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED, MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
+import SelfServiceClosedNotice from "@/components/SelfServiceClosedNotice";
 import SpecialTeamWizard from "./SpecialTeamWizard";
 
 export default async function NewSpecialTeamPage() {
   const session = await requireMember();
   if (!session.customerId) return <div className="card">会員情報が見つかりません。</div>;
+  if (!MEMBER_SELF_SERVICE_ENABLED) {
+    return (
+      <SelfServiceClosedNotice
+        title="特別チーム会員のお申し込みについて"
+        description="特別チーム会員のお申し込みは、現在運営にて承っております。お手数ですが運営までお問い合わせください。"
+      />
+    );
+  }
 
   const [horses, plans, joined] = await Promise.all([
     loadHorses(true),

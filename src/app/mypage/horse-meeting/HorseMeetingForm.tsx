@@ -17,6 +17,8 @@ type Props = {
   defaultApplicantName: string;
   defaultSupportedHorses: string;
   existing: HorseMeetingRequest[];
+  /** 面会の新規申込・取消を会員自身が行えるか。false の場合は履歴の閲覧のみ。 */
+  selfServiceEnabled?: boolean;
 };
 
 export default function HorseMeetingForm({
@@ -24,6 +26,7 @@ export default function HorseMeetingForm({
   defaultApplicantName,
   defaultSupportedHorses,
   existing,
+  selfServiceEnabled = true,
 }: Props) {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -89,6 +92,15 @@ export default function HorseMeetingForm({
 
   return (
     <div className="space-y-6">
+      {!selfServiceEnabled ? (
+        <div className="card border-2 border-brand/20 bg-brand-50/30">
+          <p className="text-sm text-ink-soft leading-relaxed">
+            馬の面会のお申し込み・取消は、現在運営にて承っております。
+            お手数ですが運営までお問い合わせください。
+          </p>
+        </div>
+      ) : (
+        <>
       <div className="card border-2 border-brand/20 bg-brand-50/30">
         <p className="text-sm text-ink-soft leading-relaxed">
           半口以上の支援会員様は、支援している馬との<strong>個別面会</strong>をお申し込みいただけます。
@@ -198,6 +210,8 @@ export default function HorseMeetingForm({
           {busy ? "送信中..." : "この内容で申し込む"}
         </button>
       </form>
+        </>
+      )}
 
       <section className="card">
         <h2 className="section-title">申込履歴</h2>
@@ -219,7 +233,7 @@ export default function HorseMeetingForm({
                 <p className="text-xs text-ink-mute">
                   来場: {horseMeetingArrivalLabel(r.arrival_method, r.pickup_time)}
                 </p>
-                {r.status === "pending" || r.status === "approved" ? (
+                {selfServiceEnabled && (r.status === "pending" || r.status === "approved") ? (
                   <button
                     type="button"
                     className="text-danger underline text-sm mt-1"

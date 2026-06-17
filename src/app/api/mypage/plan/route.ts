@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { memberMutationGuard } from "@/lib/memberGuard";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { cancelBasicPlan, subscribeBasicPlan } from "@/lib/plan";
 import { donationThanksTemplate, notify, planChangedTemplate, staffRecipients } from "@/lib/notify";
@@ -14,6 +15,8 @@ export async function POST(req: Request) {
   if (!session?.customerId) {
     return NextResponse.json({ error: "認証されていません" }, { status: 401 });
   }
+  const forbidden = memberMutationGuard(session);
+  if (forbidden) return forbidden;
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: "プランを指定してください" }, { status: 400 });
@@ -119,6 +122,8 @@ export async function DELETE() {
   if (!session?.customerId) {
     return NextResponse.json({ error: "認証されていません" }, { status: 401 });
   }
+  const forbidden = memberMutationGuard(session);
+  if (forbidden) return forbidden;
   try {
     const res = await cancelBasicPlan(session.customerId);
     const admin = createSupabaseAdminClient();

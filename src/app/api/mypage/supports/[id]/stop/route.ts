@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { memberMutationGuard } from "@/lib/memberGuard";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSupportCancel } from "@/lib/stripeSupport";
 import { notify, staffRecipients, supportCanceledTemplate } from "@/lib/notify";
@@ -19,6 +20,8 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
   if (!session?.customerId) {
     return NextResponse.json({ error: "認証されていません" }, { status: 401 });
   }
+  const forbidden = memberMutationGuard(session);
+  if (forbidden) return forbidden;
   const admin = createSupabaseAdminClient();
   const { data: existing } = await admin
     .from("support_subscriptions")

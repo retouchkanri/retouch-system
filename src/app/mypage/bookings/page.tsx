@@ -10,6 +10,7 @@ import {
 import { seatUsageBatch } from "@/lib/bookings";
 import { eventVenue, pickupLabel, relationLabel } from "@/lib/events";
 import { formatDate, statusLabel } from "@/lib/format";
+import { MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
 import BookingButton from "./BookingButton";
 
 export default async function BookingListPage() {
@@ -41,6 +42,13 @@ export default async function BookingListPage() {
         <h1 className="text-xl font-bold">見学会・個別見学の予約</h1>
         <Link href="/mypage" className="text-brand underline">戻る</Link>
       </div>
+
+      {!MEMBER_SELF_SERVICE_ENABLED && (
+        <p className="card text-sm text-ink-soft">
+          見学会・個別見学のご予約（新規・変更・取消）は、現在運営にて承っております。
+          お手数ですが運営までお問い合わせください。
+        </p>
+      )}
 
       {!isPaidMember && (
         <p className="card text-sm text-ink-soft">
@@ -95,6 +103,8 @@ export default async function BookingListPage() {
                 </div>
                 {alreadyBooked ? (
                   <span className="chip-ok">予約中</span>
+                ) : !MEMBER_SELF_SERVICE_ENABLED ? (
+                  <span className="chip-mute">運営受付</span>
                 ) : blockedByMembership ? (
                   <span className="chip-mute">会員限定</span>
                 ) : blockedBySupport ? (
@@ -164,7 +174,7 @@ export default async function BookingListPage() {
                     <span className={b.status === "reserved" ? "chip-ok" : "chip-mute"}>
                       {statusLabel(b.status)}
                     </span>
-                    {b.status === "reserved" && (
+                    {b.status === "reserved" && MEMBER_SELF_SERVICE_ENABLED && (
                       <>
                         <BookingButton
                           eventId={b.event_id}

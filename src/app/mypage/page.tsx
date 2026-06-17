@@ -14,7 +14,7 @@ import {
   loadPayments,
 } from "@/lib/customer";
 import SpecialTeamStopButton from "./SpecialTeamStopButton";
-import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED } from "@/lib/featureFlags";
+import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED, MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
 import { formatDate, formatUnits, formatYen, memberClassLabel } from "@/lib/format";
 import { isBasicMemberPlanCode } from "@/lib/constraints";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -203,9 +203,11 @@ export default async function MyPageTop() {
                 </span>
               </div>
             )}
-            <Link href="/mypage/plan" className="text-brand underline text-sm">
-              会員種別を変更
-            </Link>
+            {MEMBER_SELF_SERVICE_ENABLED && (
+              <Link href="/mypage/plan" className="text-brand underline text-sm">
+                会員種別を変更
+              </Link>
+            )}
           </div>
           <div className="space-y-1">
             <p className="label">お支払い状況</p>
@@ -258,9 +260,11 @@ export default async function MyPageTop() {
       <section className="card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="section-title mb-0">支援中の馬</h2>
-          <Link className="text-brand underline text-sm font-medium" href="/mypage/supports/new">
-            + 新しい支援を追加
-          </Link>
+          {MEMBER_SELF_SERVICE_ENABLED && (
+            <Link className="text-brand underline text-sm font-medium" href="/mypage/supports/new">
+              + 新しい支援を追加
+            </Link>
+          )}
         </div>
 
         {supports.length === 0 ? (
@@ -269,9 +273,15 @@ export default async function MyPageTop() {
               <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
             </div>
             <p className="text-ink-mute text-sm">現在、ご支援中の馬はありません。</p>
-            <Link href="/mypage/supports/new" className="btn-primary inline-flex mt-4">
-              馬を支援する
-            </Link>
+            {MEMBER_SELF_SERVICE_ENABLED ? (
+              <Link href="/mypage/supports/new" className="btn-primary inline-flex mt-4">
+                馬を支援する
+              </Link>
+            ) : (
+              <p className="text-xs text-ink-soft mt-3">
+                ご支援のお申し込みは運営にて承っております。お問い合わせください。
+              </p>
+            )}
           </div>
         ) : (
           <ul className="divide-y divide-surface-line">
@@ -329,14 +339,16 @@ export default async function MyPageTop() {
                       )}
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-                      <Link href={`/mypage/supports/${s.id}`} className="btn-secondary !py-2 !px-3 text-sm">
-                        変更
-                      </Link>
-                      <Link href={`/mypage/supports/${s.id}/stop`} className="btn-ghost !py-2 !px-3 text-sm text-danger">
-                        停止
-                      </Link>
-                    </div>
+                    {MEMBER_SELF_SERVICE_ENABLED && (
+                      <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                        <Link href={`/mypage/supports/${s.id}`} className="btn-secondary !py-2 !px-3 text-sm">
+                          変更
+                        </Link>
+                        <Link href={`/mypage/supports/${s.id}/stop`} className="btn-ghost !py-2 !px-3 text-sm text-danger">
+                          停止
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 </li>
               );
@@ -344,12 +356,22 @@ export default async function MyPageTop() {
           </ul>
         )}
 
-        {supports.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-surface-line">
-            <Link href="/mypage/supports/new" className="btn-primary w-full">
-              新しい支援を追加する
-            </Link>
-          </div>
+        {MEMBER_SELF_SERVICE_ENABLED ? (
+          supports.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-surface-line">
+              <Link href="/mypage/supports/new" className="btn-primary w-full">
+                新しい支援を追加する
+              </Link>
+            </div>
+          )
+        ) : (
+          supports.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-surface-line">
+              <p className="text-xs text-ink-soft">
+                支援内容の追加・変更・停止は運営にて承っております。お手数ですが運営までお問い合わせください。
+              </p>
+            </div>
+          )
         )}
       </section>
 
@@ -357,7 +379,7 @@ export default async function MyPageTop() {
       <section className="card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="section-title mb-0">特別チーム会員</h2>
-          {SPECIAL_TEAM_NEW_SIGNUPS_ENABLED && (
+          {SPECIAL_TEAM_NEW_SIGNUPS_ENABLED && MEMBER_SELF_SERVICE_ENABLED && (
             <Link className="text-brand underline text-sm font-medium" href="/mypage/special-team/new">
               + 申し込む
             </Link>
@@ -366,7 +388,7 @@ export default async function MyPageTop() {
 
         {specialTeams.length === 0 ? (
           <div className="py-6 text-center">
-            {SPECIAL_TEAM_NEW_SIGNUPS_ENABLED ? (
+            {SPECIAL_TEAM_NEW_SIGNUPS_ENABLED && MEMBER_SELF_SERVICE_ENABLED ? (
               <>
                 <p className="text-ink-mute text-sm">
                   特別チーム会員は、馬ごとに月額{formatYen(1000)}でご参加いただけます。<br />
@@ -433,7 +455,7 @@ export default async function MyPageTop() {
                         </p>
                       )}
                     </div>
-                    {!isScheduledStop && m.status !== "canceled" && (
+                    {MEMBER_SELF_SERVICE_ENABLED && !isScheduledStop && m.status !== "canceled" && (
                       <SpecialTeamStopButton id={m.id} horseName={m.horse?.name ?? "対象馬"} />
                     )}
                   </div>
@@ -445,6 +467,7 @@ export default async function MyPageTop() {
       </section>
 
       {/* ── Quick actions ── */}
+      {MEMBER_SELF_SERVICE_ENABLED && (
       <section>
         <h2 className="section-title">クイックアクション</h2>
         <div className="grid sm:grid-cols-2 gap-4">
@@ -488,6 +511,7 @@ export default async function MyPageTop() {
           )}
         </div>
       </section>
+      )}
 
       {/* ── Recent payments mini-list ── */}
       {recentPayments.length > 0 && (

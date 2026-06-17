@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { memberMutationGuard } from "@/lib/memberGuard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSpecialTeamCreate } from "@/lib/stripeSpecialTeam";
@@ -16,6 +17,8 @@ export async function POST(req: Request) {
   if (!session?.customerId) {
     return NextResponse.json({ error: "認証されていません" }, { status: 401 });
   }
+  const forbidden = memberMutationGuard(session);
+  if (forbidden) return forbidden;
   // New special-team sign-ups are closed (existing subscribers unaffected).
   if (!SPECIAL_TEAM_NEW_SIGNUPS_ENABLED) {
     return NextResponse.json(

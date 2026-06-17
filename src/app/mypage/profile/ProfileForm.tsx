@@ -7,10 +7,17 @@ export default function ProfileForm({
   customer,
   email,
   avatarUrl,
+  selfServiceEnabled = true,
 }: {
   customer: Customer;
   email: string;
   avatarUrl: string | null;
+  /**
+   * 登録情報（基本情報）の会員自身による変更を許可するか。
+   * false の場合は基本情報は閲覧のみ（変更は運営にて承る）。
+   * メールアドレス・パスワード・写真はアカウント保全のため引き続き変更可能。
+   */
+  selfServiceEnabled?: boolean;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -77,17 +84,19 @@ export default function ProfileForm({
       }
     }
 
-    // 2) Update profile fields
-    const res = await fetch("/api/mypage/profile", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "プロフィールの保存に失敗しました。");
-      setSaving(false);
-      return;
+    // 2) Update profile fields (登録情報の変更が許可されている場合のみ)
+    if (selfServiceEnabled) {
+      const res = await fetch("/api/mypage/profile", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setErr(j.error ?? "プロフィールの保存に失敗しました。");
+        setSaving(false);
+        return;
+      }
     }
 
     // 3) Update email/password if changed
@@ -174,35 +183,43 @@ export default function ProfileForm({
       {/* Basic info */}
       <div className="card space-y-4">
         <h2 className="text-base font-bold">基本情報</h2>
+        {!selfServiceEnabled && (
+          <div className="p-3 rounded-xl bg-surface-soft border border-surface-line">
+            <p className="text-sm text-ink-soft">
+              登録情報（お名前・ご住所など）の変更は運営にて承っております。
+              変更をご希望の場合は、お手数ですが運営までお問い合わせください。
+            </p>
+          </div>
+        )}
         <div>
           <label className="label">お名前</label>
-          <input className="input" value={form.full_name} onChange={set("full_name")} required />
+          <input className="input" value={form.full_name} onChange={set("full_name")} required disabled={!selfServiceEnabled} />
         </div>
         <div>
           <label className="label">ニックネーム（表示されることがあります）</label>
-          <input className="input" value={form.full_name_kana} onChange={set("full_name_kana")} />
+          <input className="input" value={form.full_name_kana} onChange={set("full_name_kana")} disabled={!selfServiceEnabled} />
         </div>
         <div>
           <label className="label">電話番号</label>
-          <input className="input" value={form.phone} onChange={set("phone")} />
+          <input className="input" value={form.phone} onChange={set("phone")} disabled={!selfServiceEnabled} />
         </div>
         <div>
           <label className="label">郵便番号</label>
-          <input className="input" value={form.postal_code} onChange={set("postal_code")} />
+          <input className="input" value={form.postal_code} onChange={set("postal_code")} disabled={!selfServiceEnabled} />
         </div>
         <div>
           <label className="label">住所</label>
-          <input className="input mb-2" placeholder="都道府県・市区町村・番地" value={form.address1} onChange={set("address1")} />
-          <input className="input" placeholder="建物名・部屋番号など" value={form.address2} onChange={set("address2")} />
+          <input className="input mb-2" placeholder="都道府県・市区町村・番地" value={form.address1} onChange={set("address1")} disabled={!selfServiceEnabled} />
+          <input className="input" placeholder="建物名・部屋番号など" value={form.address2} onChange={set("address2")} disabled={!selfServiceEnabled} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">生年月日</label>
-            <input type="date" className="input" value={form.birthday} onChange={set("birthday")} />
+            <input type="date" className="input" value={form.birthday} onChange={set("birthday")} disabled={!selfServiceEnabled} />
           </div>
           <div>
             <label className="label">性別</label>
-            <select className="input" value={form.gender} onChange={set("gender")}>
+            <select className="input" value={form.gender} onChange={set("gender")} disabled={!selfServiceEnabled}>
               <option value="unspecified">未回答</option>
               <option value="male">男性</option>
               <option value="female">女性</option>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { memberMutationGuard } from "@/lib/memberGuard";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSpecialTeamCancel } from "@/lib/stripeSpecialTeam";
 import { notify } from "@/lib/notify";
@@ -14,6 +15,8 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   if (!session?.customerId) {
     return NextResponse.json({ error: "認証されていません" }, { status: 401 });
   }
+  const forbidden = memberMutationGuard(session);
+  if (forbidden) return forbidden;
   const admin = createSupabaseAdminClient();
   const { data: existing } = await admin
     .from("special_team_memberships")

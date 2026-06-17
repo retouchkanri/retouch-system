@@ -4,6 +4,7 @@ import { loadActiveSupports, loadCustomer } from "@/lib/customer";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { hasActiveSupport } from "@/lib/bookings";
 import { formatSupportedHorsesForInput } from "@/lib/horseMeetings";
+import { MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
 import type { HorseMeetingRequest } from "@/types/db";
 import HorseMeetingForm from "./HorseMeetingForm";
 
@@ -60,6 +61,7 @@ export default async function HorseMeetingPage() {
         defaultApplicantName={customer?.full_name ?? ""}
         defaultSupportedHorses={formatSupportedHorsesForInput(supports)}
         existing={(requests as HorseMeetingRequest[]) ?? []}
+        selfServiceEnabled={MEMBER_SELF_SERVICE_ENABLED}
       />
     </div>
   );

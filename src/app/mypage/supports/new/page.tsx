@@ -2,11 +2,21 @@ import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import { loadHorses, loadPlans, loadActiveSupports, loadActiveContract } from "@/lib/customer";
 import { SUPPORT_UNIT_PRICE, isBasicMemberPlanCode } from "@/lib/constraints";
+import { MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
+import SelfServiceClosedNotice from "@/components/SelfServiceClosedNotice";
 import NewSupportWizard from "./NewSupportWizard";
 
 export default async function NewSupportPage() {
   const session = await requireMember();
   if (!session.customerId) return <div className="card">会員情報が見つかりません。</div>;
+  if (!MEMBER_SELF_SERVICE_ENABLED) {
+    return (
+      <SelfServiceClosedNotice
+        title="支援のお申し込みについて"
+        description="一口支援の新規お申し込みは、現在運営にて承っております。お手数ですが運営までお問い合わせください。"
+      />
+    );
+  }
 
   const [horses, plans, existingSupports, contract] = await Promise.all([
     loadHorses(true),

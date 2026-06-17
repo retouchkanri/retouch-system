@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { memberMutationGuard } from "@/lib/memberGuard";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 import { writeAudit } from "@/lib/audit";
@@ -9,6 +10,8 @@ export async function PATCH(_: Request, { params }: { params: { id: string } }) 
   if (!session?.customerId) {
     return NextResponse.json({ error: "認証されていません" }, { status: 401 });
   }
+  const forbidden = memberMutationGuard(session);
+  if (forbidden) return forbidden;
   const admin = createSupabaseAdminClient();
   const { data: row } = await admin
     .from("horse_meeting_requests")

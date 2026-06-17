@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import { loadCustomer } from "@/lib/customer";
+import { MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
 import ProfileForm from "./ProfileForm";
 
 export default async function ProfilePage() {
@@ -19,6 +20,7 @@ export default async function ProfilePage() {
         customer={customer}
         email={session.email ?? ""}
         avatarUrl={(customer as any).avatar_url ?? null}
+        selfServiceEnabled={MEMBER_SELF_SERVICE_ENABLED}
       />
     </div>
   );

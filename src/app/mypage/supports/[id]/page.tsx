@@ -6,12 +6,22 @@ import { requireMember } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadPlans } from "@/lib/customer";
 import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
+import { MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
+import SelfServiceClosedNotice from "@/components/SelfServiceClosedNotice";
 import type { SupportSubscription } from "@/types/db";
 import ChangeSupportForm from "./ChangeSupportForm";
 
 export default async function ChangeSupportPage({ params }: { params: { id: string } }) {
   const session = await requireMember();
   if (!session.customerId) return notFound();
+  if (!MEMBER_SELF_SERVICE_ENABLED) {
+    return (
+      <SelfServiceClosedNotice
+        title="支援内容の変更について"
+        description="支援内容（口数）の変更は、現在運営にて承っております。お手数ですが運営までお問い合わせください。"
+      />
+    );
+  }
 
   const supabase = createSupabaseServerClient();
   const { data } = await supabase

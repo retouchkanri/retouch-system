@@ -1,9 +1,19 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/auth";
+import { MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
+import SelfServiceClosedNotice from "@/components/SelfServiceClosedNotice";
 import DonationForm from "./DonationForm";
 
 export default async function DonatePage() {
   await requireMember();
+  if (!MEMBER_SELF_SERVICE_ENABLED) {
+    return (
+      <SelfServiceClosedNotice
+        title="単発寄付について"
+        description="単発寄付のお手続きは、現在運営にて承っております。お手数ですが運営までお問い合わせください。"
+      />
+    );
+  }
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
