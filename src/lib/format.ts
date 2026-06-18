@@ -51,7 +51,7 @@ export function memberClassLabel(code: string | null | undefined): string {
     case "A":
       return "メンバーズ会員";
     case "B":
-      return "メンバーズ会員";
+      return "サポーター会員";
     case "C":
       return "リェリーフ会員";
     case "OWNER":
