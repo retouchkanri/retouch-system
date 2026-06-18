@@ -11,16 +11,27 @@ import { createClient } from "@supabase/supabase-js";
 
 const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
+// is_active で絞らずに既存行を探す。無効化されて残っているとここで拾い、
+// 重複INSERTせずに再有効化する（過去に無効行が残り再実行で重複した不具合の対策）。
 const { data: existing } = await sb
   .from("membership_plans")
-  .select("id")
+  .select("id, is_active")
   .eq("code", "A")
   .eq("name", "アテンダー会員")
-  .eq("is_active", true)
+  .eq("monthly_amount", 0)
   .maybeSingle();
 
 if (existing) {
-  console.log("既に存在します:", existing.id);
+  if (existing.is_active) {
+    console.log("既に存在します:", existing.id);
+    process.exit(0);
+  }
+  const { error: reErr } = await sb
+    .from("membership_plans")
+    .update({ is_active: true })
+    .eq("id", existing.id);
+  if (reErr) { console.error("再有効化失敗:", reErr.message); process.exit(1); }
+  console.log("再有効化しました:", existing.id);
   process.exit(0);
 }
 
