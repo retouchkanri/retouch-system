@@ -922,3 +922,96 @@ as $$
 $$;
 
 grant execute on function public.search_audit_logs(text, text, text, int, int) to authenticated;
+
+-- =====================================================================
+-- 会員向けメッセージ配信（お知らせ閲覧 + メルマガ）
+--   migrations/20260619_member_messages.sql と同一内容（冪等）。
+--   member_messages / member_message_recipients / customers.newsletter_opt_out
+-- =====================================================================
+alter table public.customers
+  add column if not exists newsletter_opt_out boolean not null default false;
+
+create table if not exists public.member_messages (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  body text not null default '',
+  body_format text not null default 'html' check (body_format in ('html','text')),
+  tag text not null default 'お知らせ',
+  tag_color text not null default 'bg-brand-50 text-brand-dark',
+  channel_inapp boolean not null default true,
+  channel_email boolean not null default false,
+  audience text not null default 'all' check (audience in ('all','subset')),
+  target_customer_ids uuid[] not null default '{}',
+  status text not null default 'draft'
+    check (status in ('draft','scheduled','sending','sent','canceled')),
+  scheduled_at timestamptz,
+  sent_at timestamptz,
+  recipient_count integer not null default 0,
+  sent_count integer not null default 0,
+  open_count integer not null default 0,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint member_messages_channel_chk check (channel_inapp or channel_email)
+);
+create index if not exists member_messages_status_idx on public.member_messages (status);
+create index if not exists member_messages_scheduled_idx on public.member_messages (scheduled_at);
+
+create table if not exists public.member_message_recipients (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references public.member_messages(id) on delete cascade,
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  email text,
+  token uuid not null default gen_random_uuid(),
+  email_status text not null default 'pending'
+    check (email_status in ('pending','sent','failed','skipped')),
+  sent_at timestamptz,
+  opened_at timestamptz,
+  open_count integer not null default 0,
+  read_at timestamptz,
+  error text,
+  created_at timestamptz not null default now(),
+  unique (message_id, customer_id)
+);
+create unique index if not exists member_message_recipients_token_idx
+  on public.member_message_recipients (token);
+create index if not exists member_message_recipients_message_idx
+  on public.member_message_recipients (message_id);
+create index if not exists member_message_recipients_customer_idx
+  on public.member_message_recipients (customer_id);
+
+drop trigger if exists member_messages_set_updated_at on public.member_messages;
+create trigger member_messages_set_updated_at before update on public.member_messages
+  for each row execute procedure public.tg_set_updated_at();
+
+alter table public.member_messages enable row level security;
+alter table public.member_message_recipients enable row level security;
+
+drop policy if exists "member_messages admin all" on public.member_messages;
+create policy "member_messages admin all" on public.member_messages
+  for all using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "member_messages recipient read" on public.member_messages;
+create policy "member_messages recipient read" on public.member_messages
+  for select using (
+    public.is_admin()
+    or (
+      channel_inapp = true
+      and status = 'sent'
+      and exists (
+        select 1 from public.member_message_recipients r
+        where r.message_id = member_messages.id
+          and r.customer_id = public.current_customer_id()
+      )
+    )
+  );
+
+drop policy if exists "member_message_recipients admin all" on public.member_message_recipients;
+create policy "member_message_recipients admin all" on public.member_message_recipients
+  for all using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "member_message_recipients self read" on public.member_message_recipients;
+create policy "member_message_recipients self read" on public.member_message_recipients
+  for select using (customer_id = public.current_customer_id() or public.is_admin());
+drop policy if exists "member_message_recipients self update" on public.member_message_recipients;
+create policy "member_message_recipients self update" on public.member_message_recipients
+  for update using (customer_id = public.current_customer_id() or public.is_admin())
+  with check (customer_id = public.current_customer_id() or public.is_admin());

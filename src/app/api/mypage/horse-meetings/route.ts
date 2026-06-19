@@ -9,8 +9,9 @@ import {
   HORSE_MEETING_ARRIVAL_METHODS,
   HORSE_MEETING_FACILITIES,
   HORSE_MEETING_TIME_SLOTS,
+  horseMeetingFacilityLabel,
 } from "@/lib/horseMeetings";
-import { notify, staffRecipients } from "@/lib/notify";
+import { horseMeetingReceivedTemplate, notify, staffRecipients } from "@/lib/notify";
 
 const facilityValues = HORSE_MEETING_FACILITIES.map((f) => f.value) as [string, ...string[]];
 const timeSlotValues = [...HORSE_MEETING_TIME_SLOTS] as [string, ...string[]];
@@ -117,6 +118,27 @@ export async function POST(req: Request) {
     reply_to: (customer as any)?.email ?? undefined,
     meta: { request_id: inserted.id, source: "horse_meeting" },
   });
+
+  // 会員本人への受付確認メール（送信に失敗しても申込自体は成功とする）
+  const memberEmail = (customer as any)?.email as string | null | undefined;
+  if (memberEmail) {
+    const memberTpl = horseMeetingReceivedTemplate({
+      name: (customer as any)?.full_name ?? parsed.data.applicant_name,
+      facility: horseMeetingFacilityLabel(parsed.data.facility),
+      preferredDate: parsed.data.preferred_date,
+      timeSlot: parsed.data.preferred_time_slot,
+      partySize: parsed.data.party_size,
+      supportedHorses: parsed.data.supported_horses,
+    });
+    await notify({
+      kind: "horse_meeting_received",
+      to: memberEmail,
+      to_name: (customer as any)?.full_name ?? parsed.data.applicant_name,
+      subject: memberTpl.subject,
+      body_text: memberTpl.body_text,
+      meta: { request_id: inserted.id, source: "horse_meeting" },
+    });
+  }
 
   return NextResponse.json({ ok: true, id: inserted.id });
 }

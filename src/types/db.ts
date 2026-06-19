@@ -230,3 +230,49 @@ export type CustomerSummary = {
   /** 特別参加: チーム名（未設定は馬名で代替）。 */
   special_team_names: string[] | null;
 };
+
+// ---------------------------------------------------------------------
+// 会員向けメッセージ配信（お知らせ閲覧 + メルマガ）
+// ---------------------------------------------------------------------
+export type MemberMessageStatus = "draft" | "scheduled" | "sending" | "sent" | "canceled";
+export type MemberMessageAudience = "all" | "subset";
+export type MemberMessageBodyFormat = "html" | "text";
+export type RecipientEmailStatus = "pending" | "sent" | "failed" | "skipped";
+
+export type MemberMessage = {
+  id: string;
+  title: string;
+  body: string;
+  body_format: MemberMessageBodyFormat;
+  tag: string;
+  tag_color: string;
+  channel_inapp: boolean;
+  channel_email: boolean;
+  audience: MemberMessageAudience;
+  target_customer_ids: string[];
+  status: MemberMessageStatus;
+  scheduled_at: string | null;
+  sent_at: string | null;
+  recipient_count: number;
+  sent_count: number;
+  open_count: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MemberMessageRecipient = {
+  id: string;
+  message_id: string;
+  customer_id: string;
+  email: string | null;
+  token: string;
+  email_status: RecipientEmailStatus;
+  sent_at: string | null;
+  opened_at: string | null;
+  open_count: number;
+  read_at: string | null;
+  error: string | null;
+  created_at: string;
+  message?: MemberMessage | null;
+};

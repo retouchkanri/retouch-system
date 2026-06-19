@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isBasicMemberPlanCode } from "@/lib/constraints";
+import { notify, staffRecipients, supportAddedTemplate } from "@/lib/notify";
 
 const schema = z.object({
   // 顧客ID（UUID）またはメールアドレスのどちらでも受け付ける。
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
 
   const { data: horse } = await admin
     .from("horses")
-    .select("id, is_supportable")
+    .select("id, name, is_supportable")
     .eq("id", horse_id)
     .maybeSingle();
   if (!horse) return NextResponse.json({ error: "馬が見つかりません" }, { status: 404 });
@@ -139,6 +140,51 @@ export async function POST(req: Request) {
     target_table: "support_subscriptions",
     target_id: inserted.id,
     meta: { customer_id, horse_id, units, monthly_amount: monthlyAmount },
+  });
+
+  // 会員本人・運営の双方へ一口支援の登録を通知する。
+  // メール送信に失敗しても登録自体は成功として扱う。
+  const { data: customer } = await admin
+    .from("customers")
+    .select("full_name, email")
+    .eq("id", customer_id)
+    .maybeSingle();
+  const memberEmail = (customer as any)?.email as string | null | undefined;
+  const memberName = (customer as any)?.full_name as string | null;
+  const horseName = (horse as any)?.name ?? "—";
+
+  if (memberEmail) {
+    const memberTpl = supportAddedTemplate({
+      name: memberName,
+      horseName,
+      units: Number(units),
+      monthly: monthlyAmount,
+      // 運営による手動登録（Stripe自動課金なし）のため、請求案内は別途連絡の文面にする。
+      autoBill: false,
+    });
+    await notify({
+      kind: "support_added",
+      to: memberEmail,
+      to_name: memberName,
+      subject: memberTpl.subject,
+      body_text: memberTpl.body_text,
+      meta: { support_id: inserted.id, horse_name: horseName, units, source: "admin_support_create" },
+    });
+  }
+
+  await notify({
+    kind: "staff_notify",
+    to: staffRecipients(),
+    subject: `【一口支援 登録】${memberName ?? "会員"} — ${horseName}`,
+    body_text:
+      `運営にて一口支援を登録しました。\n\n` +
+      `・会員名: ${memberName ?? "—"}\n` +
+      `・メール: ${memberEmail ?? "—"}\n` +
+      `・対象馬: ${horseName}\n` +
+      `・口数: ${Number(units)}口\n` +
+      `・月額: ¥${Math.round(monthlyAmount).toLocaleString("ja-JP")}`,
+    reply_to: memberEmail ?? undefined,
+    meta: { support_id: inserted.id, horse_name: horseName, units, source: "admin_support_create" },
   });
 
   return NextResponse.json({ ok: true, id: inserted.id });

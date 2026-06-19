@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { donationThanksTemplate, notify, staffRecipients } from "@/lib/notify";
 
 const schema = z.object({
   customer_id: z.string().uuid().optional().nullable(),
@@ -91,6 +92,35 @@ export async function POST(req: Request) {
     target_id: inserted.id,
     meta: { amount: parsed.data.amount, status },
   });
+
+  // 入金が確定（succeeded）した寄付のみ、寄付者へお礼・運営へ受領を通知する。
+  // 保留（pending：銀行振込の入金待ち等）の段階では通知しない。送信失敗は登録に影響させない。
+  if (status === "succeeded") {
+    if (donor_email) {
+      const tpl = donationThanksTemplate({ name: donor_name ?? null, amount: parsed.data.amount });
+      await notify({
+        kind: "donation_thanks",
+        to: donor_email,
+        to_name: donor_name ?? null,
+        subject: tpl.subject,
+        body_text: tpl.body_text,
+        meta: { donation_id: inserted.id, source: "admin_donation" },
+      });
+    }
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【寄付】${donor_name ?? "匿名"} 様 — ¥${Math.round(parsed.data.amount).toLocaleString("ja-JP")}`,
+      body_text:
+        `寄付を登録しました（${parsed.data.payment_method === "bank_transfer" ? "銀行振込" : "カード"}）。\n\n` +
+        `・お名前: ${donor_name ?? "（匿名）"}\n` +
+        `・メール: ${donor_email ?? "—"}\n` +
+        `・金額: ¥${Math.round(parsed.data.amount).toLocaleString("ja-JP")}\n` +
+        (parsed.data.message ? `・メッセージ: ${parsed.data.message}\n` : ""),
+      reply_to: donor_email ?? undefined,
+      meta: { donation_id: inserted.id, source: "admin_donation" },
+    });
+  }
 
   return NextResponse.json({ ok: true, id: inserted.id });
 }

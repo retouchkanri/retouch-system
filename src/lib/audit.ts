@@ -11,6 +11,7 @@ export type AuditAction =
   | `plan.${string}`
   | `notify.${string}`
   | `news.${string}`
+  | `message.${string}`
   | `special_team.${string}`
   | `horse_meeting.${string}`;
 

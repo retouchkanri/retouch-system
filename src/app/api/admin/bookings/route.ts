@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { writeAudit } from "@/lib/audit";
 import { hasActiveSupport, seatUsage } from "@/lib/bookings";
+import { bookingConfirmedTemplate, notify, staffRecipients } from "@/lib/notify";
 
 const schema = z.object({
   customer_id: z.string().uuid(),
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
 
   const { data: ev } = await admin
     .from("events")
-    .select("id, capacity, supporters_only")
+    .select("id, title, starts_at, capacity, supporters_only")
     .eq("id", parsed.data.event_id)
     .maybeSingle();
   if (!ev) {
@@ -86,6 +87,50 @@ export async function POST(req: Request) {
     targetId: inserted.id,
     meta: insertPayload,
   });
+
+  // 実際の予約（reserved）のみ、会員本人・運営へ申込受付を通知する。
+  // attended / no_show / canceled での登録時は通知しない。送信失敗は登録に影響させない。
+  if (parsed.data.status === "reserved") {
+    const { data: customer } = await admin
+      .from("customers")
+      .select("full_name, email")
+      .eq("id", parsed.data.customer_id)
+      .maybeSingle();
+    const memberEmail = (customer as any)?.email as string | null | undefined;
+    const memberName = (customer as any)?.full_name as string | null;
+    const eventTitle = (ev as any)?.title ?? "見学会";
+    const startsAt = (ev as any)?.starts_at ?? "";
+
+    if (memberEmail) {
+      const memberTpl = bookingConfirmedTemplate({
+        name: memberName,
+        eventTitle,
+        startsAt,
+      });
+      await notify({
+        kind: "booking_confirmed",
+        to: memberEmail,
+        to_name: memberName,
+        subject: memberTpl.subject,
+        body_text: memberTpl.body_text,
+        meta: { booking_id: inserted.id, event_id: parsed.data.event_id, source: "admin_booking_create" },
+      });
+    }
+
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【見学申込 登録】${memberName ?? "会員"} — ${eventTitle}`,
+      body_text:
+        `運営にて見学会の予約を登録しました。\n\n` +
+        `・会員名: ${memberName ?? "—"}\n` +
+        `・メール: ${memberEmail ?? "—"}\n` +
+        `・イベント: ${eventTitle}\n` +
+        `・人数: ${parsed.data.party_size}名`,
+      reply_to: memberEmail ?? undefined,
+      meta: { booking_id: inserted.id, event_id: parsed.data.event_id, source: "admin_booking_create" },
+    });
+  }
 
   return NextResponse.json({ ok: true, id: inserted.id });
 }

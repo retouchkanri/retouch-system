@@ -6,6 +6,7 @@ import {
   donationThanksTemplate,
   notify,
   paymentFailedTemplate,
+  staffRecipients,
 } from "@/lib/notify";
 
 export const runtime = "nodejs";
@@ -84,6 +85,21 @@ export async function POST(req: Request) {
               subject: tpl.subject,
               body_text: tpl.body_text,
               meta: { donation_id: (donation as any).id, session_id: session.id },
+            });
+
+            // 運営への寄付受領通知（送信失敗は処理に影響させない）
+            await notify({
+              kind: "staff_notify",
+              to: staffRecipients(),
+              subject: `【寄付】${donorName ?? "匿名"} 様 — ¥${Math.round((donation as any).amount).toLocaleString("ja-JP")}`,
+              body_text:
+                `単発寄付の決済が完了しました。\n\n` +
+                `・お名前: ${donorName ?? "（匿名）"}\n` +
+                `・メール: ${donorEmail ?? "—"}\n` +
+                `・金額: ¥${Math.round((donation as any).amount).toLocaleString("ja-JP")}\n` +
+                ((donation as any).message ? `・メッセージ: ${(donation as any).message}\n` : ""),
+              reply_to: donorEmail ?? undefined,
+              meta: { donation_id: (donation as any).id, session_id: session.id, source: "donation" },
             });
           }
         }

@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 import { getBaseUrl } from "@/lib/site";
-import { donationThanksTemplate, notify } from "@/lib/notify";
+import { donationThanksTemplate, notify, staffRecipients } from "@/lib/notify";
 
 const schema = z.object({
   amount: z.number().int().min(100).max(10_000_000),
@@ -70,6 +70,20 @@ export async function POST(req: Request) {
       subject: tpl.subject,
       body_text: tpl.body_text,
       meta: { donation_id: inserted.id, dev_mode: true },
+    });
+    // 運営への寄付受領通知（送信失敗は処理に影響させない）
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【寄付】${donor_name ?? "匿名"} 様 — ¥${Math.round(amount).toLocaleString("ja-JP")}`,
+      body_text:
+        `単発寄付を受け付けました。\n\n` +
+        `・お名前: ${donor_name ?? "（匿名）"}\n` +
+        `・メール: ${donor_email ?? session?.email ?? "—"}\n` +
+        `・金額: ¥${Math.round(amount).toLocaleString("ja-JP")}\n` +
+        (message ? `・メッセージ: ${message}\n` : ""),
+      reply_to: donor_email ?? session?.email ?? undefined,
+      meta: { donation_id: inserted.id, dev_mode: true, source: "donation" },
     });
     return NextResponse.json({ ok: true, checkout_url: null });
   }

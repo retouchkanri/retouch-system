@@ -256,6 +256,37 @@ export default async function MyPageTop() {
         )}
       </section>
 
+      {/* ── お知らせ・配信設定 ── */}
+      <section>
+        <h2 className="section-title">お知らせ</h2>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Link href="/mypage/announcements" className="card hover:shadow-lg transition-shadow group">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-brand-50 group-hover:bg-brand-100 flex items-center justify-center text-2xl transition-colors shrink-0">
+                📣
+              </div>
+              <div>
+                <p className="text-xs text-ink-mute mb-0.5">事務局からのお知らせ</p>
+                <p className="text-lg font-bold">お知らせを見る</p>
+                <p className="text-xs text-ink-soft mt-0.5">あなた宛のお知らせを確認できます。</p>
+              </div>
+            </div>
+          </Link>
+          <Link href="/mypage/newsletter" className="card hover:shadow-lg transition-shadow group">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-brand-50 group-hover:bg-brand-100 flex items-center justify-center text-2xl transition-colors shrink-0">
+                ✉️
+              </div>
+              <div>
+                <p className="text-xs text-ink-mute mb-0.5">メール配信</p>
+                <p className="text-lg font-bold">メルマガ配信設定</p>
+                <p className="text-xs text-ink-soft mt-0.5">メールマガジンの受け取りを設定します。</p>
+              </div>
+            </div>
+          </Link>
+        </div>
+      </section>
+
       {/* ── Supported horses ── */}
       <section className="card">
         <div className="flex items-center justify-between mb-4">

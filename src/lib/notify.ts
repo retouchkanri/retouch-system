@@ -28,6 +28,9 @@ export type NotifyKind =
   | "contact_auto_reply"
   | "password_reset"
   | "member_welcome"
+  | "profile_updated"
+  | "horse_meeting_received"
+  | "member_message"
   | "staff_notify";
 
 export type NotifyPayload = {
@@ -37,8 +40,12 @@ export type NotifyPayload = {
   to_name?: string | null;
   subject: string;
   body_text: string;
+  /** Optional HTML body (newsletters). When set, sent alongside the text part. */
+  body_html?: string | null;
   /** Overrides the default Reply-To (e.g. set to the form submitter's address). */
   reply_to?: string | null;
+  /** Extra SMTP headers (e.g. List-Unsubscribe for メルマガ). */
+  headers?: Record<string, string>;
   meta?: Record<string, unknown>;
 };
 
@@ -98,7 +105,9 @@ async function sendViaSmtp(p: NotifyPayload): Promise<{ ok: boolean; error?: str
       to: p.to_name ? `${p.to_name} <${p.to}>` : p.to,
       subject: p.subject,
       text: p.body_text,
+      ...(p.body_html ? { html: p.body_html } : {}),
       replyTo: p.reply_to ?? contactEmail(),
+      ...(p.headers ? { headers: p.headers } : {}),
     });
     return { ok: true };
   } catch (e: any) {
@@ -121,7 +130,9 @@ async function sendViaResend(p: NotifyPayload): Promise<{ ok: boolean; error?: s
         to: [p.to],
         subject: p.subject,
         text: p.body_text,
+        ...(p.body_html ? { html: p.body_html } : {}),
         reply_to: p.reply_to ?? contactEmail(),
+        ...(p.headers ? { headers: p.headers } : {}),
       }),
     });
     if (!res.ok) {
@@ -332,9 +343,19 @@ export function supportAddedTemplate(params: {
   horseName: string;
   units: number;
   monthly: number;
+  /**
+   * 課金方法の案内文を切り替える。
+   *   true（既定）: カードでの自動継続課金（会員セルフ申込）。
+   *   false       : 運営による手動登録。請求方法は別途案内する旨に差し替える。
+   */
+  autoBill?: boolean;
 }): Pick<NotifyPayload, "subject" | "body_text"> {
   const who = params.name?.trim() || "ご支援者";
   const u = Number.isInteger(params.units) ? `${params.units}口` : `${params.units.toFixed(1)}口`;
+  const billingLine =
+    params.autoBill === false
+      ? `お支払い方法・次回以降のご請求につきましては、事務局より別途ご案内いたします。`
+      : `次回以降、毎月ご請求させていただきます。`;
   return {
     subject: `【Retouch Members】支援お申し込み完了のお知らせ — ${params.horseName}`,
     body_text:
@@ -343,7 +364,7 @@ export function supportAddedTemplate(params: {
       `・対象馬: ${params.horseName}\n` +
       `・口数: ${u}\n` +
       `・月額: ${yen(params.monthly)}\n\n` +
-      `次回以降、毎月ご請求させていただきます。\n` +
+      `${billingLine}\n` +
       `心温まるご支援を誠にありがとうございます。` +
       signature(),
   };
@@ -411,6 +432,45 @@ export function memberWelcomeTemplate(params: {
       `▼ ログイン\n` +
       `${siteUrl()}/login\n\n` +
       `ご不明な点がございましたら、お気軽にお問い合わせください。` +
+      signature(),
+  };
+}
+
+export function profileUpdatedTemplate(params: {
+  name: string | null;
+}): Pick<NotifyPayload, "subject" | "body_text"> {
+  const who = params.name?.trim() || "会員";
+  return {
+    subject: "【Retouch Members】ご登録情報の変更を承りました",
+    body_text:
+      `${who}様\n\n` +
+      `ご登録情報（お名前・ご連絡先・ご住所など）の変更手続きが完了いたしました。\n` +
+      `内容はマイページの「登録情報」よりご確認いただけます。\n\n` +
+      `※ お心当たりのない変更の場合は、お手数ですが本メールへご返信ください。` +
+      signature(),
+  };
+}
+
+export function horseMeetingReceivedTemplate(params: {
+  name: string | null;
+  facility: string;
+  preferredDate: string;
+  timeSlot: string;
+  partySize: number;
+  supportedHorses: string;
+}): Pick<NotifyPayload, "subject" | "body_text"> {
+  const who = params.name?.trim() || "会員";
+  return {
+    subject: "【Retouch Members】馬の面会お申し込みを受け付けました",
+    body_text:
+      `${who}様\n\n` +
+      `馬の面会のお申し込みを受け付けました。\n` +
+      `担当者にて内容を確認のうえ、改めてご連絡いたします。\n\n` +
+      `・施設: ${params.facility}\n` +
+      `・ご希望日時: ${params.preferredDate} ${params.timeSlot}\n` +
+      `・人数: ${params.partySize}名\n` +
+      `・支援対象馬: ${params.supportedHorses}\n\n` +
+      `※ 本メールは受付確認の自動送信です。` +
       signature(),
   };
 }

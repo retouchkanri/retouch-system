@@ -36,6 +36,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { href: "/admin/bookings", label: "予約管理" },
       { href: "/admin/horse-meetings", label: "馬の面会" },
       { href: "/admin/news", label: "ニュース" },
+      { href: "/admin/member-messages", label: "メッセージ配信", cap: "messages.manage" },
     ],
   },
   {

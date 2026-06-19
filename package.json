@@ -14,6 +14,7 @@
     "smoke": "tsx scripts/smoke-test.ts",
     "smoke:bookings": "tsx scripts/smoke-bookings.ts",
     "smtp:test": "tsx scripts/smtp-test.ts",
+    "template:test": "tsx scripts/send-template-test.ts",
     "test": "tsx --test tests/**/*.test.ts",
     "preflight": "tsx scripts/preflight.ts"
   },

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { donationThanksTemplate, notify, staffRecipients } from "@/lib/notify";
 
 const patchSchema = z.object({
   amount: z.coerce.number().int().positive().optional(),
@@ -28,7 +29,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // 既存レコードを取得し、部分更新後の最終状態で銀行振込の整合性を確定する。
   const { data: existing } = await admin
     .from("donations")
-    .select("customer_id, amount, status, payment_method, confirmed_at, donated_at")
+    .select("customer_id, amount, status, payment_method, confirmed_at, donated_at, donor_name, donor_email, message")
     .eq("id", params.id)
     .maybeSingle();
   if (!existing) return NextResponse.json({ error: "寄付が見つかりません" }, { status: 404 });
@@ -92,6 +93,41 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     target_id: params.id,
     meta: { ...parsed.data, status },
   });
+
+  // 「保留→入金確定（succeeded）」に切り替わった時のみ通知する。
+  // 既に succeeded の寄付を再編集しても重複送信しない。送信失敗は更新に影響させない。
+  const becameSucceeded = (existing as any).status !== "succeeded" && status === "succeeded";
+  if (becameSucceeded) {
+    const finalAmount = (patch.amount ?? (existing as any).amount) as number;
+    const donorName = (patch.donor_name ?? (existing as any).donor_name ?? null) as string | null;
+    const donorEmail = (patch.donor_email ?? (existing as any).donor_email ?? null) as string | null;
+    const finalMessage = (patch.message ?? (existing as any).message ?? null) as string | null;
+
+    if (donorEmail) {
+      const tpl = donationThanksTemplate({ name: donorName, amount: finalAmount });
+      await notify({
+        kind: "donation_thanks",
+        to: donorEmail,
+        to_name: donorName,
+        subject: tpl.subject,
+        body_text: tpl.body_text,
+        meta: { donation_id: params.id, source: "admin_donation" },
+      });
+    }
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【寄付 入金確定】${donorName ?? "匿名"} 様 — ¥${Math.round(finalAmount).toLocaleString("ja-JP")}`,
+      body_text:
+        `寄付の入金が確定しました（${method === "bank_transfer" ? "銀行振込" : "カード"}）。\n\n` +
+        `・お名前: ${donorName ?? "（匿名）"}\n` +
+        `・メール: ${donorEmail ?? "—"}\n` +
+        `・金額: ¥${Math.round(finalAmount).toLocaleString("ja-JP")}\n` +
+        (finalMessage ? `・メッセージ: ${finalMessage}\n` : ""),
+      reply_to: donorEmail ?? undefined,
+      meta: { donation_id: params.id, source: "admin_donation" },
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }
