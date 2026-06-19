@@ -37,6 +37,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { href: "/admin/horse-meetings", label: "馬の面会" },
       { href: "/admin/news", label: "ニュース" },
       { href: "/admin/member-messages", label: "メッセージ配信", cap: "messages.manage" },
+      { href: "/admin/chatbot", label: "AIチャットボット", cap: "chatbot.manage" },
     ],
   },
   {

@@ -3,8 +3,28 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import doImage from "@/assets/images/do.png";
+import { ADMIN_AVATAR_URL } from "@/lib/avatarUrls";
 
 type Message = { from: "bot" | "user"; text: string };
+
+function ChatAvatar({
+  src,
+  alt,
+  className = "",
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      className={`w-6 h-6 rounded-full object-cover flex-shrink-0 border border-surface-line bg-white ${className}`}
+    />
+  );
+}
 
 const INITIAL_MESSAGES: Message[] = [
   { from: "bot", text: "こんにちは！Retouchサポートです。引退競走馬支援についてお気軽にご質問ください。" },
@@ -42,22 +62,71 @@ export default function BottomRightPanel({
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [memberAvatarUrl, setMemberAvatarUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  /** ログイン中は会員アバター、未ログインは管理者アバター。 */
+  const participantAvatarUrl = loggedIn
+    ? (memberAvatarUrl ?? ADMIN_AVATAR_URL)
+    : ADMIN_AVATAR_URL;
+  const supportAvatarUrl = ADMIN_AVATAR_URL;
+
+  useEffect(() => {
+    fetch("/api/chat/avatar")
+      .then((res) => res.json())
+      .then((data: { loggedIn?: boolean; avatarUrl?: string }) => {
+        setLoggedIn(!!data.loggedIn);
+        setMemberAvatarUrl(data.avatarUrl ?? ADMIN_AVATAR_URL);
+      })
+      .catch(() => {
+        setLoggedIn(false);
+        setMemberAvatarUrl(null);
+      });
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  function sendMessage() {
-    const text = input.trim();
+  // AIチャットAPI（/api/chat）に問い合わせ、未設定・エラー時は簡易応答にフォールバック。
+  async function fetchBotReply(text: string, history: Message[]): Promise<string> {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          question: text,
+          history: history
+            .slice(-8)
+            .map((m) => ({ role: m.from === "user" ? "user" : "assistant", content: m.text })),
+        }),
+      });
+      if (res.ok) {
+        const j = await res.json();
+        if (j?.ok && typeof j.answer === "string" && j.answer.trim()) return j.answer;
+      }
+    } catch {
+      // ネットワークエラー等はフォールバックへ
+    }
+    return getBotReply(text);
+  }
+
+  function respond(raw: string) {
+    const text = raw.trim();
     if (!text) return;
+    const history = messages;
     setMessages((prev) => [...prev, { from: "user", text }]);
     setInput("");
     setIsTyping(true);
-    setTimeout(() => {
+    fetchBotReply(text, history).then((reply) => {
       setIsTyping(false);
-      setMessages((prev) => [...prev, { from: "bot", text: getBotReply(text) }]);
-    }, 900);
+      setMessages((prev) => [...prev, { from: "bot", text: reply }]);
+    });
+  }
+
+  function sendMessage() {
+    respond(input);
   }
 
   return (
@@ -127,11 +196,11 @@ export default function BottomRightPanel({
         <div className="fixed bottom-36 right-4 z-50 w-[min(20rem,calc(100vw-1.5rem))] sm:w-96 flex flex-col bg-white rounded-2xl shadow-2xl border border-surface-line overflow-hidden animate-[scaleIn_200ms_ease] max-md:bottom-[9.5rem] max-md:right-2">
           {/* Header */}
           <div className="bg-brand px-4 py-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
+            <ChatAvatar
+              src={supportAvatarUrl}
+              alt="Retouchサポート"
+              className="w-8 h-8 border-white/30"
+            />
             <div className="flex-1 min-w-0">
               <p className="text-white font-bold text-sm leading-none">Retouchサポート</p>
               <p className="text-white/70 text-xs mt-0.5">自動返答チャット</p>
@@ -150,13 +219,13 @@ export default function BottomRightPanel({
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-72 bg-surface-soft">
             {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.from === "user" ? "justify-end" : "justify-start"}`}>
+              <div key={i} className={`flex items-start ${m.from === "user" ? "justify-end" : "justify-start"}`}>
                 {m.from === "bot" && (
-                  <div className="w-6 h-6 rounded-full bg-brand flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
+                  <ChatAvatar
+                    src={supportAvatarUrl}
+                    alt="Retouchサポート"
+                    className="mr-2 mt-0.5"
+                  />
                 )}
                 <div
                   className={`max-w-[75%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
@@ -167,15 +236,22 @@ export default function BottomRightPanel({
                 >
                   {m.text}
                 </div>
+                {m.from === "user" && (
+                  <ChatAvatar
+                    src={participantAvatarUrl}
+                    alt={loggedIn ? "あなた" : "ゲスト"}
+                    className="ml-2 mt-0.5"
+                  />
+                )}
               </div>
             ))}
             {isTyping && (
-              <div className="flex justify-start">
-                <div className="w-6 h-6 rounded-full bg-brand flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
+              <div className="flex justify-start items-start">
+                <ChatAvatar
+                  src={supportAvatarUrl}
+                  alt="Retouchサポート"
+                  className="mr-2 mt-0.5"
+                />
                 <div className="bg-white text-ink shadow-sm border border-surface-line px-3 py-2 rounded-2xl rounded-bl-sm flex items-center gap-1">
                   <span className="w-1.5 h-1.5 bg-brand/50 rounded-full animate-bounce [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 bg-brand/50 rounded-full animate-bounce [animation-delay:150ms]" />
@@ -191,18 +267,7 @@ export default function BottomRightPanel({
             {["会員登録", "寄付について", "退会方法"].map((q) => (
               <button
                 key={q}
-                onClick={() => {
-                  setInput(q);
-                  setTimeout(() => {
-                    setMessages((prev) => [...prev, { from: "user", text: q }]);
-                    setInput("");
-                    setIsTyping(true);
-                    setTimeout(() => {
-                      setIsTyping(false);
-                      setMessages((prev) => [...prev, { from: "bot", text: getBotReply(q) }]);
-                    }, 900);
-                  }, 0);
-                }}
+                onClick={() => respond(q)}
                 className="text-xs px-2 py-1 border border-brand/30 text-brand rounded-full hover:bg-brand/5 transition-colors"
               >
                 {q}

@@ -74,6 +74,7 @@ export type Capability =
   | "bookings.manage" // event bookings
   | "news.manage" // news / posts
   | "messages.manage" // 会員向けメッセージ配信（お知らせ・メルマガ）
+  | "chatbot.manage" // AIチャットボット設定・ナレッジ管理
   | "inquiries.manage"; // inquiries
 
 const ADMIN_CAPS: Capability[] = [
@@ -92,6 +93,7 @@ const ADMIN_CAPS: Capability[] = [
   "bookings.manage",
   "news.manage",
   "messages.manage",
+  "chatbot.manage",
   "inquiries.manage",
 ];
 

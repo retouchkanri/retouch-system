@@ -13,6 +13,11 @@ const ROLE_DEFAULT_AVATARS: Partial<Record<Role, StaticImageData>> = {
   member: userImage,
 };
 
+/** 未ログイン時のチャット等で使う管理者デフォルト画像 URL（public 配信）。 */
+export function getAdminDefaultAvatarUrl(): string {
+  return "/avatars/admin.png";
+}
+
 /**
  * Returns the uploaded avatar URL when present; otherwise the role default image.
  */

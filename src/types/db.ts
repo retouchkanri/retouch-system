@@ -261,6 +261,28 @@ export type MemberMessage = {
   updated_at: string;
 };
 
+// ---------------------------------------------------------------------
+// AIチャットボット（OpenAI + RAG）
+// ---------------------------------------------------------------------
+export type AppSetting = {
+  key: string;
+  value: string | null;
+  updated_by: string | null;
+  updated_at: string;
+};
+
+export type KbEntry = {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  is_active: boolean;
+  /** embedding はサーバ内部用。クライアントへは返さない。 */
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type MemberMessageRecipient = {
   id: string;
   message_id: string;
