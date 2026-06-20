@@ -6,7 +6,7 @@ import PublicFooterNav from "@/components/PublicFooterNav";
 export const metadata: Metadata = {
   title: "ご入会のご案内",
   description:
-    "Retouch（リタッチ）の会員制度・会員特典・会費の使い道について。メンバーズ・サポーター・リェリーフ・アテンダー会員、1口支援馬会員制度のご案内。",
+    "Retouch（リタッチ）の会員制度・会員特典・会費の使い道について。メンバーズ・サポーター・リェリーフ会員・RetouchPony（リタポ）メンバー・1口支援馬会員制度のご案内。",
   alternates: { canonical: "/guide" },
 };
 

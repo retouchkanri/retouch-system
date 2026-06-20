@@ -6,12 +6,15 @@ import { formatYen } from "@/lib/format";
 
 const PRESETS = [1000, 3000, 5000, 10000, 30000];
 
+type PayMethod = "card" | "bank_transfer";
+
 export default function PublicDonationForm() {
   const router = useRouter();
   const [amount, setAmount] = useState(3000);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [method, setMethod] = useState<PayMethod>("card");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +39,7 @@ export default function PublicDonationForm() {
           message: message || null,
           donor_name: name || null,
           donor_email: email || null,
+          payment_method: method,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -43,6 +47,13 @@ export default function PublicDonationForm() {
         setError(j.error ?? "処理できませんでした。");
         return;
       }
+      // 銀行振込：振込先案内ページへ。
+      if (j.bank_transfer) {
+        router.push(`/donate/thanks?method=bank&amount=${amount}`);
+        router.refresh();
+        return;
+      }
+      // カード：Stripe 決済ページへ。
       if (j.checkout_url) {
         window.location.href = j.checkout_url;
         return;
@@ -114,13 +125,39 @@ export default function PublicDonationForm() {
         />
       </div>
 
+      <div>
+        <label className="label">お支払い方法</label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setMethod("card")}
+            className={`py-3 rounded-xl border-2 font-bold ${
+              method === "card" ? "bg-brand text-white border-brand" : "bg-white border-surface-line text-ink"
+            }`}
+          >
+            クレジットカード
+          </button>
+          <button
+            type="button"
+            onClick={() => setMethod("bank_transfer")}
+            className={`py-3 rounded-xl border-2 font-bold ${
+              method === "bank_transfer" ? "bg-brand text-white border-brand" : "bg-white border-surface-line text-ink"
+            }`}
+          >
+            銀行振込
+          </button>
+        </div>
+      </div>
+
       {error && <p className="text-danger text-sm">{error}</p>}
 
       <button className="btn-accent w-full" disabled={saving}>
-        {saving ? "処理中..." : "この内容で寄付する"}
+        {saving ? "処理中..." : method === "bank_transfer" ? "この内容で申し込む（銀行振込）" : "この内容で寄付する"}
       </button>
       <p className="text-xs text-ink-mute">
-        Stripe の決済ページへ移動します。カード情報は当サイトでは保存されません。
+        {method === "bank_transfer"
+          ? "お申し込み後、振込先口座をご案内します（確認メールもお送りします）。入金確認後に受付完了となります。"
+          : "Stripe の決済ページへ移動します。カード情報は当サイトでは保存されません。"}
       </p>
     </form>
   );

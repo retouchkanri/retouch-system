@@ -201,6 +201,7 @@ export type NewsItem = {
   tag: string;
   tag_color: string;
   image_url: string | null;
+  pdf_url: string | null;
   published_at: string;
   is_published: boolean;
   sort_order: number;

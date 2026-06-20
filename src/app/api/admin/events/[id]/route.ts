@@ -14,6 +14,7 @@ const patchSchema = z.object({
   location: z.string().max(200).optional().nullable(),
   supporters_only: z.boolean().optional(),
   is_published: z.boolean().optional(),
+  sort_order: z.coerce.number().int().min(0).max(9999).optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -42,6 +43,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     "location",
     "supporters_only",
     "is_published",
+    "sort_order",
   ] as const) {
     if (parsed.data[key] !== undefined) (payload as any)[key] = parsed.data[key];
   }

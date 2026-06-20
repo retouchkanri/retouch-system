@@ -4,7 +4,13 @@ import { getSession } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 import { getBaseUrl } from "@/lib/site";
-import { donationThanksTemplate, notify, staffRecipients } from "@/lib/notify";
+import {
+  donationBankTransferTemplate,
+  donationThanksTemplate,
+  notify,
+  staffRecipients,
+} from "@/lib/notify";
+import { bankTransferInfoText, getBankTransferInfo } from "@/lib/bankTransfer";
 
 const schema = z.object({
   amount: z.number().int().min(100).max(10_000_000),
@@ -12,6 +18,8 @@ const schema = z.object({
   donor_name: z.string().max(120).optional().nullable(),
   // Spec: 匿名寄付であっても、履歴統合のためメールは必須取得。
   donor_email: z.string().email("メールアドレスの形式が正しくありません"),
+  // 支払方法。既定はカード（従来どおり Stripe）。銀行振込は保留で登録し案内メールを送る。
+  payment_method: z.enum(["card", "bank_transfer"]).default("card"),
 });
 
 /**
@@ -24,7 +32,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "入力が不正です" }, { status: 400 });
   }
-  const { amount, message, donor_name, donor_email } = parsed.data;
+  const { amount, message, donor_name, donor_email, payment_method } = parsed.data;
 
   const admin = createSupabaseAdminClient();
   const session = await getSession();
@@ -50,10 +58,48 @@ export async function POST(req: Request) {
       amount,
       message: message ?? null,
       status: "pending",
+      payment_method,
     })
     .select("id")
     .single();
   if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
+
+  // ── 銀行振込 ── Stripe を介さず保留のまま登録し、振込先の案内メールを送る。
+  // 入金確認後に管理画面（/admin/donations）で「成功」にすると、お礼メールと
+  // 決済(payments)行が作成される（donations PATCH の挙動）。
+  if (payment_method === "bank_transfer") {
+    const bank = getBankTransferInfo();
+    const recipient = donor_email ?? session?.email ?? null;
+    if (recipient) {
+      const tpl = donationBankTransferTemplate({
+        name: donor_name ?? null,
+        amount,
+        bankInfoText: bankTransferInfoText(bank),
+      });
+      await notify({
+        kind: "donation_bank_transfer",
+        to: recipient,
+        to_name: donor_name ?? null,
+        subject: tpl.subject,
+        body_text: tpl.body_text,
+        meta: { donation_id: inserted.id, source: "donation", payment_method },
+      });
+    }
+    await notify({
+      kind: "staff_notify",
+      to: staffRecipients(),
+      subject: `【寄付 銀行振込・入金待ち】${donor_name ?? "匿名"} 様 — ${`¥${Math.round(amount).toLocaleString("ja-JP")}`}`,
+      body_text:
+        `単発寄付（銀行振込）のお申し込みがありました。入金確認後、管理画面で「成功」に更新してください。\n\n` +
+        `・お名前: ${donor_name ?? "（匿名）"}\n` +
+        `・メール: ${recipient ?? "—"}\n` +
+        `・金額: ¥${Math.round(amount).toLocaleString("ja-JP")}\n` +
+        (message ? `・メッセージ: ${message}\n` : ""),
+      reply_to: recipient ?? undefined,
+      meta: { donation_id: inserted.id, source: "donation", payment_method },
+    });
+    return NextResponse.json({ ok: true, bank_transfer: true });
+  }
 
   const stripe = getStripe();
   const siteUrl = getBaseUrl(req);

@@ -14,6 +14,7 @@ const schema = z.object({
   location: z.string().max(200).optional().nullable(),
   supporters_only: z.boolean().optional().default(false),
   is_published: z.boolean().optional().default(true),
+  sort_order: z.coerce.number().int().min(0).max(9999).optional().default(0),
 });
 
 export async function POST(req: Request) {
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
     location: parsed.data.location || null,
     supporters_only: parsed.data.supporters_only,
     is_published: parsed.data.is_published,
+    sort_order: parsed.data.sort_order ?? 0,
   };
   const { error, data } = await admin
     .from("events")

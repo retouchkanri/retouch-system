@@ -21,6 +21,11 @@ async function loadNews(id: string): Promise<NewsItem | null> {
   return (data as NewsItem | null) ?? null;
 }
 
+/** HTML タグを除去してプレーンテキストを返す（OGP description 用） */
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -28,9 +33,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const news = await loadNews(params.id);
   if (!news) return { title: "お知らせ" };
+  const desc = news.body ? stripHtml(news.body).slice(0, 120) : undefined;
   return {
     title: `${news.title} — お知らせ`,
-    description: news.body?.slice(0, 120) ?? undefined,
+    description: desc,
   };
 }
 
@@ -40,6 +46,9 @@ export default async function NewsDetailPage({ params }: { params: { id: string 
 
   const isEvent = news.tag === "イベント";
   const applyHref = session ? BOOKINGS_PATH : `/login?next=${BOOKINGS_PATH}`;
+
+  /** 本文が HTML かどうか判定（<タグ で始まれば HTML、そうでなければ平文） */
+  const isHtml = news.body?.trimStart().startsWith("<") ?? false;
 
   return (
     <main className="max-w-3xl mx-auto px-5 py-12">
@@ -61,10 +70,40 @@ export default async function NewsDetailPage({ params }: { params: { id: string 
               {news.tag}
             </span>
           </div>
+
           <h1 className="text-2xl font-bold text-ink mb-5 leading-snug">{news.title}</h1>
+
+          {/* 本文 */}
           {news.body && (
-            <div className="text-ink-soft leading-relaxed whitespace-pre-wrap">{news.body}</div>
+            isHtml ? (
+              <div
+                className="rich-text"
+                dangerouslySetInnerHTML={{ __html: news.body }}
+              />
+            ) : (
+              <div className="text-ink-soft leading-relaxed whitespace-pre-wrap">{news.body}</div>
+            )
           )}
+
+          {/* PDF 添付ダウンロード */}
+          {(news as any).pdf_url && (
+            <div className="mt-6 p-4 border border-surface-line rounded-xl bg-surface-soft flex items-center gap-3">
+              <span className="text-2xl">📄</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-ink">添付資料（PDF）</p>
+                <p className="text-xs text-ink-mute">クリックしてPDFを開く・ダウンロード</p>
+              </div>
+              <a
+                href={(news as any).pdf_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary !py-2 !px-4 !text-sm shrink-0"
+              >
+                PDFを開く
+              </a>
+            </div>
+          )}
+
           {isEvent && (
             <div className="mt-6 pt-6 border-t border-surface-line text-center">
               <Link href={applyHref} className="btn-primary inline-flex">
@@ -73,7 +112,7 @@ export default async function NewsDetailPage({ params }: { params: { id: string 
               {!session && (
                 <p className="text-xs text-ink-mute mt-2">
                   会員登録がお済みでない方は
-                  <Link href="/signup" className="text-brand underline mx-1">
+                  <Link href="/guide" className="text-brand underline mx-1">
                     新規会員登録
                   </Link>
                   からお手続きください。

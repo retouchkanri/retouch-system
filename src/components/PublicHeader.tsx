@@ -27,7 +27,7 @@ export default function PublicHeader({ active }: Props) {
         <nav className="flex items-center gap-2">
           {active !== "signup" && (
             <Link
-              href="/signup"
+              href="/guide"
               className="btn-primary !px-4 !py-2 text-sm"
               aria-label="新規会員登録"
             >

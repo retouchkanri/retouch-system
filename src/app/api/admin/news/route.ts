@@ -6,10 +6,11 @@ import { writeAudit } from "@/lib/audit";
 
 const schema = z.object({
   title: z.string().min(1).max(200),
-  body: z.string().max(2000).optional().nullable(),
+  body: z.string().max(100_000).optional().nullable(),
   tag: z.string().min(1).max(30).default("お知らせ"),
   tag_color: z.string().max(100).default("bg-brand-50 text-brand-dark"),
   image_url: z.string().max(500).optional().nullable(),
+  pdf_url: z.string().max(1000).optional().nullable(),
   published_at: z.string().optional(),
   is_published: z.boolean().optional().default(true),
   sort_order: z.coerce.number().int().min(0).default(0),
@@ -32,6 +33,7 @@ export async function POST(req: Request) {
     tag: parsed.data.tag,
     tag_color: parsed.data.tag_color,
     image_url: parsed.data.image_url || null,
+    pdf_url: parsed.data.pdf_url || null,
     published_at: parsed.data.published_at
       ? new Date(parsed.data.published_at).toISOString()
       : new Date().toISOString(),

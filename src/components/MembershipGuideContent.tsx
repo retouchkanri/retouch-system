@@ -18,30 +18,36 @@ export default function MembershipGuideContent({ showSignupCta = false }: Props)
         <p className="text-sm text-ink-soft leading-relaxed">
           メンバーズ会員・サポーター会員
           <br />
-          リェリーフ会員・アテンダー会員
+          リェリーフ会員・RetouchPony（リタポ）メンバー
         </p>
       </header>
 
+      {/* ── 冒頭文 ── */}
       <section className="card space-y-4 leading-relaxed text-sm sm:text-base text-ink-soft">
-        <p>皆さま、はじめまして。</p>
-        <p>Retouch（リタッチ）代表の野口佳槻と申します。</p>
         <p>
-          この度は、Retouchの活動にご関心をお寄せいただき、誠にありがとうございます。はじめに、まだご覧になっていない方は、ぜひ
-          <Link href="/#overview" className="text-brand underline mx-1">
-            「Retouch（リタッチ）とは？」
-          </Link>
-          のページをお読みください。
+          この度は、Retouchの活動にご関心をお寄せいただき、誠にありがとうございます。
         </p>
         <p>
-          私たちがなぜこの活動を始めたのか。
-          <br />
-          なぜ引退競走馬の問題に向き合っているのか。
-          <br />
-          そして、Retouchが目指している未来についてご説明しております。
+          初回は無料で仮登録が可能です。内容をご確認のうえ、毎月末までに以下いずれかのプランへご登録をお願いいたします。
         </p>
-        <p>その想いにご賛同いただけましたら、ぜひ仲間としてご参加いただければ幸いです。</p>
+        <ul className="space-y-1 pl-4 list-disc text-ink">
+          <li>メンバーズ会員　月額 1,800円</li>
+          <li>サポーター会員　月額 3,600円</li>
+          <li>リェリーフ会員　月額 7,200円</li>
+          <li>RetouchPony（リタポ）メンバー　月額 3,000円</li>
+        </ul>
+        <ul className="space-y-1 pl-4 list-disc text-ink">
+          <li>半口支援　月額 6,000円</li>
+          <li>一口支援　月額 12,000円</li>
+        </ul>
+        <p>
+          なお、毎月末までに本登録が確認できない場合は、仮登録情報を自動的に削除させていただきます。
+          以下の内容をご確認のうえ、ページ下部の「上記を承認のうえ会員登録する」よりお手続きください。
+          よろしくお願いいたします。
+        </p>
       </section>
 
+      {/* ── 会員制度について ── */}
       <section className="card space-y-4">
         <h2 className="section-title mb-0">会員制度について</h2>
         <p className="text-sm text-ink-soft leading-relaxed">
@@ -60,6 +66,10 @@ export default function MembershipGuideContent({ showSignupCta = false }: Props)
             <span className="font-semibold text-ink">リェリーフ会員</span>
             <span className="text-ink-soft whitespace-nowrap">月額 7,200円</span>
           </li>
+          <li className="flex justify-between gap-4 border-b border-surface-line pb-2">
+            <span className="font-semibold text-ink">RetouchPony（リタポ）メンバー</span>
+            <span className="text-ink-soft whitespace-nowrap">月額 3,000円</span>
+          </li>
         </ul>
         <p className="text-sm text-ink-soft leading-relaxed">
           ※会員種別による特典の違いはありません。ご無理のない範囲でお選びください。また、特定の馬を支援する
@@ -70,6 +80,7 @@ export default function MembershipGuideContent({ showSignupCta = false }: Props)
         </p>
       </section>
 
+      {/* ── 会員特典 ── */}
       <section className="card space-y-4">
         <h2 className="section-title mb-0">会員特典</h2>
         <div className="space-y-4 text-sm sm:text-base text-ink-soft leading-relaxed">
@@ -89,6 +100,7 @@ export default function MembershipGuideContent({ showSignupCta = false }: Props)
         </div>
       </section>
 
+      {/* ── 会費の使い道 ── */}
       <section className="card space-y-3">
         <h2 className="section-title mb-0">会費の使い道</h2>
         <p className="text-sm sm:text-base text-ink-soft leading-relaxed">
@@ -99,6 +111,7 @@ export default function MembershipGuideContent({ showSignupCta = false }: Props)
         </p>
       </section>
 
+      {/* ── 馬を受け入れるために必要な費用 ── */}
       <section className="card space-y-3">
         <h2 className="section-title mb-0">馬を受け入れるために必要な費用</h2>
         <ul className="text-sm sm:text-base text-ink-soft leading-relaxed space-y-2 list-none">
@@ -114,6 +127,7 @@ export default function MembershipGuideContent({ showSignupCta = false }: Props)
         </ul>
       </section>
 
+      {/* ── Retouch馬の管理について ── */}
       <section className="card space-y-3">
         <h2 className="section-title mb-0">Retouch馬の管理について</h2>
         <p className="text-sm sm:text-base text-ink-soft leading-relaxed">
@@ -121,6 +135,7 @@ export default function MembershipGuideContent({ showSignupCta = false }: Props)
         </p>
       </section>
 
+      {/* ── 免責事項 ── */}
       <section className="card space-y-3 border-2 border-surface-line bg-surface-soft/50">
         <h2 className="section-title mb-0">免責事項</h2>
         <p className="text-sm sm:text-base text-ink-soft leading-relaxed">
@@ -141,12 +156,12 @@ export default function MembershipGuideContent({ showSignupCta = false }: Props)
           <span className="text-sm font-normal text-ink-soft">代表　野口 佳槻</span>
         </p>
         {showSignupCta && (
-          <div className="flex flex-wrap justify-center gap-3 pt-2">
-            <Link href="/signup" className="btn-primary btn-pulse">
-              会員登録する
+          <div className="flex flex-col items-center gap-3 pt-2">
+            <Link href="/signup" className="btn-primary btn-pulse px-8 py-3 text-base">
+              上記を承認のうえ会員登録する
             </Link>
-            <Link href="/login" className="btn-secondary">
-              ログイン
+            <Link href="/login" className="btn-secondary text-sm">
+              すでに登録済みの方はこちら（ログイン）
             </Link>
           </div>
         )}

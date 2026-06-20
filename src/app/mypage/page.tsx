@@ -14,7 +14,7 @@ import {
   loadPayments,
 } from "@/lib/customer";
 import SpecialTeamStopButton from "./SpecialTeamStopButton";
-import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED, MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
+import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED, MEMBER_SELF_SERVICE_ENABLED, MEMBER_PLAN_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
 import { formatDate, formatUnits, formatYen, memberClassLabel } from "@/lib/format";
 import { isBasicMemberPlanCode } from "@/lib/constraints";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -203,9 +203,9 @@ export default async function MyPageTop() {
                 </span>
               </div>
             )}
-            {MEMBER_SELF_SERVICE_ENABLED && (
+            {MEMBER_PLAN_SELF_SERVICE_ENABLED && (
               <Link href="/mypage/plan" className="text-brand underline text-sm">
-                会員種別を変更
+                {summary?.member_class_code ? "会員種別を変更" : "会員種別に入会する"}
               </Link>
             )}
           </div>

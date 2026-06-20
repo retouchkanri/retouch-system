@@ -135,6 +135,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   const session = await requireCapability("donations.manage");
   const admin = createSupabaseAdminClient();
+
+  // 紐づく決済(payments)行を先に削除する。payments.donation_id は ON DELETE
+  // SET NULL のため、寄付を先に消すと決済行が「種別=寄付」のまま顧客の決済履歴に
+  // 取り残される（PATCH で成功でなくなった時の挙動と揃える）。
+  await admin.from("payments").delete().eq("donation_id", params.id);
+
   const { error } = await admin.from("donations").delete().eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

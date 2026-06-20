@@ -6,6 +6,7 @@ import { seatUsage } from "@/lib/bookings";
 import { eventVenue, pickupLabel, relationLabel, venueLabel } from "@/lib/events";
 import { formatDate, statusLabel } from "@/lib/format";
 import EventForm from "../EventForm";
+import EventDeleteButton from "../EventDeleteButton";
 
 const ACTION_LABEL: Record<string, string> = {
   "booking.create": "管理者：追加",
@@ -87,6 +88,7 @@ export default async function EditEventPage({ params }: { params: { id: string }
       </div>
 
       <EventForm initial={data} id={params.id} />
+      <EventDeleteButton id={params.id} title={(data as any).title} />
 
       <section className="card">
         <h2 className="section-title">

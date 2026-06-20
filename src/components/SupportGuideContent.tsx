@@ -115,12 +115,12 @@ export default function SupportGuideContent({ showSignupCta = false }: Props) {
 
       {showSignupCta && (
         <footer className="text-center space-y-4 pt-2">
-          <div className="flex flex-wrap justify-center gap-3">
-            <Link href="/signup" className="btn-primary btn-pulse">
-              支援を始める（会員登録）
+          <div className="flex flex-col items-center gap-3">
+            <Link href="/signup" className="btn-primary btn-pulse px-8 py-3 text-base">
+              上記を承認のうえ支援を始める
             </Link>
-            <Link href="/guide" className="btn-secondary">
-              ご入会のご案内
+            <Link href="/guide" className="btn-secondary text-sm">
+              ご入会のご案内を読む
             </Link>
           </div>
         </footer>

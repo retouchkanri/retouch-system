@@ -213,11 +213,15 @@ create table if not exists public.events (
   location text,
   supporters_only boolean not null default false,
   is_published boolean not null default true,
+  sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 create index if not exists events_type_idx on public.events (type);
 create index if not exists events_starts_idx on public.events (starts_at);
+-- 既存DBに sort_order が無い場合は先にカラムを追加してからインデックスを作成する
+alter table public.events add column if not exists sort_order integer not null default 0;
+create index if not exists events_sort_order_idx on public.events (sort_order);
 
 -- ---------- bookings ----------
 create table if not exists public.bookings (
@@ -705,6 +709,7 @@ create table if not exists public.news (
   tag text not null default 'お知らせ',
   tag_color text not null default 'bg-brand-50 text-brand-dark',
   image_url text,
+  pdf_url text,
   published_at timestamptz not null default now(),
   is_published boolean not null default true,
   sort_order integer not null default 0,
@@ -712,6 +717,8 @@ create table if not exists public.news (
   updated_at timestamptz not null default now()
 );
 create index if not exists idx_news_published on public.news (is_published, published_at desc);
+-- 既存DB向け（create table が既存テーブルをスキップした場合に備える）
+alter table public.news add column if not exists pdf_url text;
 
 alter table public.news enable row level security;
 

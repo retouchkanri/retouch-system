@@ -6,10 +6,11 @@ import { writeAudit } from "@/lib/audit";
 
 const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
-  body: z.string().max(2000).optional().nullable(),
+  body: z.string().max(100_000).optional().nullable(),
   tag: z.string().min(1).max(30).optional(),
   tag_color: z.string().max(100).optional(),
   image_url: z.string().max(500).optional().nullable(),
+  pdf_url: z.string().max(1000).optional().nullable(),
   published_at: z.string().optional(),
   is_published: z.boolean().optional(),
   sort_order: z.coerce.number().int().min(0).optional(),
@@ -33,8 +34,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const payload: Record<string, any> = { updated_at: new Date().toISOString() };
-  for (const key of ["title", "body", "tag", "tag_color", "image_url", "is_published", "sort_order"] as const) {
-    if (parsed.data[key] !== undefined) payload[key] = parsed.data[key];
+  for (const key of ["title", "body", "tag", "tag_color", "image_url", "pdf_url", "is_published", "sort_order"] as const) {
+    if (parsed.data[key] !== undefined) payload[key] = parsed.data[key] ?? null;
   }
   if (parsed.data.published_at) {
     const d = new Date(parsed.data.published_at);

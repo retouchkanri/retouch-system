@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SessionInfo } from "@/lib/auth";
 import { isStaffRole } from "@/lib/roles";
-import { MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
+import { MEMBER_SELF_SERVICE_ENABLED, MEMBER_PLAN_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
 
 /**
  * 会員（マイページ）からの追加・変更・削除を一元的に拒否するためのガード。
@@ -22,6 +22,22 @@ export const MEMBER_MUTATION_FORBIDDEN_MESSAGE =
  */
 export function memberMutationGuard(session: SessionInfo): NextResponse | null {
   if (MEMBER_SELF_SERVICE_ENABLED) return null;
+  if (isStaffRole(session.role)) return null;
+  return NextResponse.json(
+    { error: MEMBER_MUTATION_FORBIDDEN_MESSAGE },
+    { status: 403 },
+  );
+}
+
+/**
+ * 会員種別（有料の基本会員 A/B/C）への入会・変更・停止専用のガード。
+ *
+ * 包括的なセルフサービス制限（{@link memberMutationGuard}）とは独立し、
+ * {@link MEMBER_PLAN_SELF_SERVICE_ENABLED} が有効な間は会員自身の手続きを許可する。
+ * 無料会員が有料の会員種別へ入会できるようにするためのもの。
+ */
+export function memberPlanMutationGuard(session: SessionInfo): NextResponse | null {
+  if (MEMBER_PLAN_SELF_SERVICE_ENABLED) return null;
   if (isStaffRole(session.role)) return null;
   return NextResponse.json(
     { error: MEMBER_MUTATION_FORBIDDEN_MESSAGE },

@@ -33,3 +33,21 @@ export const SPECIAL_TEAM_NEW_SIGNUPS_ENABLED =
  */
 export const MEMBER_SELF_SERVICE_ENABLED =
   process.env.NEXT_PUBLIC_MEMBER_SELF_SERVICE === "true";
+
+/**
+ * 会員種別（有料の基本会員 A/B/C = メンバーズ／サポーター／リェリーフ会員）への
+ * 会員自身による入会・変更・停止の可否。
+ *
+ * 無料で会員登録された方が、マイページ（プロフィール画面）から有料の会員種別へ
+ * 入会・登録できるようにするため、{@link MEMBER_SELF_SERVICE_ENABLED} の包括的な
+ * セルフサービス制限とは独立して、既定で有効。
+ *
+ * 対象は有料の基本会員(A/B/C)のみ。¥0 枠（アテンダー会員等）は引き続き
+ * 管理画面からの手動付与専用で、本フローでは扱わない。
+ * 一口支援・特別チーム・寄付・予約・面会・登録情報の変更などは本フラグの対象外
+ * （従来どおり {@link MEMBER_SELF_SERVICE_ENABLED} で制御）。
+ *
+ * 会員種別のセルフ手続きを停止する場合は NEXT_PUBLIC_MEMBER_PLAN_SELF_SERVICE=false を設定する。
+ */
+export const MEMBER_PLAN_SELF_SERVICE_ENABLED =
+  process.env.NEXT_PUBLIC_MEMBER_PLAN_SELF_SERVICE !== "false";

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import { loadActiveContract, loadActiveSupports, loadPlans } from "@/lib/customer";
 import { formatYen } from "@/lib/format";
-import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED, MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
+import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED, MEMBER_PLAN_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
 import SelfServiceClosedNotice from "@/components/SelfServiceClosedNotice";
 import PlanSelector from "./PlanSelector";
 
@@ -11,7 +11,7 @@ export default async function PlanPage() {
   if (!session.customerId) {
     return <div className="card">会員情報が見つかりません。</div>;
   }
-  if (!MEMBER_SELF_SERVICE_ENABLED) {
+  if (!MEMBER_PLAN_SELF_SERVICE_ENABLED) {
     return (
       <SelfServiceClosedNotice
         title="会員種別の変更について"

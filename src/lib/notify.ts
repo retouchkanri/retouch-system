@@ -17,6 +17,7 @@ import type { BookingCompanion } from "@/types/db";
 
 export type NotifyKind =
   | "donation_thanks"
+  | "donation_bank_transfer"
   | "booking_confirmed"
   | "booking_canceled"
   | "payment_failed"
@@ -216,6 +217,25 @@ export function donationThanksTemplate(params: {
       `このたびは引退競走馬への温かいご寄付（${yen(params.amount)}）を賜り、誠にありがとうございます。\n` +
       `いただいたご支援は、馬たちのケア・見学会の運営にありがたく活用させていただきます。\n\n` +
       `本メールは寄付受付の確認としてお送りしております。` +
+      signature(),
+  };
+}
+
+export function donationBankTransferTemplate(params: {
+  name: string | null;
+  amount: number;
+  bankInfoText: string;
+}): Pick<NotifyPayload, "subject" | "body_text"> {
+  const who = params.name?.trim() || "ご支援者";
+  return {
+    subject: "【Retouch Members】ご寄付のお申し込みを受け付けました（銀行振込のご案内）",
+    body_text:
+      `${who}様\n\n` +
+      `このたびは引退競走馬への温かいご寄付をお申し込みいただき、誠にありがとうございます。\n` +
+      `下記の口座へ、お振込金額 ${yen(params.amount)} のお振込をお願いいたします。\n\n` +
+      `${params.bankInfoText}\n` +
+      `※お振込の確認後、あらためて受領のご連絡をお送りいたします。\n` +
+      `※恐れ入りますが、振込手数料はご負担いただきますようお願いいたします。` +
       signature(),
   };
 }

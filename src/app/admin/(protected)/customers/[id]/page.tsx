@@ -9,6 +9,9 @@ import StatusEditor from "./StatusEditor";
 import SpecialMembershipsManager from "./SpecialMembershipsManager";
 import BasicPlanManager from "./BasicPlanManager";
 import VisitHistory from "./VisitHistory";
+import PaymentHistory from "./PaymentHistory";
+import { getSession } from "@/lib/auth";
+import { can } from "@/lib/roles";
 import {
   horseMeetingArrivalLabel,
   horseMeetingFacilityLabel,
@@ -55,6 +58,10 @@ export default async function CustomerDetail({ params }: { params: { id: string 
   if (!customer) return notFound();
   const c: any = customer;
   const s: any = summary;
+
+  // 決済履歴の削除ボタンは payments.manage 権限（管理者・オーナー）のみ表示。
+  const session = await getSession();
+  const canDeletePayments = session ? can(session.role, "payments.manage") : false;
 
   // リタポ（RPT）契約を契約一覧から抽出。月額合計には含まれない「特別参加」枠。
   const rptMonthly = (rptPlan as any)?.monthly_amount ?? 3000;
@@ -439,26 +446,19 @@ export default async function CustomerDetail({ params }: { params: { id: string 
 
       <section className="card">
         <h2 className="section-title">決済履歴</h2>
-        <table className="table">
-          <thead><tr><th className="w-12 text-right">No.</th><th>日時</th><th>種別</th><th>金額</th><th>状態</th><th>失敗理由</th><th>Stripe請求/決済ID</th></tr></thead>
-          <tbody>
-            {(payments ?? []).map((p: any, i: number) => {
-              const stripeId = p.stripe_invoice_id || p.stripe_payment_intent_id || "";
-              return (
-                <tr key={p.id}>
-                  <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
-                  <td>{formatDate(p.occurred_at, true)}</td>
-                  <td>{p.kind}</td>
-                  <td>{formatYen(p.amount)}</td>
-                  <td>{statusLabel(p.status)}</td>
-                  <td className="text-xs">{p.failure_reason ?? "—"}</td>
-                  <td className="font-mono text-[11px] max-w-[200px] truncate" title={stripeId}>{stripeId || "—"}</td>
-                </tr>
-              );
-            })}
-            {(payments ?? []).length === 0 && <tr><td colSpan={7} className="text-center text-ink-mute py-3">決済履歴はまだありません。</td></tr>}
-          </tbody>
-        </table>
+        <PaymentHistory
+          canDelete={canDeletePayments}
+          payments={((payments as any[]) ?? []).map((p) => ({
+            id: p.id,
+            occurred_at: p.occurred_at ?? null,
+            kind: p.kind,
+            amount: p.amount,
+            status: p.status,
+            failure_reason: p.failure_reason ?? null,
+            stripe_invoice_id: p.stripe_invoice_id ?? null,
+            stripe_payment_intent_id: p.stripe_payment_intent_id ?? null,
+          }))}
+        />
         <p className="mt-2 text-xs text-ink-soft">
           500円などの端数は、Stripe側の月途中の追加・変更・停止による日割り調整（Proration）で発生する場合があります。
           照合の際は、上記のStripe請求ID／決済IDをStripe管理画面で検索し、請求書の明細行をご確認ください。
