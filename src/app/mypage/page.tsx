@@ -119,7 +119,13 @@ export default async function MyPageTop() {
   const specialTeamNames: string[] = Array.isArray(summary?.special_team_names)
     ? (summary?.special_team_names as string[])
     : [];
-  const planBadgeText = summary?.member_class_code
+  // 表示は実プラン名(primary_plan_name)を優先する。アテンダー会員などは基本会員コード
+  // 「A」を流用しているため、memberClassLabel("A") だと「メンバーズ会員」と誤表示される。
+  // 管理画面（顧客一覧・詳細）と同じく primary_plan_name を優先し、無い場合のみ
+  // コード由来のラベル（ヘルパーズ会員=SUPPORT 等）にフォールバックして表示を一致させる。
+  const planBadgeText = summary?.primary_plan_name
+    ? summary.primary_plan_name
+    : summary?.member_class_code
     ? memberClassLabel(summary.member_class_code)
     : hasSpecial
     ? "—"
