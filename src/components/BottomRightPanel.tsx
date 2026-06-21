@@ -59,6 +59,7 @@ export default function BottomRightPanel({
   showChat?: boolean;
 } = {}) {
   const [chatOpen, setChatOpen] = useState(false);
+  const [donateVisible, setDonateVisible] = useState(true);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -132,20 +133,48 @@ export default function BottomRightPanel({
   return (
     <>
       {/* ── 単発寄付（左下の画像ボタン do.png） ── */}
-      {showDonate && (
-        <a
-          href="/donate"
-          className="fixed bottom-0 left-0 z-40 block w-[min(7.5rem,28vw)] transition-transform duration-300 hover:scale-110 focus-visible:scale-110 focus:outline-none drop-shadow-xl max-md:bottom-[4.75rem] sm:w-44 md:w-[22.5rem] md:max-w-[min(22.5rem,40vw)]"
-          aria-label="単発寄付をする"
-        >
-          <Image
-            src={doImage}
-            alt="単発寄付をする"
-            width={780}
-            height={780}
-            className="w-full h-auto object-contain"
-          />
-        </a>
+      {showDonate && donateVisible && (
+        <div className="fixed bottom-0 left-0 z-40 w-[min(7.5rem,28vw)] max-md:bottom-[4.75rem] sm:w-44 md:w-[22.5rem] md:max-w-[min(22.5rem,40vw)]">
+          {/* 閉じる（×）ボタン */}
+          <button
+            type="button"
+            onClick={() => setDonateVisible(false)}
+            className="absolute top-1.5 right-1.5 z-50 w-6 h-6 rounded-full bg-white/95 border border-surface-line text-ink-mute hover:text-ink hover:bg-white flex items-center justify-center shadow-md transition-colors"
+            aria-label="閉じる"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+              <path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+
+          {/* 寄付リンク（3D ボタン効果） */}
+          <a
+            href="/donate"
+            aria-label="単発寄付をする"
+            className={[
+              "block overflow-hidden rounded-xl",
+              // 枠線
+              "border-2 border-brand-dark/30",
+              // 3D 立体感：下側に影を付けて「浮いている」ように見せる
+              "shadow-[0_6px_0_0_rgba(27,67,50,0.30),0_10px_20px_rgba(0,0,0,0.18)]",
+              // ホバー：少し持ち上がりさらに輝く
+              "hover:-translate-y-1 hover:shadow-[0_8px_0_0_rgba(27,67,50,0.35),0_14px_24px_rgba(0,0,0,0.22)]",
+              // 押下：沈み込む
+              "active:translate-y-[3px] active:shadow-[0_2px_0_0_rgba(27,67,50,0.25),0_4px_8px_rgba(0,0,0,0.15)]",
+              // トランジション
+              "transition-all duration-200 ease-out",
+              "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/40",
+            ].join(" ")}
+          >
+            <Image
+              src={doImage}
+              alt="単発寄付をする"
+              width={780}
+              height={780}
+              className="w-full h-auto object-contain"
+            />
+          </a>
+        </div>
       )}
 
       {/* ── Fixed bottom-right stack — lifted above the mobile CTA bar on phones ── */}
