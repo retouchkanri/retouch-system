@@ -19,7 +19,6 @@ export default function PublicDonateThanksPage({
         <main className="flex-1 flex items-center justify-center p-4">
           <div className="card max-w-md w-full space-y-4">
             <div className="text-center space-y-2">
-              <p className="text-3xl">🙏</p>
               <h1 className="text-xl font-bold">お申し込みを受け付けました</h1>
               <p className="text-ink-soft text-sm">
                 下記の口座へお振込をお願いいたします。<br />

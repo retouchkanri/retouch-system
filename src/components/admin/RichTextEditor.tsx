@@ -3,7 +3,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import UnderlineExt from "@tiptap/extension-underline";
 import LinkExt from "@tiptap/extension-link";
-import TextStyle from "@tiptap/extension-text-style";
+import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import TextAlign from "@tiptap/extension-text-align";
 import { useEffect, useState } from "react";
@@ -108,7 +108,7 @@ export default function RichTextEditor({
     if (!editor) return;
     const normalized = normalizeContent(value);
     if (normalized !== editor.getHTML()) {
-      editor.commands.setContent(normalized || "", false);
+      editor.commands.setContent(normalized || "", { emitUpdate: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
