@@ -51,10 +51,6 @@ export default function PublicDonateThanksPage({
                 <dt className="text-ink-soft">口座番号</dt>
                 <dd className="font-semibold text-right tabular-nums">{bank.accountNumber}</dd>
               </div>
-              <div className="flex justify-between gap-3 px-4 py-2">
-                <dt className="text-ink-soft">口座名義</dt>
-                <dd className="font-semibold text-right">{bank.accountHolder}</dd>
-              </div>
             </dl>
 
             <p className="text-xs text-ink-mute">

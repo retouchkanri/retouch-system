@@ -44,7 +44,6 @@ export function bankTransferInfoText(info: BankTransferInfo): string {
     `　支店名　： ${info.branchName}\n` +
     `　口座種別： ${info.accountType}\n` +
     `　口座番号： ${info.accountNumber}\n` +
-    `　口座名義： ${info.accountHolder}\n` +
     (info.note ? `\n${info.note}\n` : "")
   );
 }
