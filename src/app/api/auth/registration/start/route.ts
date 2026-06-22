@@ -19,6 +19,14 @@ const schema = z.object({
   password: z.string().min(8, "パスワードは8文字以上で設定してください"),
 });
 
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
 /**
  * 既存の auth ユーザーの id をメールアドレスから解決する。
  * createUser が重複で失敗した際の復旧（既存ユーザーの再利用）に使う。
@@ -55,8 +63,46 @@ function isDuplicateAuthError(err: unknown): boolean {
   );
 }
 
+async function uploadAvatar(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  authUserId: string,
+  avatarFile: File,
+): Promise<string | null> {
+  if (avatarFile.size > MAX_AVATAR_BYTES) return null;
+  if (!ALLOWED_AVATAR_TYPES.has(avatarFile.type)) return null;
+
+  const ext = avatarFile.name.includes(".")
+    ? avatarFile.name.slice(avatarFile.name.lastIndexOf(".") + 1).toLowerCase()
+    : avatarFile.type.split("/")[1] ?? "jpg";
+  const path = `${authUserId}/${Date.now()}.${ext}`;
+  const buffer = Buffer.from(await avatarFile.arrayBuffer());
+  const { error: upErr } = await admin.storage
+    .from("avatars")
+    .upload(path, buffer, { contentType: avatarFile.type, upsert: true });
+  if (upErr) return null;
+
+  const { data: pub } = admin.storage.from("avatars").getPublicUrl(path);
+  return pub.publicUrl;
+}
+
 export async function POST(req: Request) {
-  const parsed = schema.safeParse(await req.json().catch(() => ({})));
+  const contentType = req.headers.get("content-type") ?? "";
+  let payload: { email?: string; password?: string };
+  let avatarFile: File | null = null;
+
+  if (contentType.includes("multipart/form-data")) {
+    const fd = await req.formData();
+    payload = {
+      email: String(fd.get("email") ?? ""),
+      password: String(fd.get("password") ?? ""),
+    };
+    const candidate = fd.get("avatar");
+    if (candidate instanceof File && candidate.size > 0) avatarFile = candidate;
+  } else {
+    payload = await req.json().catch(() => ({}));
+  }
+
+  const parsed = schema.safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "入力に誤りがあります" },
@@ -64,6 +110,22 @@ export async function POST(req: Request) {
     );
   }
   const { email, password } = parsed.data;
+
+  if (avatarFile) {
+    if (avatarFile.size > MAX_AVATAR_BYTES) {
+      return NextResponse.json(
+        { error: "画像は5MB以内でアップロードしてください" },
+        { status: 400 },
+      );
+    }
+    if (!ALLOWED_AVATAR_TYPES.has(avatarFile.type)) {
+      return NextResponse.json(
+        { error: "画像はJPEG/PNG/WEBP/GIFのいずれかをご利用ください" },
+        { status: 400 },
+      );
+    }
+  }
+
   const admin = createSupabaseAdminClient();
 
   // 既存の会員データを確認する。
@@ -161,13 +223,28 @@ export async function POST(req: Request) {
     }
   }
 
+  let avatarUrl: string | null = null;
+  if (avatarFile && authUserId) {
+    avatarUrl = await uploadAvatar(admin, authUserId, avatarFile);
+    if (!avatarUrl) {
+      return NextResponse.json(
+        { error: "プロフィール写真のアップロードに失敗しました。時間をおいて再度お試しください。" },
+        { status: 500 },
+      );
+    }
+  }
+
   // customers stub を用意する（NOT NULL の full_name は暫定でメールのローカル部）。
   let customerId: string;
   if (existingRow) {
     customerId = existingRow.id;
     await admin
       .from("customers")
-      .update({ auth_user_id: authUserId, registration_completed: false })
+      .update({
+        auth_user_id: authUserId,
+        registration_completed: false,
+        ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+      })
       .eq("id", customerId);
   } else {
     const { data: createdCustomer, error: cErr } = await admin
@@ -176,6 +253,7 @@ export async function POST(req: Request) {
         full_name: emailLocalPart(email),
         email,
         auth_user_id: authUserId,
+        avatar_url: avatarUrl,
         status: "active",
         registration_completed: false,
       })

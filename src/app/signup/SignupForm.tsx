@@ -1,17 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import PasswordInput, { EmailInput } from "@/components/PasswordInput";
 
 export default function SignupForm() {
+  const fileRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // 送信完了後に表示する「仮会員登録完了」モーダルの対象メール。
   const [sentTo, setSentTo] = useState<string | null>(null);
+
+  const onAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setError("画像は5MB以内にしてください");
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+      setError("画像はJPEG/PNG/WEBP/GIFのいずれかをご利用ください");
+      return;
+    }
+    setError(null);
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,10 +43,14 @@ export default function SignupForm() {
     }
     setLoading(true);
     try {
+      const fd = new FormData();
+      fd.append("email", email);
+      fd.append("password", password);
+      if (avatarFile) fd.append("avatar", avatarFile);
+
       const res = await fetch("/api/auth/registration/start", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: fd,
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -39,11 +64,48 @@ export default function SignupForm() {
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3 sm:space-y-4">
+    <>
+      <form onSubmit={onSubmit} className={`space-y-3 sm:space-y-4${sentTo ? " hidden" : ""}`}>
       <p className="text-center text-sm font-semibold text-ink-soft">新規会員登録</p>
-      <p className="text-center text-xs text-ink-mute -mt-1">
-        ログイン不要で、どなたでも登録いただけます。
-      </p>
+
+
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="relative group shrink-0"
+          aria-label="プロフィール写真を選択する"
+        >
+          {avatarPreview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={avatarPreview}
+              alt=""
+              className="w-16 h-16 object-cover border-2 border-surface-line group-hover:border-brand transition-colors [border-radius:50%]"
+            />
+          ) : (
+            <div className="w-16 h-16 bg-surface-soft border-2 border-surface-line group-hover:border-brand transition-colors flex items-center justify-center [border-radius:50%]">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-ink-mute">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+          )}
+          <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity [border-radius:50%]">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+          </span>
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="hidden"
+          onChange={onAvatarChange}
+        />
+      </div>
 
       <div>
         <label className="label" htmlFor="email">
@@ -125,8 +187,8 @@ export default function SignupForm() {
       >
         ログインはこちら
       </Link>
+      </form>
 
-      {/* 「仮会員登録完了」モーダル */}
       {sentTo && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -135,16 +197,6 @@ export default function SignupForm() {
           aria-label="仮会員登録完了"
         >
           <div className="relative w-full max-w-md rounded-2xl bg-white p-6 sm:p-8 shadow-xl">
-            <button
-              type="button"
-              onClick={() => setSentTo(null)}
-              className="absolute right-4 top-4 text-ink-mute hover:text-ink"
-              aria-label="閉じる"
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </button>
             <h2 className="text-center text-xl font-bold text-brand mb-4">仮会員登録完了</h2>
             <div className="text-center text-sm text-ink-soft leading-relaxed space-y-3">
               <p>
@@ -158,9 +210,16 @@ export default function SignupForm() {
                 会員登録を続けてください。
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setSentTo(null)}
+              className="btn-primary w-full mt-6"
+            >
+              閉じる
+            </button>
           </div>
         </div>
       )}
-    </form>
+    </>
   );
 }

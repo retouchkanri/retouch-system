@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import PasswordInput, { EmailInput } from "@/components/PasswordInput";
+import PasswordInput from "@/components/PasswordInput";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isStaffRole, toRole } from "@/lib/roles";
 
@@ -66,12 +66,14 @@ export default function LoginForm({ next }: { next: string }) {
         <label className="label" htmlFor="email">
           メールアドレス
         </label>
-        <EmailInput
+        <input
           id="email"
           name="email"
+          type="email"
           autoComplete="email"
           required
           placeholder="メールアドレスを入力してください"
+          className="input"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -86,7 +88,6 @@ export default function LoginForm({ next }: { next: string }) {
           name="password"
           autoComplete="current-password"
           required
-          showLockIcon
           placeholder="パスワードを入力してください"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
