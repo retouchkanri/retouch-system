@@ -83,17 +83,23 @@ export default function AccountCreateForm({
 
   if (done) {
     return (
-      <div className="text-center space-y-4 py-4">
-        <p className="text-3xl">🎉</p>
-        <h1 className="text-xl font-bold">会員登録が完了しました</h1>
-        <p className="text-sm text-ink-soft leading-relaxed">
-          ご登録ありがとうございます。
-          <br />
-          登録したメールアドレスとパスワードでログインいただけます。
-        </p>
-        <Link href="/login" className="btn-primary inline-flex">
-          ログインする
-        </Link>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="会員登録完了"
+      >
+        <div className="w-full max-w-md rounded-2xl bg-white p-6 sm:p-8 shadow-xl text-center space-y-4">
+          <h1 className="text-xl font-bold">会員登録が完了しました</h1>
+          <p className="text-sm text-ink-soft leading-relaxed">
+            ご登録ありがとうございます。
+            <br />
+            登録したメールアドレスとパスワードでログインいただけます。
+          </p>
+          <Link href="/login" className="btn-primary inline-flex w-full justify-center">
+            ログインする
+          </Link>
+        </div>
       </div>
     );
   }

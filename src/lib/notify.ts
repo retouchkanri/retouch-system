@@ -75,6 +75,104 @@ function fromHeader(): string {
   return `${name} <${addr}>`;
 }
 
+function fromEmailAddress(): string {
+  const raw = process.env.MAIL_FROM ?? process.env.SMTP_USER ?? "no-reply@retouch-members.local";
+  const angle = raw.match(/<([^>]+)>/);
+  return (angle?.[1] ?? raw).trim();
+}
+
+function fromEmailDomain(): string {
+  return fromEmailAddress().split("@")[1] ?? "retouch-members.com";
+}
+
+const PERSONAL_MAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.co.jp",
+  "yahoo.com",
+  "ezweb.ne.jp",
+  "au.com",
+  "icloud.com",
+  "me.com",
+  "hotmail.com",
+  "outlook.com",
+  "live.com",
+]);
+
+/** 個人メールやドメイン不一致は Spam 判定の主因。設定ミスをサーバーログに残す。 */
+function warnDeliverabilityRisk(): void {
+  const domain = fromEmailDomain().toLowerCase();
+  if (PERSONAL_MAIL_DOMAINS.has(domain)) {
+    console.warn(
+      "[notify] Sending from a personal mailbox (%s). Transactional mail often lands in spam. " +
+        "Use info@retouch-members.com via Xserver SMTP (see .env.local.example).",
+      domain,
+    );
+  }
+  try {
+    const siteHost = new URL(siteUrl()).hostname.toLowerCase();
+    if (
+      siteHost &&
+      !siteHost.includes("localhost") &&
+      !siteHost.endsWith(".local") &&
+      domain &&
+      domain !== siteHost &&
+      !siteHost.endsWith(`.${domain}`)
+    ) {
+      console.warn(
+        "[notify] MAIL_FROM domain (%s) does not match site host (%s); SPF/DKIM/DMARC alignment may fail.",
+        domain,
+        siteHost,
+      );
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/** プレーンテキストを multipart 送信用 HTML に変換（URL はリンク化）。 */
+function textToHtmlEmail(text: string): string {
+  const escaped = escapeHtml(text);
+  const linked = escaped.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" style="color:#2d6a4f;word-break:break-all;">$1</a>',
+  );
+  const paras = linked
+    .split(/\n\n+/)
+    .map(
+      (p) =>
+        `<p style="margin:0 0 16px;line-height:1.75;color:#1f2937;">${p.replace(/\n/g, "<br>")}</p>`,
+    )
+    .join("");
+  return (
+    `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>` +
+    `<body style="margin:0;padding:24px 16px;background:#f7f8fa;font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:15px;">` +
+    `<div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:28px 24px;">` +
+    paras +
+    `</div></body></html>`
+  );
+}
+
+function transactionalHeaders(kind: NotifyKind): Record<string, string> {
+  const tag = `${kind}.${Date.now()}.${Math.random().toString(36).slice(2, 9)}`;
+  return {
+    "Message-ID": `<${tag}@${fromEmailDomain()}>`,
+    "X-Auto-Response-Suppress": "OOF, AutoReply",
+  };
+}
+
+function resolveHtmlBody(p: NotifyPayload): string {
+  return p.body_html ?? textToHtmlEmail(p.body_text);
+}
+
+function parseRecipients(to: string): string[] {
+  return to.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 let _smtp: Transporter | null = null;
 function smtpTransport(): Transporter | null {
   if (_smtp) return _smtp;
@@ -102,14 +200,19 @@ async function sendViaSmtp(p: NotifyPayload): Promise<{ ok: boolean; error?: str
   const tx = smtpTransport();
   if (!tx) return { ok: false, error: "smtp not configured" };
   try {
+    const recipients = parseRecipients(p.to);
     await tx.sendMail({
       from: fromHeader(),
       to: p.to_name ? `${p.to_name} <${p.to}>` : p.to,
       subject: p.subject,
       text: p.body_text,
-      ...(p.body_html ? { html: p.body_html } : {}),
+      html: resolveHtmlBody(p),
       replyTo: p.reply_to ?? contactEmail(),
-      ...(p.headers ? { headers: p.headers } : {}),
+      headers: { ...transactionalHeaders(p.kind), ...(p.headers ?? {}) },
+      envelope: {
+        from: fromEmailAddress(),
+        to: recipients,
+      },
     });
     return { ok: true };
   } catch (e: any) {
@@ -132,9 +235,9 @@ async function sendViaResend(p: NotifyPayload): Promise<{ ok: boolean; error?: s
         to: [p.to],
         subject: p.subject,
         text: p.body_text,
-        ...(p.body_html ? { html: p.body_html } : {}),
+        html: resolveHtmlBody(p),
         reply_to: p.reply_to ?? contactEmail(),
-        ...(p.headers ? { headers: p.headers } : {}),
+        headers: { ...transactionalHeaders(p.kind), ...(p.headers ?? {}) },
       }),
     });
     if (!res.ok) {
@@ -156,6 +259,7 @@ export async function notify(payload: NotifyPayload): Promise<{
   let result: { ok: boolean; error?: string } = { ok: false, error: "no transport" };
 
   if (payload.to) {
+    warnDeliverabilityRisk();
     if (transport === "smtp") result = await sendViaSmtp(payload);
     else if (transport === "resend") result = await sendViaResend(payload);
     else result = { ok: false, error: "audit-only mode" };
@@ -459,21 +563,45 @@ export function memberWelcomeTemplate(params: {
 
 /**
  * 仮会員登録（メール確認）メール。入力されたメール宛に、アカウント作成ページへの
- * 確認リンクを送る。画像2の文面に準拠。
+ * 確認リンクを送る。
  */
 export function registrationVerifyTemplate(params: {
   url: string;
-}): Pick<NotifyPayload, "subject" | "body_text"> {
-  return {
-    subject: "【Retouch（リタッチ）】メール登録完了",
-    body_text:
-      `この度は、引退馬支援「Retouch（リタッチ）」サイトへのメール登録をして頂き、誠にありがとうございます。\n\n` +
-      `以下のURLに24時間以内にアクセスし、「Retouch（リタッチ）メンバー」への仮登録手続き（アカウント作成）を行ってください。\n\n` +
-      `※このメールは、メール登録を頂いた皆様に自動で配信しています。\n\n` +
-      `▼ アカウント作成ページ\n` +
-      `${params.url}\n` +
-      signature(),
-  };
+}): Pick<NotifyPayload, "subject" | "body_text" | "body_html"> {
+  const subject = "【Retouch Members】会員登録のご確認";
+  const body_text =
+    `この度は、引退競走馬支援「Retouch（リタッチ）」へのご登録ありがとうございます。\n\n` +
+    `以下のリンクから、24時間以内にアカウント作成（本登録）を完了してください。\n\n` +
+    `▼ アカウント作成ページ\n` +
+    `${params.url}\n\n` +
+    `【ご案内】\n` +
+    `・リンクが開けない場合は、URL全体をコピーしてブラウザのアドレスバーに貼り付けてください。\n` +
+    `・本メールに心当たりがない場合は破棄してください。\n` +
+    `・このメールは登録申込を受け付けた方へ自動送信しています。` +
+    signature();
+
+  const safeUrl = escapeHtml(params.url);
+  const contact = escapeHtml(contactEmail());
+  const loginUrl = escapeHtml(`${siteUrl()}/login`);
+
+  const body_html =
+    `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>` +
+    `<body style="margin:0;padding:24px 16px;background:#f7f8fa;font-family:'Hiragino Sans','Meiryo',sans-serif;font-size:15px;color:#1f2937;">` +
+    `<div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:28px 24px;">` +
+    `<p style="margin:0 0 16px;line-height:1.75;">この度は、引退競走馬支援「Retouch（リタッチ）」へのご登録ありがとうございます。</p>` +
+    `<p style="margin:0 0 20px;line-height:1.75;">以下のボタンから、<strong>24時間以内</strong>にアカウント作成（本登録）を完了してください。</p>` +
+    `<p style="margin:0 0 24px;text-align:center;">` +
+    `<a href="${safeUrl}" style="display:inline-block;background:#2d6a4f;color:#ffffff;text-decoration:none;font-weight:bold;padding:14px 28px;border-radius:8px;">アカウント作成ページを開く</a>` +
+    `</p>` +
+    `<p style="margin:0 0 8px;font-size:13px;color:#6b7280;">リンクが開けない場合は、下記URLをコピーしてブラウザに貼り付けてください。</p>` +
+    `<p style="margin:0 0 20px;font-size:13px;word-break:break-all;"><a href="${safeUrl}" style="color:#2d6a4f;">${safeUrl}</a></p>` +
+    `<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">` +
+    `<p style="margin:0;font-size:12px;color:#6b7280;line-height:1.6;">Retouchメンバーズサイト 運営事務局<br>` +
+    `お問い合わせ: <a href="mailto:${contact}" style="color:#2d6a4f;">${contact}</a><br>` +
+    `ログイン: <a href="${loginUrl}" style="color:#2d6a4f;">${loginUrl}</a></p>` +
+    `</div></body></html>`;
+
+  return { subject, body_text, body_html };
 }
 
 export function profileUpdatedTemplate(params: {
