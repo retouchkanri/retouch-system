@@ -28,6 +28,7 @@ export type NotifyKind =
   | "contact_inquiry"
   | "contact_auto_reply"
   | "password_reset"
+  | "registration_verify"
   | "member_welcome"
   | "profile_updated"
   | "horse_meeting_received"
@@ -452,6 +453,25 @@ export function memberWelcomeTemplate(params: {
       `▼ ログイン\n` +
       `${siteUrl()}/login\n\n` +
       `ご不明な点がございましたら、お気軽にお問い合わせください。` +
+      signature(),
+  };
+}
+
+/**
+ * 仮会員登録（メール確認）メール。入力されたメール宛に、アカウント作成ページへの
+ * 確認リンクを送る。画像2の文面に準拠。
+ */
+export function registrationVerifyTemplate(params: {
+  url: string;
+}): Pick<NotifyPayload, "subject" | "body_text"> {
+  return {
+    subject: "【Retouch（リタッチ）】メール登録完了",
+    body_text:
+      `この度は、引退馬支援「Retouch（リタッチ）」サイトへのメール登録をして頂き、誠にありがとうございます。\n\n` +
+      `以下のURLに24時間以内にアクセスし、「Retouch（リタッチ）メンバー」への仮登録手続き（アカウント作成）を行ってください。\n\n` +
+      `※このメールは、メール登録を頂いた皆様に自動で配信しています。\n\n` +
+      `▼ アカウント作成ページ\n` +
+      `${params.url}\n` +
       signature(),
   };
 }

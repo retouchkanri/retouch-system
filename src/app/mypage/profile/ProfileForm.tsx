@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Customer } from "@/types/db";
+import { PREFECTURES } from "@/lib/jpAddress";
 
 export default function ProfileForm({
   customer,
@@ -22,16 +23,25 @@ export default function ProfileForm({
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // 既存会員（granular 項目が未設定）でもデータが失われないよう、空のときは
+  // 既存の full_name / address1 / address2 をシードする（保存時に同値へ再合成される）。
   const [form, setForm] = useState({
-    full_name: customer.full_name ?? "",
-    full_name_kana: customer.full_name_kana ?? "",
+    username: customer.username ?? "",
+    last_name: customer.last_name ?? customer.full_name ?? "",
+    first_name: customer.first_name ?? "",
+    last_name_kana: customer.last_name_kana ?? customer.full_name_kana ?? "",
+    first_name_kana: customer.first_name_kana ?? "",
     phone: customer.phone ?? "",
     postal_code: customer.postal_code ?? "",
-    address1: customer.address1 ?? "",
-    address2: customer.address2 ?? "",
+    prefecture: customer.prefecture ?? "",
+    address_city: customer.address_city ?? "",
+    address_town: customer.address_town ?? customer.address1 ?? "",
+    address_building: customer.address_building ?? customer.address2 ?? "",
     birthday: customer.birthday ?? "",
     gender: customer.gender ?? "unspecified",
   });
+  const [newsletterReceive, setNewsletterReceive] = useState(!customer.newsletter_opt_out);
+  const [announcementReceive, setAnnouncementReceive] = useState(!customer.announcement_opt_out);
   const [emailVal, setEmailVal] = useState(email);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -42,9 +52,11 @@ export default function ProfileForm({
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm((prev) => ({ ...prev, [k]: e.target.value }));
-  };
+  const set =
+    (k: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      setForm((prev) => ({ ...prev, [k]: e.target.value }));
+    };
 
   const onAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -89,7 +101,11 @@ export default function ProfileForm({
       const res = await fetch("/api/mypage/profile", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          newsletter_opt_out: !newsletterReceive,
+          announcement_opt_out: !announcementReceive,
+        }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -192,25 +208,39 @@ export default function ProfileForm({
           </div>
         )}
         <div>
-          <label className="label">お名前</label>
-          <input className="input" value={form.full_name} onChange={set("full_name")} required disabled={!selfServiceEnabled} />
+          <label className="label">ユーザーネーム</label>
+          <input className="input" value={form.username} onChange={set("username")} disabled={!selfServiceEnabled} maxLength={60} />
         </div>
         <div>
-          <label className="label">ニックネーム（表示されることがあります）</label>
-          <input className="input" value={form.full_name_kana} onChange={set("full_name_kana")} disabled={!selfServiceEnabled} />
+          <label className="label">氏名</label>
+          <div className="grid grid-cols-2 gap-2">
+            <input className="input" placeholder="名字" value={form.last_name} onChange={set("last_name")} required disabled={!selfServiceEnabled} maxLength={60} />
+            <input className="input" placeholder="名前" value={form.first_name} onChange={set("first_name")} disabled={!selfServiceEnabled} maxLength={60} />
+          </div>
+        </div>
+        <div>
+          <label className="label">氏名（カナ）</label>
+          <div className="grid grid-cols-2 gap-2">
+            <input className="input" placeholder="セイ" value={form.last_name_kana} onChange={set("last_name_kana")} disabled={!selfServiceEnabled} maxLength={60} />
+            <input className="input" placeholder="メイ" value={form.first_name_kana} onChange={set("first_name_kana")} disabled={!selfServiceEnabled} maxLength={60} />
+          </div>
         </div>
         <div>
           <label className="label">電話番号</label>
-          <input className="input" value={form.phone} onChange={set("phone")} disabled={!selfServiceEnabled} />
-        </div>
-        <div>
-          <label className="label">郵便番号</label>
-          <input className="input" value={form.postal_code} onChange={set("postal_code")} disabled={!selfServiceEnabled} />
+          <input className="input" value={form.phone} onChange={set("phone")} disabled={!selfServiceEnabled} maxLength={40} />
         </div>
         <div>
           <label className="label">住所</label>
-          <input className="input mb-2" placeholder="都道府県・市区町村・番地" value={form.address1} onChange={set("address1")} disabled={!selfServiceEnabled} />
-          <input className="input" placeholder="建物名・部屋番号など" value={form.address2} onChange={set("address2")} disabled={!selfServiceEnabled} />
+          <div className="space-y-2">
+            <input className="input" placeholder="郵便番号" value={form.postal_code} onChange={set("postal_code")} disabled={!selfServiceEnabled} maxLength={20} />
+            <select className="input" value={form.prefecture} onChange={set("prefecture")} disabled={!selfServiceEnabled}>
+              <option value="">都道府県</option>
+              {PREFECTURES.map((p) => (<option key={p} value={p}>{p}</option>))}
+            </select>
+            <input className="input" placeholder="市区町村" value={form.address_city} onChange={set("address_city")} disabled={!selfServiceEnabled} maxLength={100} />
+            <input className="input" placeholder="町名・番地" value={form.address_town} onChange={set("address_town")} disabled={!selfServiceEnabled} maxLength={100} />
+            <input className="input" placeholder="建物名・部屋番号など（任意）" value={form.address_building} onChange={set("address_building")} disabled={!selfServiceEnabled} maxLength={200} />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -225,6 +255,37 @@ export default function ProfileForm({
               <option value="female">女性</option>
               <option value="other">その他</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Notification preferences */}
+      <div className="card space-y-4">
+        <h2 className="text-base font-bold">配信・通知設定</h2>
+        <div>
+          <label className="label">メールマガジン</label>
+          <div className="flex items-center gap-4 text-sm">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="newsletter" checked={newsletterReceive} onChange={() => setNewsletterReceive(true)} disabled={!selfServiceEnabled} className="text-brand focus:ring-brand/30" />
+              <span>受信する</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="newsletter" checked={!newsletterReceive} onChange={() => setNewsletterReceive(false)} disabled={!selfServiceEnabled} className="text-brand focus:ring-brand/30" />
+              <span>受信しない</span>
+            </label>
+          </div>
+        </div>
+        <div>
+          <label className="label">お知らせ通知</label>
+          <div className="flex items-center gap-4 text-sm">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="announcement" checked={announcementReceive} onChange={() => setAnnouncementReceive(true)} disabled={!selfServiceEnabled} className="text-brand focus:ring-brand/30" />
+              <span>通知する</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="announcement" checked={!announcementReceive} onChange={() => setAnnouncementReceive(false)} disabled={!selfServiceEnabled} className="text-brand focus:ring-brand/30" />
+              <span>通知しない</span>
+            </label>
           </div>
         </div>
       </div>

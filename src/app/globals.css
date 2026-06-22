@@ -152,6 +152,10 @@ button, a, input, select, textarea {
     @apply py-4 text-lg;
     min-height: 56px;
   }
+  /* Login / signup: tighter card padding on small screens */
+  .auth-page .card {
+    @apply p-3;
+  }
 }
 
 /* ── Sticky mobile CTA bar ── */

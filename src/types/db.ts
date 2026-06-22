@@ -30,6 +30,24 @@ export type Customer = {
   joined_at: string | null;
   created_at: string;
   updated_at: string;
+  // --- 2段階登録（メール確認）で追加した詳細プロフィール項目 ---
+  // 既存の full_name / full_name_kana / address1 / address2 はこれらから自動合成して
+  // 同期する（後方互換のため）。全て nullable。
+  username: string | null;
+  last_name: string | null;
+  first_name: string | null;
+  last_name_kana: string | null;
+  first_name_kana: string | null;
+  prefecture: string | null;
+  address_city: string | null;
+  address_town: string | null;
+  address_building: string | null;
+  /** お知らせ通知の配信停止フラグ（false = 通知する）。 */
+  announcement_opt_out: boolean;
+  /** メルマガ配信停止フラグ（false = 受信する）。 */
+  newsletter_opt_out: boolean;
+  /** 本登録（プロフィール入力）完了フラグ。既存会員は true。 */
+  registration_completed: boolean;
 };
 
 export type MembershipPlan = {

@@ -6,6 +6,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { resolveBadge, type Badge } from "@/lib/roles";
 import { loadPaymentStat } from "@/lib/badge";
 import HeaderUserMenu from "./HeaderUserMenu";
+import MobileCtaBar from "./MobileCtaBar";
 
 export default async function SiteHeader() {
   const session = await getSession();
@@ -82,7 +83,7 @@ export default async function SiteHeader() {
               />
             ) : (
               <nav className="flex items-center gap-2">
-                <Link href="/guide" className="btn-primary !px-4 !py-2 text-sm btn-pulse">
+                <Link href="/signup" className="btn-primary !px-4 !py-2 text-sm btn-pulse">
                   新規会員登録
                 </Link>
                 <Link href="/login" className="btn-secondary !px-4 !py-2 text-sm">
@@ -122,19 +123,8 @@ export default async function SiteHeader() {
         </div>
       </header>
 
-      {/* Mobile sticky bottom CTA bar — centred pill buttons */}
-      {!session && (
-        <div className="mobile-cta-bar">
-          <div className="mobile-cta-bar__actions">
-            <Link href="/login" className="mobile-cta-btn mobile-cta-btn--secondary">
-              ログイン
-            </Link>
-            <Link href="/guide" className="mobile-cta-btn mobile-cta-btn--primary btn-pulse">
-              無料会員登録
-            </Link>
-          </div>
-        </div>
-      )}
+      {/* Mobile sticky bottom CTA bar — hidden on login/signup */}
+      {!session && <MobileCtaBar />}
     </>
   );
 }

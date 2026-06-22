@@ -4,16 +4,24 @@ import { getSession } from "@/lib/auth";
 import { memberMutationGuard } from "@/lib/memberGuard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { notify, profileUpdatedTemplate, staffRecipients } from "@/lib/notify";
+import { buildCustomerSyncPatch } from "@/lib/registration";
 
 const schema = z.object({
-  full_name: z.string().trim().min(1).max(120),
-  full_name_kana: z.string().max(120).optional().nullable(),
+  username: z.string().trim().max(60).optional().nullable(),
+  last_name: z.string().trim().min(1, "姓を入力してください").max(60),
+  first_name: z.string().trim().min(1, "名を入力してください").max(60),
+  last_name_kana: z.string().trim().max(60).optional().nullable(),
+  first_name_kana: z.string().trim().max(60).optional().nullable(),
   phone: z.string().max(40).optional().nullable(),
   postal_code: z.string().max(20).optional().nullable(),
-  address1: z.string().max(200).optional().nullable(),
-  address2: z.string().max(200).optional().nullable(),
+  prefecture: z.string().max(40).optional().nullable(),
+  address_city: z.string().max(100).optional().nullable(),
+  address_town: z.string().max(100).optional().nullable(),
+  address_building: z.string().max(200).optional().nullable(),
   birthday: z.union([z.string(), z.literal("")]).optional().nullable(),
   gender: z.enum(["male", "female", "other", "unspecified"]).optional().nullable(),
+  newsletter_opt_out: z.boolean().optional(),
+  announcement_opt_out: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -29,12 +37,43 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
   }
 
-  const patch = { ...parsed.data };
-  if (patch.birthday === "") patch.birthday = null;
+  const d = parsed.data;
+  // 既存カラム（full_name / address1 等）を新項目から再合成して同期する。
+  const sync = buildCustomerSyncPatch(d);
+  const patch: Record<string, unknown> = {
+    username: d.username?.trim() ? d.username.trim() : null,
+    last_name: d.last_name,
+    first_name: d.first_name,
+    last_name_kana: d.last_name_kana ?? null,
+    first_name_kana: d.first_name_kana ?? null,
+    phone: d.phone ?? null,
+    postal_code: d.postal_code ?? null,
+    prefecture: d.prefecture ?? null,
+    address_city: d.address_city ?? null,
+    address_town: d.address_town ?? null,
+    address_building: d.address_building ?? null,
+    gender: d.gender ?? null,
+    birthday: d.birthday && d.birthday !== "" ? d.birthday : null,
+    full_name: sync.full_name,
+    full_name_kana: sync.full_name_kana,
+    address1: sync.address1,
+    address2: sync.address2,
+  };
+  if (d.newsletter_opt_out !== undefined) patch.newsletter_opt_out = d.newsletter_opt_out;
+  if (d.announcement_opt_out !== undefined) patch.announcement_opt_out = d.announcement_opt_out;
 
   const supabase = createSupabaseServerClient();
   const { error } = await supabase.from("customers").update(patch).eq("id", session.customerId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // ユーザーネームの一意制約違反（23505）はわかりやすいメッセージに変換。
+    if ((error as { code?: string }).code === "23505") {
+      return NextResponse.json(
+        { error: "このユーザーネームは既に使用されています。別のユーザーネームをご利用ください。" },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   // 変更後の会員情報を取得し、会員本人・運営の双方へ通知する。
   // メール送信に失敗しても登録情報の変更自体は成功として扱う。
@@ -44,7 +83,7 @@ export async function POST(req: Request) {
     .eq("id", session.customerId)
     .maybeSingle();
   const memberEmail = (customer as any)?.email as string | null | undefined;
-  const memberName = ((customer as any)?.full_name as string | null) ?? patch.full_name ?? null;
+  const memberName = ((customer as any)?.full_name as string | null) ?? sync.full_name ?? null;
 
   if (memberEmail) {
     const memberTpl = profileUpdatedTemplate({ name: memberName });

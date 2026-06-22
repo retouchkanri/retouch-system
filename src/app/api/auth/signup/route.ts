@@ -3,10 +3,17 @@ import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { memberWelcomeTemplate, notify, staffRecipients } from "@/lib/notify";
 
+// ⚠️ 非推奨（2026-06-22〜）: 旧・1段階サインアップAPI。
+// 会員登録は「メール確認付き2段階フロー」に置き換えました：
+//   Step1 /api/auth/registration/start → Step2 /api/auth/registration/complete
+// 現在この route はどこからも呼ばれていません（残置のみ。将来削除可）。
+//
 // Public sign-up always creates a "member". Staff roles (owner/admin/moderator)
 // are assigned only from the admin user-management screen — never self-elected.
+// お名前は登録フォームから廃止したため任意項目。未入力時はメールのローカル部を
+// 暫定の表示名にフォールバックする（顧客データ・各種通知メールが空名にならないように）。
 const schema = z.object({
-  fullName: z.string().trim().min(1, "お名前を入力してください").max(120),
+  fullName: z.string().trim().max(120).optional(),
   email: z.string().trim().email("メールアドレスの形式が正しくありません"),
   password: z.string().min(8, "パスワードは8文字以上で設定してください"),
 });
@@ -44,7 +51,8 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const { fullName, email, password } = parsed.data;
+  const { email, password } = parsed.data;
+  const fullName = (parsed.data.fullName ?? "").trim() || email.split("@")[0];
 
   if (avatarFile) {
     if (avatarFile.size > MAX_AVATAR_BYTES) {
@@ -70,13 +78,32 @@ export async function POST(req: Request) {
     user_metadata: { full_name: fullName },
   });
   if (userErr || !userData.user) {
+    // 実エラーをサーバーログに残す（原因調査のため。メールアドレス等のPIIは出さない）。
+    console.error("[signup] createUser failed", {
+      code: (userErr as { code?: string } | null)?.code,
+      status: (userErr as { status?: number } | null)?.status,
+      message: userErr?.message,
+    });
+    // 重複メールの判定を堅牢化する。
+    // Supabase の実メッセージは "A user with this email address has already
+    // been registered"（"been" を挟む）のため、旧来の includes("already registered")
+    // ではマッチせず汎用エラーになっていた。code / status / 各種文言で判定する。
+    const msg = (userErr?.message ?? "").toLowerCase();
+    const isDuplicate =
+      (userErr as { code?: string } | null)?.code === "email_exists" ||
+      (userErr as { status?: number } | null)?.status === 422 ||
+      msg.includes("already been registered") ||
+      msg.includes("already registered") ||
+      msg.includes("already exists") ||
+      msg.includes("email_exists") ||
+      msg.includes("user already");
     return NextResponse.json(
       {
-        error: userErr?.message.includes("already registered")
-          ? "このメールは登録済みです"
-          : "会員登録に失敗しました",
+        error: isDuplicate
+          ? "このメールアドレスは既に登録されています。ログインするか、別のメールアドレスでご登録ください。"
+          : "会員登録に失敗しました。お手数ですが時間をおいて再度お試しください。",
       },
-      { status: 400 },
+      { status: isDuplicate ? 409 : 400 },
     );
   }
 
