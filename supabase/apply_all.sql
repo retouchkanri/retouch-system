@@ -598,6 +598,28 @@ from (values
 ) as v(name, kana, sex, y, bio, ord)
 where not exists (select 1 from public.horses h where h.name = v.name);
 
+-- 緊急支援募集馬（54・55番）
+alter table public.horses
+  add column if not exists is_emergency_recruitment boolean not null default false;
+
+insert into public.horses (name, name_kana, profile, is_supportable, is_emergency_recruitment, sort_order)
+select v.name, v.kana, v.profile, true, true, v.ord
+from (values
+  (
+    '54：緊急支援募集馬',
+    '54キンキュウシエンボシュウウマ',
+    '肥育場からの54番目の子（千葉予定）★支援募集開始★',
+    1
+  ),
+  (
+    '55：緊急支援募集馬',
+    '55キンキュウシエンボシュウウマ',
+    '肥育場からの55番目の子（千葉予定）★支援募集開始★',
+    2
+  )
+) as v(name, kana, profile, ord)
+where not exists (select 1 from public.horses h where h.name = v.name);
+
 insert into public.events (type, title, description, starts_at, ends_at, capacity, location, supporters_only, is_published)
 select 'visit','定期見学会 6月','牧場での引退馬見学会。',
        (now() + interval '30 days')::date + time '10:00',

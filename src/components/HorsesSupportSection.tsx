@@ -43,7 +43,7 @@ export default async function HorsesSupportSection({
   const [{ data: horses }, { data: supporters }] = await Promise.all([
     admin
       .from("horses")
-      .select("id, name, profile, image_url, is_supportable, is_emergency_recruitment, sort_order")
+      .select("id, name, profile, image_url, is_supportable, sort_order")
       .order("sort_order"),
     admin
       .from("support_subscriptions")
