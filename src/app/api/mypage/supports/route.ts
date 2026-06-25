@@ -7,6 +7,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncSupportCreate } from "@/lib/stripeSupport";
 import { SUPPORT_UNIT_PRICE, isBasicMemberPlanCode } from "@/lib/constraints";
 import { notify, staffRecipients, supportAddedTemplate } from "@/lib/notify";
+import { getStripe } from "@/lib/stripe";
 
 const schema = z.object({
   horse_id: z.string().uuid(),
@@ -16,6 +17,7 @@ const schema = z.object({
     .positive()
     .max(100)
     .refine((v) => Number.isInteger(v * 2), "口数は0.5口刻みで指定してください"),
+  cancel_contract_id: z.string().uuid().optional().nullable(),
 });
 
 export async function POST(req: Request) {
@@ -29,7 +31,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
   }
-  const { horse_id, plan_id, units } = parsed.data;
+  const { horse_id, plan_id, units, cancel_contract_id } = parsed.data;
 
   const supabase = createSupabaseServerClient();
   const admin = createSupabaseAdminClient();
@@ -53,19 +55,51 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "会員情報が見つかりません" }, { status: 404 });
   }
 
-  // 併用制約チェック
+  // 併用制約チェック（基本会員区分 A/B/C/OWNER と支援会員は併用不可）
   const { data: activeContract } = await supabase
     .from("contracts")
-    .select("*, plan:membership_plans(code)")
+    .select("*, plan:membership_plans(code, name)")
     .eq("customer_id", session.customerId)
     .in("status", ["active", "past_due"])
     .maybeSingle();
   const basicCode = (activeContract as any)?.plan?.code as string | undefined;
   if (basicCode && isBasicMemberPlanCode(basicCode)) {
-    return NextResponse.json(
-      { error: "基本会員区分と支援会員は併用できません。現在の会員種別を変更してください。" },
-      { status: 400 },
-    );
+    const conflictId = (activeContract as any)?.id as string;
+    // クライアントから cancel_contract_id が送られてきた場合は自動解約して続行する。
+    // ID が一致していることを確認してから処理（なりすまし防止）。
+    if (!cancel_contract_id || cancel_contract_id !== conflictId) {
+      return NextResponse.json(
+        { error: "メンバーズ会員・サポーター会員・リェリーフ会員とヘルパーズ会員（一口支援・半口支援）は併用できません。現在の会員種別を変更してください。" },
+        { status: 400 },
+      );
+    }
+
+    // Stripe サブスクリプションのキャンセル（存在する場合）
+    const stripeSubId = (activeContract as any)?.stripe_subscription_id as string | null;
+    if (stripeSubId) {
+      const stripe = getStripe();
+      if (stripe) {
+        try {
+          await stripe.subscriptions.cancel(stripeSubId, { prorate: true });
+        } catch {
+          // Stripe側で既にキャンセル済みの場合は無視して続行
+        }
+      }
+    }
+
+    // DB の契約ステータスを canceled に更新
+    await admin
+      .from("contracts")
+      .update({ status: "canceled", canceled_at: new Date().toISOString() })
+      .eq("id", conflictId);
+
+    await admin.from("audit_logs").insert({
+      actor_id: session.userId,
+      action: "contract.cancel",
+      target_table: "contracts",
+      target_id: conflictId,
+      meta: { reason: "auto_cancel_for_support_signup" },
+    });
   }
 
   let contractId: string | null = (activeContract as any)?.id ?? null;

@@ -8,6 +8,7 @@ const DEFAULT_RECIPIENTS = "info@retouch-members.com, yoshi910019@ezweb.ne.jp";
 const schema = z.object({
   name: z.string().trim().min(1, "お名前を入力してください").max(120),
   email: z.string().trim().email("メールアドレスの形式が正しくありません"),
+  phone: z.string().trim().max(20).optional().default(""),
   subject: z.string().trim().max(200).optional().default(""),
   message: z.string().trim().min(1, "お問い合わせ内容を入力してください").max(5000),
   // Honeypot — bots fill this; humans never see it.
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const { name, email, subject, message, company } = parsed.data;
+  const { name, email, phone, subject, message, company } = parsed.data;
 
   // Honeypot hit → pretend success, send nothing.
   if (company.trim() !== "") return NextResponse.json({ ok: true });
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
     `Retouchサイトのお問い合わせフォームから送信がありました。\n\n` +
     `お名前　: ${name}\n` +
     `メール　: ${email}\n` +
+    `電話番号: ${phone.trim() || "（未入力）"}\n` +
     `件名　　: ${subject.trim() || "（なし）"}\n\n` +
     `── お問い合わせ内容 ──────────────\n` +
     `${message}\n` +

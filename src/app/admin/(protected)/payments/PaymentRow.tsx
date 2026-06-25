@@ -90,9 +90,11 @@ export default function PaymentRow({ payment }: { payment: PaymentView }) {
               {payment.customer_name || payment.customer_email || "—"}
             </Link>
           ) : (
-            <span className="font-medium">{payment.customer_name || "—"}</span>
+            <span className="font-medium">{payment.customer_name || payment.customer_email || "—"}</span>
           )}
-          {payment.customer_email && <div className="text-xs text-ink-mute">{payment.customer_email}</div>}
+          {payment.customer_email && (payment.customer_name !== payment.customer_email) && (
+            <div className="text-xs text-ink-mute">{payment.customer_email}</div>
+          )}
         </td>
         <td className="whitespace-nowrap tabular-nums text-sm">{payment.occurred_at}</td>
         <td className="whitespace-nowrap text-sm">{payment.refund_date || "—"}</td>

@@ -3,11 +3,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatYen } from "@/lib/format";
 
-const PRESETS = [1000, 3000, 5000, 10000, 30000];
+const PRESETS = [3000, 5000, 10000, 30000, 50000];
 
 export default function DonationForm() {
   const router = useRouter();
-  const [amount, setAmount] = useState(3000);
+  const [amount, setAmount] = useState(10000);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

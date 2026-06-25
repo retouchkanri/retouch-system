@@ -83,7 +83,7 @@ export default function HeaderUserMenu({ name, email, role, badge, avatarUrl }: 
             className="block px-4 py-2 text-sm hover:bg-surface-soft"
             onClick={() => setOpen(false)}
           >
-            プロフィール
+            マイページ
           </Link>
           <Link
             href="/mypage/profile"

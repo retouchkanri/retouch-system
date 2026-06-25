@@ -35,8 +35,7 @@ export default function PublicDonatePage() {
         </div>
         <div className="card border-2 border-brand-light bg-brand-50">
           <p className="text-sm leading-relaxed">
-            いただいたご寄付は、引退競走馬のケア・見学会運営に活用させていただきます。<br />
-            会員登録後のマイページから、継続支援もご検討いただけます。
+            Retouchへの寄付・収入は「約20％：事務費・運営費」「約80％：馬の支援活動費」（馬の購入費・輸送費・管理費 等）として使用させていただいております。
           </p>
         </div>
         <PublicDonationForm />

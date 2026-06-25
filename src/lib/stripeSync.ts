@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import { getStripe } from "./stripe";
 import { createSupabaseAdminClient } from "./supabase/admin";
+import { composeFullName } from "./registration";
 
 /**
  * Pull payments from Stripe (the source of truth for money movement) into the
@@ -139,8 +140,25 @@ export async function syncStripePayments(
     const email = (cust?.email || charge.billing_details?.email || charge.receipt_email || null) as
       | string
       | null;
-    const name = (cust?.name || charge.billing_details?.name || null) as string | null;
+    let name = (cust?.name || charge.billing_details?.name || null) as string | null;
     const customerId = await resolveCustomer(idOf(charge.customer as any), email);
+
+    // Stripe often omits billing_details.name for subscription charges.
+    // Fill in from the local customer record so the admin table shows a name.
+    // full_name は2段階登録で姓名から合成する項目のため空のことがある。空なら
+    // 姓+名から組み立てて、必ず氏名が入るようにする。
+    if (!name && customerId) {
+      const { data: cdata } = await admin
+        .from("customers")
+        .select("full_name, last_name, first_name")
+        .eq("id", customerId)
+        .maybeSingle();
+      const full = ((cdata as any)?.full_name as string | null)?.trim();
+      name =
+        full ||
+        composeFullName((cdata as any)?.last_name, (cdata as any)?.first_name) ||
+        null;
+    }
 
     // Display details to mirror the Stripe Transactions table.
     const card = (charge.payment_method_details as any)?.card;

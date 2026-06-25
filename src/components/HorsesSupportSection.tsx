@@ -22,9 +22,18 @@ type Props = {
   limit?: number;
   /** 一覧ページへの「View More」リンクを表示 */
   showViewMore?: boolean;
+  /**
+   * 「支援を始める」ボタンのリンク先。会員はログイン済みのため再登録を経ず
+   * 会員専用の支援ページへ直接遷移させたい場合に指定する（既定は新規登録）。
+   */
+  supportHref?: string;
 };
 
-export default async function HorsesSupportSection({ limit, showViewMore = false }: Props = {}) {
+export default async function HorsesSupportSection({
+  limit,
+  showViewMore = false,
+  supportHref = "/signup",
+}: Props = {}) {
   const admin = createSupabaseAdminClient();
 
   const [{ data: horses }, { data: supporters }] = await Promise.all([
@@ -162,7 +171,7 @@ export default async function HorsesSupportSection({ limit, showViewMore = false
           )}
           <p className="text-ink-soft text-sm">あなたの応援が、馬たちの毎日を支えます。</p>
           <div className="flex flex-wrap justify-center gap-3">
-            <Link href="/signup" className="btn-primary btn-pulse">
+            <Link href={supportHref} className="btn-primary btn-pulse">
               支援を始める
             </Link>
             <Link href="/support-guide" className="btn-secondary">

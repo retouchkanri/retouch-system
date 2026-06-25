@@ -17,6 +17,7 @@ import NewsCarousel from "@/components/NewsCarousel";
 import HorsesSupportSection from "@/components/HorsesSupportSection";
 import PublicFooterNav from "@/components/PublicFooterNav";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSession } from "@/lib/auth";
 import type { NewsItem } from "@/types/db";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,14 @@ export default async function HomePage() {
     .order("published_at", { ascending: false })
     .limit(12)
     .then((r) => r, () => ({ data: null }));
+
+  // ログイン済みの会員がTOPのCTAから再度「会員登録」「ログイン」を求められると、
+  // 二重に新規登録してしまい不要な会員データが増えてしまう。会員の場合は
+  // そのまま会員専用の支援ページ（一口支援／リタポ）へ直接遷移させる。
+  const session = await getSession();
+  const isMember = !!session?.customerId;
+  const supportHref = isMember ? "/mypage/supports/new" : "/signup";
+  const ponyHref = isMember ? "/mypage/rpt/new" : "/signup";
 
   return (
     <div className="flex flex-col min-h-0 flex-1 overflow-x-hidden max-w-full">
@@ -177,8 +186,17 @@ export default async function HomePage() {
                 ))}
               </ul>
               <div className="mt-8 flex flex-wrap gap-3 justify-center lg:justify-start">
-                <Link href="/signup" className="btn-primary btn-pulse">会員登録する</Link>
-                <Link href="/login" className="btn-secondary">ログイン</Link>
+                {isMember ? (
+                  <>
+                    <Link href="/mypage/supports/new" className="btn-primary btn-pulse">支援する</Link>
+                    <Link href="/mypage" className="btn-secondary">マイページへ</Link>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/signup" className="btn-primary btn-pulse">会員登録する</Link>
+                    <Link href="/login" className="btn-secondary">ログイン</Link>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -245,7 +263,7 @@ export default async function HomePage() {
 
               {/* Mobile: stacked, centered, equal-width buttons. Desktop: inline row. */}
               <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                <Link href="/signup" className="btn-primary btn-pulse w-full max-w-xs sm:w-auto sm:max-w-none">ポニーチームを支援する</Link>
+                <Link href={ponyHref} className="btn-primary btn-pulse w-full max-w-xs sm:w-auto sm:max-w-none">ポニーチームを支援する</Link>
                 <Link href="#contact" className="btn-secondary w-full max-w-xs sm:w-auto sm:max-w-none">活動について相談する</Link>
               </div>
               <p className="text-xs text-ink-mute mt-3 text-center sm:text-left">※ 他の会員プランと併用してご参加いただけます。</p>
@@ -284,7 +302,7 @@ export default async function HomePage() {
       </section>
 
       {/* ── HORSES ── */}
-      <HorsesSupportSection limit={6} showViewMore />
+      <HorsesSupportSection limit={6} showViewMore supportHref={supportHref} />
 
       {/* ── NEWS ── */}
       <section className="relative bg-surface-soft py-20 overflow-hidden">

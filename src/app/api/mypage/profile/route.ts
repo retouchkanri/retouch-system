@@ -7,19 +7,22 @@ import { notify, profileUpdatedTemplate, staffRecipients } from "@/lib/notify";
 import { buildCustomerSyncPatch } from "@/lib/registration";
 
 const schema = z.object({
-  username: z.string().trim().max(60).optional().nullable(),
+  username: z.string().trim().min(1, "ユーザーネームを入力してください").max(60),
   last_name: z.string().trim().min(1, "姓を入力してください").max(60),
   first_name: z.string().trim().min(1, "名を入力してください").max(60),
-  last_name_kana: z.string().trim().max(60).optional().nullable(),
-  first_name_kana: z.string().trim().max(60).optional().nullable(),
-  phone: z.string().max(40).optional().nullable(),
-  postal_code: z.string().max(20).optional().nullable(),
-  prefecture: z.string().max(40).optional().nullable(),
-  address_city: z.string().max(100).optional().nullable(),
-  address_town: z.string().max(100).optional().nullable(),
+  last_name_kana: z.string().trim().min(1, "セイ（カナ）を入力してください").max(60),
+  first_name_kana: z.string().trim().min(1, "メイ（カナ）を入力してください").max(60),
+  phone: z.string().trim().min(1, "電話番号を入力してください").max(40),
+  postal_code: z.string().trim().min(1, "郵便番号を入力してください").max(20),
+  prefecture: z.string().trim().min(1, "都道府県を選択してください").max(40),
+  address_city: z.string().trim().min(1, "市区町村を入力してください").max(100),
+  address_town: z.string().trim().min(1, "町名・番地を入力してください").max(100),
   address_building: z.string().max(200).optional().nullable(),
-  birthday: z.union([z.string(), z.literal("")]).optional().nullable(),
-  gender: z.enum(["male", "female", "other", "unspecified"]).optional().nullable(),
+  birthday: z.string().trim().min(1, "生年月日を入力してください"),
+  gender: z.enum(["male", "female", "other", "unspecified"], {
+    errorMap: () => ({ message: "性別を選択してください" }),
+  }),
+  // メールマガジン・お知らせ通知は全会員へ配信のため受け取っても無視する。
   newsletter_opt_out: z.boolean().optional(),
   announcement_opt_out: z.boolean().optional(),
 });
@@ -59,8 +62,9 @@ export async function POST(req: Request) {
     address1: sync.address1,
     address2: sync.address2,
   };
-  if (d.newsletter_opt_out !== undefined) patch.newsletter_opt_out = d.newsletter_opt_out;
-  if (d.announcement_opt_out !== undefined) patch.announcement_opt_out = d.announcement_opt_out;
+  // 配信・通知は全会員が対象のため、常に受信（opt_out = false）で固定する。
+  patch.newsletter_opt_out = false;
+  patch.announcement_opt_out = false;
 
   const supabase = createSupabaseServerClient();
   const { error } = await supabase.from("customers").update(patch).eq("id", session.customerId);

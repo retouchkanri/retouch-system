@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import HorsesSupportSection from "@/components/HorsesSupportSection";
 import PublicFooterNav from "@/components/PublicFooterNav";
+import { getSession } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "馬ごとの支援状況",
@@ -10,7 +11,13 @@ export const metadata: Metadata = {
   alternates: { canonical: "/horses" },
 };
 
-export default function HorsesPage() {
+export const dynamic = "force-dynamic";
+
+export default async function HorsesPage() {
+  // ログイン済みの会員は再登録を経ず会員専用の支援ページへ直接遷移させる。
+  const session = await getSession();
+  const supportHref = session?.customerId ? "/mypage/supports/new" : "/signup";
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <main className="flex-1">
@@ -19,7 +26,7 @@ export default function HorsesPage() {
             ← トップページへ
           </Link>
         </div>
-        <HorsesSupportSection />
+        <HorsesSupportSection supportHref={supportHref} />
       </main>
 
       <footer className="bg-ink py-8 px-5">

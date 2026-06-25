@@ -33,7 +33,8 @@ export default async function NewSupportPage() {
     supportPlans[0] ??
     null;
   const basicPlan = contract?.plan;
-  const blocksSupport = basicPlan && isBasicMemberPlanCode(basicPlan.code);
+  const conflictingContract =
+    basicPlan && isBasicMemberPlanCode(basicPlan.code) ? contract : null;
 
   return (
     <div className="space-y-4">
@@ -52,12 +53,12 @@ export default async function NewSupportPage() {
         </p>
       </div>
 
-      {blocksSupport && (
+      {conflictingContract && (
         <div className="card border-2 border-warn">
           <p className="font-bold text-warn">ご注意</p>
           <p className="text-sm mt-1">
-            現在{basicPlan?.name}にご加入中です。A/B/C会員と支援会員は併用できません。
-            支援を追加するには、現在の会員種別の停止が必要です。運営までお問い合わせください。
+            現在{basicPlan?.name}にご加入中です。メンバーズ会員・サポーター会員・リェリーフ会員とヘルパーズ会員（一口支援・半口支援）は併用できません。
+            このまま申し込みを進めると、<strong>現在の{basicPlan?.name}は自動的に解約</strong>されてからヘルパーズ会員（一口支援）へ切り替わります。
           </p>
         </div>
       )}
@@ -66,7 +67,8 @@ export default async function NewSupportPage() {
         horses={horses}
         plan={supportPlan}
         existingHorseIds={existingSupports.map((s) => s.horse_id)}
-        disabled={!!blocksSupport}
+        conflictingContractId={conflictingContract?.id ?? null}
+        conflictingPlanName={basicPlan?.name ?? null}
       />
     </div>
   );

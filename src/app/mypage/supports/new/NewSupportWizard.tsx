@@ -12,16 +12,18 @@ type Props = {
   horses: Horse[];
   plan: MembershipPlan | null;
   existingHorseIds: string[];
-  disabled: boolean;
+  conflictingContractId: string | null;
+  conflictingPlanName: string | null;
 };
 
-export default function NewSupportWizard({ horses, plan, existingHorseIds, disabled }: Props) {
+export default function NewSupportWizard({ horses, plan, existingHorseIds, conflictingContractId, conflictingPlanName }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [horseId, setHorseId] = useState<string | null>(null);
   const [units, setUnits] = useState<number>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cancelAgreed, setCancelAgreed] = useState(false);
 
   const selectedHorse = horses.find((h) => h.id === horseId) ?? null;
   // Support is always priced at SUPPORT_UNIT_PRICE per 口; a half share is units 0.5.
@@ -34,7 +36,12 @@ export default function NewSupportWizard({ horses, plan, existingHorseIds, disab
     const res = await fetch("/api/mypage/supports", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ horse_id: horseId, plan_id: plan.id, units }),
+      body: JSON.stringify({
+        horse_id: horseId,
+        plan_id: plan.id,
+        units,
+        ...(conflictingContractId ? { cancel_contract_id: conflictingContractId } : {}),
+      }),
     });
     const j = await res.json();
     setSubmitting(false);
@@ -79,7 +86,6 @@ export default function NewSupportWizard({ horses, plan, existingHorseIds, disab
                     name="horse"
                     checked={horseId === h.id}
                     onChange={() => setHorseId(h.id)}
-                    disabled={disabled}
                   />
                   {h.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -102,7 +108,7 @@ export default function NewSupportWizard({ horses, plan, existingHorseIds, disab
           </div>
           <div className="flex justify-between mt-4">
             <span />
-            <button className="btn-primary" disabled={!horseId || disabled} onClick={() => setStep(2)}>
+            <button className="btn-primary" disabled={!horseId} onClick={() => setStep(2)}>
               次へ進む
             </button>
           </div>
@@ -146,10 +152,29 @@ export default function NewSupportWizard({ horses, plan, existingHorseIds, disab
             <div className="py-3 flex justify-between"><dt className="text-ink-soft">口数</dt><dd className="font-bold">{units} 口</dd></div>
             <div className="py-3 flex justify-between"><dt className="text-ink-soft">月額見込み</dt><dd className="font-bold text-brand">{formatYen(monthly)}</dd></div>
           </dl>
+          {conflictingContractId && conflictingPlanName && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 mb-3">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 w-4 h-4 shrink-0"
+                  checked={cancelAgreed}
+                  onChange={(e) => setCancelAgreed(e.target.checked)}
+                />
+                <span className="text-sm text-amber-800">
+                  現在ご加入の<strong>{conflictingPlanName}</strong>を自動解約し、ヘルパーズ会員（一口支援）へ切り替えることに同意します。
+                </span>
+              </label>
+            </div>
+          )}
           {error && <p className="text-danger text-sm mb-2">{error}</p>}
           <div className="flex justify-between">
             <button className="btn-ghost" onClick={() => setStep(2)}>戻る</button>
-            <button className="btn-primary" onClick={submit} disabled={submitting}>
+            <button
+              className="btn-primary"
+              onClick={submit}
+              disabled={submitting || (!!conflictingContractId && !cancelAgreed)}
+            >
               {submitting ? "処理中..." : "この内容で申し込む"}
             </button>
           </div>

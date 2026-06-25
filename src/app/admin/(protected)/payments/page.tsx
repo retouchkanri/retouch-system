@@ -4,8 +4,28 @@ import { requireCapability } from "@/lib/auth";
 import { formatDate, formatYen, statusLabel } from "@/lib/format";
 import { syncStripePayments } from "@/lib/stripeSync";
 import { resolveMatchingIds } from "@/lib/adminSearch";
+import { composeFullName } from "@/lib/registration";
 import PaymentRow from "./PaymentRow";
 import SyncButton from "./SyncButton";
+
+/**
+ * 顧客名の表示を解決する。full_name は2段階登録で姓名から合成する項目のため、
+ * 空文字になっているケースがある（`??` は空文字を握りつぶさないので blank 表示の
+ * 原因になる）。full_name → 姓+名 → Stripe 上の名前 の順に、空でない値を採用する。
+ */
+function resolveCustomerName(p: any): string {
+  const full = (p.customer?.full_name as string | null)?.trim();
+  if (full) return full;
+  const composed = composeFullName(p.customer?.last_name, p.customer?.first_name);
+  if (composed) return composed;
+  return (p.raw?.stripe_name as string | null)?.trim() ?? "";
+}
+
+function resolveCustomerEmail(p: any): string {
+  const email = (p.customer?.email as string | null)?.trim();
+  if (email) return email;
+  return (p.raw?.stripe_email as string | null)?.trim() ?? "";
+}
 
 const PAGE_SIZE = 20;
 
@@ -24,6 +44,21 @@ function paymentMethodLabel(raw: any): string {
   if (!brand && !last4) return "—";
   const b = brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : "カード";
   return last4 ? `${b} ••••${last4}` : b;
+}
+
+/** Stripe の汎用説明文（ご利用ありがとうございました等）を kind ベースの表示に変換 */
+function resolveDescription(raw: any, kind: string): string {
+  const desc = (raw?.description as string | null)?.trim() ?? "";
+  // Stripe が自動付与する日本語汎用テキストは意味がないので置換する
+  const isGeneric =
+    !desc ||
+    /^ご利用ありがとうございました/.test(desc) ||
+    /^Thank you/.test(desc) ||
+    /^Subscription (update|creation)/.test(desc);
+  if (isGeneric) {
+    return kind === "subscription" ? "定期支援" : kind === "one_time" ? "単発寄付" : "—";
+  }
+  return desc;
 }
 
 export default async function AdminPaymentsPage({
@@ -92,7 +127,7 @@ export default async function AdminPaymentsPage({
   const { data, error } = await applyFilters(
     supabase
       .from("payments")
-      .select("*, customer:customers(full_name, email)")
+      .select("*, customer:customers(full_name, last_name, first_name, email)")
       .order("occurred_at", { ascending: false }),
     status,
   ).range(from, from + PAGE_SIZE - 1);
@@ -175,13 +210,13 @@ export default async function AdminPaymentsPage({
                 payment={{
                   id: p.id,
                   customer_id: p.customer_id,
-                  customer_name: p.customer?.full_name ?? p.raw?.stripe_name ?? "",
-                  customer_email: p.customer?.email ?? p.raw?.stripe_email ?? "",
+                  customer_name: resolveCustomerName(p),
+                  customer_email: resolveCustomerEmail(p),
                   amount: Number(p.amount ?? 0),
                   amount_label: formatYen(p.amount),
                   currency: (p.currency ?? "jpy").toUpperCase(),
                   payment_method: paymentMethodLabel(p.raw),
-                  description: p.raw?.description ?? "",
+                  description: resolveDescription(p.raw, p.kind ?? ""),
                   status: p.status,
                   status_label: statusLabel(p.status),
                   failure_reason: p.failure_reason ?? "",

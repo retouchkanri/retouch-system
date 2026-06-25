@@ -14,7 +14,7 @@ import {
   loadPayments,
 } from "@/lib/customer";
 import SpecialTeamStopButton from "./SpecialTeamStopButton";
-import { SPECIAL_TEAM_NEW_SIGNUPS_ENABLED, MEMBER_SELF_SERVICE_ENABLED, MEMBER_PLAN_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
+import { MEMBER_SELF_SERVICE_ENABLED, MEMBER_PLAN_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
 import { formatDate, formatUnits, formatYen, memberClassLabel } from "@/lib/format";
 import { isBasicMemberPlanCode } from "@/lib/constraints";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -131,11 +131,11 @@ export default async function MyPageTop() {
     ? "—"
     : "未加入";
 
-  const nextPaymentAt =
-    contract?.current_period_end ?? summary?.next_payment_at ?? null;
-  const hasActiveRecurring =
-    Boolean(nextPaymentAt) &&
-    (displayKey === "ok" || displayKey === "failed" || displayKey === "in_progress");
+  // アテンダー会員は年内30,000円以上寄付で当年12/31まで有効。
+  // planBadgeText（= primary_plan_name 優先）で判定し、有効期限を動的に表示する。
+  const isAttenderMember = planBadgeText.includes("アテンダー");
+  const attenderExpiryYear = new Date().getFullYear();
+  const attenderExpiryText = `${attenderExpiryYear}年12月31日`;
 
   // Status indicator styling
   const statusBannerColor =
@@ -198,6 +198,11 @@ export default async function MyPageTop() {
           <div className="space-y-1">
             <p className="label">現在の会員種別</p>
             <p className="text-lg font-bold">{planBadgeText}</p>
+            {isAttenderMember && (
+              <p className="text-sm text-ink-soft">
+                有効期限：{attenderExpiryText}
+              </p>
+            )}
             {hasSpecial && (
               <div className="pt-0.5">
                 <span className="text-xs text-ink-soft">特別参加：</span>
@@ -219,14 +224,6 @@ export default async function MyPageTop() {
             <p className="label">お支払い状況</p>
             <span className={display.chipClass}>{display.label}</span>
             <p className="text-sm text-ink-soft mt-1">{display.description}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="label">次回決済日</p>
-            {hasActiveRecurring ? (
-              <p className="text-lg font-semibold">{formatDate(nextPaymentAt, false)}</p>
-            ) : (
-              <p className="text-sm text-ink-soft">継続課金中のご契約はありません</p>
-            )}
           </div>
           <div className="space-y-1">
             <p className="label">月額支援合計</p>
@@ -278,18 +275,7 @@ export default async function MyPageTop() {
               </div>
             </div>
           </Link>
-          <Link href="/mypage/newsletter" className="card hover:shadow-lg transition-shadow group">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-brand-50 group-hover:bg-brand-100 flex items-center justify-center text-2xl transition-colors shrink-0">
-                ✉️
-              </div>
-              <div>
-                <p className="text-xs text-ink-mute mb-0.5">メール配信</p>
-                <p className="text-lg font-bold">メルマガ配信設定</p>
-                <p className="text-xs text-ink-soft mt-0.5">メールマガジンの受け取りを設定します。</p>
-              </div>
-            </div>
-          </Link>
+
         </div>
       </section>
 
@@ -412,96 +398,103 @@ export default async function MyPageTop() {
         )}
       </section>
 
-      {/* ── Special team memberships ── */}
+      {/* ── Special team memberships（既存加入者のみ表示） ── */}
+      {specialTeams.length > 0 && (
       <section className="card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="section-title mb-0">特別チーム会員</h2>
-          {SPECIAL_TEAM_NEW_SIGNUPS_ENABLED && MEMBER_SELF_SERVICE_ENABLED && (
-            <Link className="text-brand underline text-sm font-medium" href="/mypage/special-team/new">
+        </div>
+
+        <ul className="divide-y divide-surface-line">
+          {specialTeams.map((m) => {
+            const isScheduledStop =
+              m.status === "active" &&
+              m.canceled_at &&
+              new Date(m.canceled_at).getTime() > now;
+            const statusColor =
+              m.status === "active"
+                ? isScheduledStop
+                  ? "bg-amber-100 text-amber-800"
+                  : "bg-green-100 text-green-800"
+                : m.status === "past_due"
+                ? "bg-red-100 text-red-800"
+                : "bg-gray-100 text-gray-700";
+            const statusLabel =
+              m.status === "active"
+                ? isScheduledStop
+                  ? "停止予定"
+                  : "有効"
+                : m.status === "past_due"
+                ? "決済失敗"
+                : m.status === "incomplete"
+                ? "手続き中"
+                : m.status;
+            return (
+              <li key={m.id} className="py-4">
+                <div className="flex items-start gap-3">
+                  {m.horse?.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.horse.image_url} alt={m.horse?.name ?? ""} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-brand-50 overflow-hidden shrink-0">
+                      <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-lg">{m.horse?.name ?? "—"}</p>
+                      <span className={`chip text-xs ${statusColor}`}>{statusLabel}</span>
+                    </div>
+                    <p className="text-sm text-ink-soft mt-0.5">
+                      特別チーム会員 / {formatYen(m.monthly_amount)} / 月
+                    </p>
+                    {isScheduledStop && (
+                      <p className="text-xs text-amber-700 mt-1">
+                        {formatDate(m.canceled_at, false)} をもって終了予定
+                      </p>
+                    )}
+                  </div>
+                  {MEMBER_SELF_SERVICE_ENABLED && !isScheduledStop && m.status !== "canceled" && (
+                    <SpecialTeamStopButton id={m.id} horseName={m.horse?.name ?? "対象馬"} />
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+      )}
+
+      {/* ── リタポ会員（RetouchPony Team） ── */}
+      {MEMBER_SELF_SERVICE_ENABLED && (
+      <section className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="section-title mb-0">リタポ会員（RetouchPony Team）</h2>
+          {!summary?.rpt_active && (
+            <Link className="text-brand underline text-sm font-medium" href="/mypage/rpt/new">
               + 申し込む
             </Link>
           )}
         </div>
 
-        {specialTeams.length === 0 ? (
-          <div className="py-6 text-center">
-            {SPECIAL_TEAM_NEW_SIGNUPS_ENABLED && MEMBER_SELF_SERVICE_ENABLED ? (
-              <>
-                <p className="text-ink-mute text-sm">
-                  特別チーム会員は、馬ごとに月額{formatYen(1000)}でご参加いただけます。<br />
-                  他の会員種別と併用可能です。
-                </p>
-                <Link href="/mypage/special-team/new" className="btn-secondary inline-flex mt-4">
-                  特別チーム会員に申し込む
-                </Link>
-              </>
-            ) : (
-              <p className="text-ink-mute text-sm">
-                現在、特別チーム会員の新規受付を停止しております。<br />
-                ご支援いただきありがとうございます。
-              </p>
-            )}
+        {summary?.rpt_active ? (
+          <div className="flex items-center gap-3 py-2">
+            <span className="chip bg-green-100 text-green-800 text-sm">加入中</span>
+            <p className="text-sm text-ink-soft">RetouchPony【リタポ】メンバー / {formatYen(3000)} / 月</p>
           </div>
         ) : (
-          <ul className="divide-y divide-surface-line">
-            {specialTeams.map((m) => {
-              const isScheduledStop =
-                m.status === "active" &&
-                m.canceled_at &&
-                new Date(m.canceled_at).getTime() > now;
-              const statusColor =
-                m.status === "active"
-                  ? isScheduledStop
-                    ? "bg-amber-100 text-amber-800"
-                    : "bg-green-100 text-green-800"
-                  : m.status === "past_due"
-                  ? "bg-red-100 text-red-800"
-                  : "bg-gray-100 text-gray-700";
-              const statusLabel =
-                m.status === "active"
-                  ? isScheduledStop
-                    ? "停止予定"
-                    : "有効"
-                  : m.status === "past_due"
-                  ? "決済失敗"
-                  : m.status === "incomplete"
-                  ? "手続き中"
-                  : m.status;
-              return (
-                <li key={m.id} className="py-4">
-                  <div className="flex items-start gap-3">
-                    {m.horse?.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={m.horse.image_url} alt={m.horse?.name ?? ""} className="w-12 h-12 rounded-xl object-cover shrink-0" />
-                    ) : (
-                      <div className="w-12 h-12 rounded-xl bg-brand-50 overflow-hidden shrink-0">
-                        <Image src={horseImage} alt="horse" className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-bold text-lg">{m.horse?.name ?? "—"}</p>
-                        <span className={`chip text-xs ${statusColor}`}>{statusLabel}</span>
-                      </div>
-                      <p className="text-sm text-ink-soft mt-0.5">
-                        特別チーム会員 / {formatYen(m.monthly_amount)} / 月
-                      </p>
-                      {isScheduledStop && (
-                        <p className="text-xs text-amber-700 mt-1">
-                          {formatDate(m.canceled_at, false)} をもって終了予定
-                        </p>
-                      )}
-                    </div>
-                    {MEMBER_SELF_SERVICE_ENABLED && !isScheduledStop && m.status !== "canceled" && (
-                      <SpecialTeamStopButton id={m.id} horseName={m.horse?.name ?? "対象馬"} />
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="py-4 text-center">
+            <p className="text-ink-mute text-sm">
+              リタポ会員は月額{formatYen(3000)}でRetouch馬の活動をご支援いただけます。<br />
+              他の会員種別と併用可能です。
+            </p>
+            <Link href="/mypage/rpt/new" className="btn-secondary inline-flex mt-4">
+              リタポ会員に申し込む
+            </Link>
+          </div>
         )}
       </section>
+      )}
 
       {/* ── Quick actions ── */}
       {MEMBER_SELF_SERVICE_ENABLED && (
@@ -516,7 +509,7 @@ export default async function MyPageTop() {
               <div>
                 <p className="text-xs text-ink-mute mb-0.5">単発寄付</p>
                 <p className="text-lg font-bold">寄付する</p>
-                <p className="text-xs text-ink-soft mt-0.5">一回限りの応援を行います。</p>
+                <p className="text-xs text-ink-soft mt-0.5">単発での寄付・支援を行います。</p>
               </div>
             </div>
           </Link>

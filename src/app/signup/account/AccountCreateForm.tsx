@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { PREFECTURES } from "@/lib/jpAddress";
 
-type Gender = "male" | "female" | "unspecified";
+type Gender = "male" | "female" | "other" | "unspecified" | "";
 
 export default function AccountCreateForm({
   token,
@@ -31,12 +31,10 @@ export default function AccountCreateForm({
     address_town: "",
     address_building: "",
   });
-  const [gender, setGender] = useState<Gender>("male");
+  const [gender, setGender] = useState<Gender>("");
   const [birthYear, setBirthYear] = useState("");
   const [birthMonth, setBirthMonth] = useState("");
   const [birthDay, setBirthDay] = useState("");
-  const [newsletterReceive, setNewsletterReceive] = useState(true);
-  const [announcementReceive, setAnnouncementReceive] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,6 +54,15 @@ export default function AccountCreateForm({
         ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}`
         : "";
 
+    if (!gender) {
+      setError("性別を選択してください。");
+      return;
+    }
+    if (!birthday) {
+      setError("生年月日を入力してください。");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch("/api/auth/registration/complete", {
@@ -66,8 +73,9 @@ export default function AccountCreateForm({
           ...form,
           gender,
           birthday,
-          newsletter_opt_out: !newsletterReceive,
-          announcement_opt_out: !announcementReceive,
+          // メールマガジン・お知らせ通知は全会員へ配信するため、常に受信（opt_out = false）。
+          newsletter_opt_out: false,
+          announcement_opt_out: false,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -171,13 +179,16 @@ export default function AccountCreateForm({
       </div>
 
       <div>
-        <label className="label">性別</label>
-        <div className="flex items-center gap-4 text-sm">
+        <label className="label">
+          性別<Req />
+        </label>
+        <div className="flex flex-wrap items-center gap-4 text-sm">
           {([
             ["male", "男性"],
             ["female", "女性"],
-            ["unspecified", "選択しない"],
-          ] as [Gender, string][]).map(([val, lbl]) => (
+            ["other", "その他"],
+            ["unspecified", "未回答"],
+          ] as [Exclude<Gender, "">, string][]).map(([val, lbl]) => (
             <label key={val} className="flex items-center gap-1.5 cursor-pointer">
               <input
                 type="radio"
@@ -185,6 +196,7 @@ export default function AccountCreateForm({
                 checked={gender === val}
                 onChange={() => setGender(val)}
                 className="text-brand focus:ring-brand/30"
+                required
               />
               <span>{lbl}</span>
             </label>
@@ -193,54 +205,25 @@ export default function AccountCreateForm({
       </div>
 
       <div>
-        <label className="label">生年月日</label>
+        <label className="label">
+          生年月日<Req />
+        </label>
         <div className="flex items-center gap-2">
-          <select className="input" value={birthYear} onChange={(e) => setBirthYear(e.target.value)}>
+          <select className="input" value={birthYear} onChange={(e) => setBirthYear(e.target.value)} required>
             <option value="">年</option>
             {years.map((y) => (<option key={y} value={y}>{y}</option>))}
           </select>
           <span className="text-sm text-ink-soft">年</span>
-          <select className="input" value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)}>
+          <select className="input" value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)} required>
             <option value="">月</option>
             {months.map((m) => (<option key={m} value={m}>{m}</option>))}
           </select>
           <span className="text-sm text-ink-soft">月</span>
-          <select className="input" value={birthDay} onChange={(e) => setBirthDay(e.target.value)}>
+          <select className="input" value={birthDay} onChange={(e) => setBirthDay(e.target.value)} required>
             <option value="">日</option>
             {days.map((d) => (<option key={d} value={d}>{d}</option>))}
           </select>
           <span className="text-sm text-ink-soft">日</span>
-        </div>
-      </div>
-
-      <div>
-        <label className="label">メールマガジン</label>
-        <div className="flex items-center gap-4 text-sm">
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input type="radio" name="newsletter" checked={newsletterReceive} onChange={() => setNewsletterReceive(true)} className="text-brand focus:ring-brand/30" />
-            <span>受信する</span>
-          </label>
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input type="radio" name="newsletter" checked={!newsletterReceive} onChange={() => setNewsletterReceive(false)} className="text-brand focus:ring-brand/30" />
-            <span>受信しない</span>
-          </label>
-        </div>
-        <p className="text-xs text-ink-mute mt-1">
-          広告を含んだメールマガジンの配信に同意いただける場合は「受信する」を選択してください。
-        </p>
-      </div>
-
-      <div>
-        <label className="label">お知らせ通知</label>
-        <div className="flex items-center gap-4 text-sm">
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input type="radio" name="announcement" checked={announcementReceive} onChange={() => setAnnouncementReceive(true)} className="text-brand focus:ring-brand/30" />
-            <span>通知する</span>
-          </label>
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input type="radio" name="announcement" checked={!announcementReceive} onChange={() => setAnnouncementReceive(false)} className="text-brand focus:ring-brand/30" />
-            <span>通知しない</span>
-          </label>
         </div>
       </div>
 

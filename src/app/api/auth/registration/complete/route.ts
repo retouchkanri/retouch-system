@@ -24,10 +24,13 @@ const schema = z.object({
   address_city: z.string().trim().min(1, "市区町村を入力してください").max(100),
   address_town: z.string().trim().min(1, "町名・番地を入力してください").max(100),
   address_building: z.string().trim().max(200).optional().nullable(),
-  gender: z.enum(["male", "female", "unspecified"]).default("unspecified"),
-  birthday: z.union([z.string(), z.literal("")]).optional().nullable(),
-  newsletter_opt_out: z.boolean().default(false),
-  announcement_opt_out: z.boolean().default(false),
+  gender: z.enum(["male", "female", "other", "unspecified"], {
+    errorMap: () => ({ message: "性別を選択してください" }),
+  }),
+  birthday: z.string().trim().min(1, "生年月日を入力してください"),
+  // メールマガジン・お知らせ通知は全会員へ配信のため受け取っても無視する。
+  newsletter_opt_out: z.boolean().optional(),
+  announcement_opt_out: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -75,7 +78,7 @@ export async function POST(req: Request) {
 
   // 既存カラム（full_name 等）への合成値を組み立てる。
   const sync = buildCustomerSyncPatch(data);
-  const birthday = data.birthday && data.birthday !== "" ? data.birthday : null;
+  const birthday = data.birthday;
 
   const { error: upErr } = await admin
     .from("customers")
@@ -93,8 +96,8 @@ export async function POST(req: Request) {
       address_building: data.address_building ?? null,
       gender: data.gender,
       birthday,
-      newsletter_opt_out: data.newsletter_opt_out,
-      announcement_opt_out: data.announcement_opt_out,
+      newsletter_opt_out: false,
+      announcement_opt_out: false,
       // 後方互換のため合成カラムも同期。
       full_name: sync.full_name,
       full_name_kana: sync.full_name_kana,

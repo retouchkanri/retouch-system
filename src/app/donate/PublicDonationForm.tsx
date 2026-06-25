@@ -4,13 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatYen } from "@/lib/format";
 
-const PRESETS = [1000, 3000, 5000, 10000, 30000];
+const PRESETS = [3000, 5000, 10000, 30000, 50000];
+const DEFAULT_AMOUNT = 10000;
 
 type PayMethod = "card" | "bank_transfer";
 
 export default function PublicDonationForm() {
   const router = useRouter();
-  const [amount, setAmount] = useState(3000);
+  const [amount, setAmount] = useState(DEFAULT_AMOUNT);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");

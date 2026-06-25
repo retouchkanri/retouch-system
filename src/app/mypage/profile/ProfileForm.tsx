@@ -38,10 +38,8 @@ export default function ProfileForm({
     address_town: customer.address_town ?? customer.address1 ?? "",
     address_building: customer.address_building ?? customer.address2 ?? "",
     birthday: customer.birthday ?? "",
-    gender: customer.gender ?? "unspecified",
+    gender: customer.gender ?? "",
   });
-  const [newsletterReceive, setNewsletterReceive] = useState(!customer.newsletter_opt_out);
-  const [announcementReceive, setAnnouncementReceive] = useState(!customer.announcement_opt_out);
   const [emailVal, setEmailVal] = useState(email);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -103,8 +101,9 @@ export default function ProfileForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           ...form,
-          newsletter_opt_out: !newsletterReceive,
-          announcement_opt_out: !announcementReceive,
+          // メールマガジン・お知らせ通知は全会員へ配信するため、常に受信（opt_out = false）。
+          newsletter_opt_out: false,
+          announcement_opt_out: false,
         }),
       });
       if (!res.ok) {
@@ -142,6 +141,8 @@ export default function ProfileForm({
     setAvatarFile(null);
     router.refresh();
   };
+
+  const Req = () => <span className="text-danger text-xs ml-1">必須</span>;
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
@@ -208,84 +209,54 @@ export default function ProfileForm({
           </div>
         )}
         <div>
-          <label className="label">ユーザーネーム</label>
-          <input className="input" value={form.username} onChange={set("username")} disabled={!selfServiceEnabled} maxLength={60} />
+          <label className="label">ユーザーネーム<Req /></label>
+          <input className="input" value={form.username} onChange={set("username")} required disabled={!selfServiceEnabled} maxLength={60} />
         </div>
         <div>
-          <label className="label">氏名</label>
+          <label className="label">氏名<Req /></label>
           <div className="grid grid-cols-2 gap-2">
             <input className="input" placeholder="名字" value={form.last_name} onChange={set("last_name")} required disabled={!selfServiceEnabled} maxLength={60} />
-            <input className="input" placeholder="名前" value={form.first_name} onChange={set("first_name")} disabled={!selfServiceEnabled} maxLength={60} />
+            <input className="input" placeholder="名前" value={form.first_name} onChange={set("first_name")} required disabled={!selfServiceEnabled} maxLength={60} />
           </div>
         </div>
         <div>
-          <label className="label">氏名（カナ）</label>
+          <label className="label">氏名（カナ）<Req /></label>
           <div className="grid grid-cols-2 gap-2">
-            <input className="input" placeholder="セイ" value={form.last_name_kana} onChange={set("last_name_kana")} disabled={!selfServiceEnabled} maxLength={60} />
-            <input className="input" placeholder="メイ" value={form.first_name_kana} onChange={set("first_name_kana")} disabled={!selfServiceEnabled} maxLength={60} />
+            <input className="input" placeholder="セイ" value={form.last_name_kana} onChange={set("last_name_kana")} required disabled={!selfServiceEnabled} maxLength={60} />
+            <input className="input" placeholder="メイ" value={form.first_name_kana} onChange={set("first_name_kana")} required disabled={!selfServiceEnabled} maxLength={60} />
           </div>
         </div>
         <div>
-          <label className="label">電話番号</label>
-          <input className="input" value={form.phone} onChange={set("phone")} disabled={!selfServiceEnabled} maxLength={40} />
+          <label className="label">電話番号<Req /></label>
+          <input className="input" type="tel" value={form.phone} onChange={set("phone")} required disabled={!selfServiceEnabled} maxLength={40} />
         </div>
         <div>
-          <label className="label">住所</label>
+          <label className="label">住所<Req /></label>
           <div className="space-y-2">
-            <input className="input" placeholder="郵便番号" value={form.postal_code} onChange={set("postal_code")} disabled={!selfServiceEnabled} maxLength={20} />
-            <select className="input" value={form.prefecture} onChange={set("prefecture")} disabled={!selfServiceEnabled}>
+            <input className="input" placeholder="郵便番号" value={form.postal_code} onChange={set("postal_code")} required disabled={!selfServiceEnabled} maxLength={20} />
+            <select className="input" value={form.prefecture} onChange={set("prefecture")} required disabled={!selfServiceEnabled}>
               <option value="">都道府県</option>
               {PREFECTURES.map((p) => (<option key={p} value={p}>{p}</option>))}
             </select>
-            <input className="input" placeholder="市区町村" value={form.address_city} onChange={set("address_city")} disabled={!selfServiceEnabled} maxLength={100} />
-            <input className="input" placeholder="町名・番地" value={form.address_town} onChange={set("address_town")} disabled={!selfServiceEnabled} maxLength={100} />
+            <input className="input" placeholder="市区町村" value={form.address_city} onChange={set("address_city")} required disabled={!selfServiceEnabled} maxLength={100} />
+            <input className="input" placeholder="町名・番地" value={form.address_town} onChange={set("address_town")} required disabled={!selfServiceEnabled} maxLength={100} />
             <input className="input" placeholder="建物名・部屋番号など（任意）" value={form.address_building} onChange={set("address_building")} disabled={!selfServiceEnabled} maxLength={200} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label">生年月日</label>
-            <input type="date" className="input" value={form.birthday} onChange={set("birthday")} disabled={!selfServiceEnabled} />
+            <label className="label">生年月日<Req /></label>
+            <input type="date" className="input" value={form.birthday} onChange={set("birthday")} required disabled={!selfServiceEnabled} />
           </div>
           <div>
-            <label className="label">性別</label>
-            <select className="input" value={form.gender} onChange={set("gender")} disabled={!selfServiceEnabled}>
-              <option value="unspecified">未回答</option>
+            <label className="label">性別<Req /></label>
+            <select className="input" value={form.gender} onChange={set("gender")} required disabled={!selfServiceEnabled}>
+              <option value="">選択してください</option>
               <option value="male">男性</option>
               <option value="female">女性</option>
               <option value="other">その他</option>
+              <option value="unspecified">未回答</option>
             </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Notification preferences */}
-      <div className="card space-y-4">
-        <h2 className="text-base font-bold">配信・通知設定</h2>
-        <div>
-          <label className="label">メールマガジン</label>
-          <div className="flex items-center gap-4 text-sm">
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="radio" name="newsletter" checked={newsletterReceive} onChange={() => setNewsletterReceive(true)} disabled={!selfServiceEnabled} className="text-brand focus:ring-brand/30" />
-              <span>受信する</span>
-            </label>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="radio" name="newsletter" checked={!newsletterReceive} onChange={() => setNewsletterReceive(false)} disabled={!selfServiceEnabled} className="text-brand focus:ring-brand/30" />
-              <span>受信しない</span>
-            </label>
-          </div>
-        </div>
-        <div>
-          <label className="label">お知らせ通知</label>
-          <div className="flex items-center gap-4 text-sm">
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="radio" name="announcement" checked={announcementReceive} onChange={() => setAnnouncementReceive(true)} disabled={!selfServiceEnabled} className="text-brand focus:ring-brand/30" />
-              <span>通知する</span>
-            </label>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="radio" name="announcement" checked={!announcementReceive} onChange={() => setAnnouncementReceive(false)} disabled={!selfServiceEnabled} className="text-brand focus:ring-brand/30" />
-              <span>通知しない</span>
-            </label>
           </div>
         </div>
       </div>

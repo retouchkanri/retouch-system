@@ -5,6 +5,7 @@ import { useState } from "react";
 export default function ContactForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [company, setCompany] = useState(""); // honeypot
@@ -21,7 +22,7 @@ export default function ContactForm() {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, email, subject, message, company }),
+        body: JSON.stringify({ name, email, phone, subject, message, company }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -32,6 +33,7 @@ export default function ContactForm() {
       setStatus("ok");
       setName("");
       setEmail("");
+      setPhone("");
       setSubject("");
       setMessage("");
     } catch {
@@ -88,6 +90,20 @@ export default function ContactForm() {
             onChange={(e) => setEmail(e.target.value)}
           />
         </div>
+      </div>
+      <div>
+        <label className="label" htmlFor="contact-phone">
+          電話番号 <span className="text-ink-mute font-normal text-xs">（任意）</span>
+        </label>
+        <input
+          id="contact-phone"
+          type="tel"
+          maxLength={20}
+          className="input"
+          placeholder="090-0000-0000"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+        />
       </div>
       <div>
         <label className="label" htmlFor="contact-subject">件名</label>

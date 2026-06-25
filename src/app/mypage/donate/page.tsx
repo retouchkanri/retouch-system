@@ -22,8 +22,7 @@ export default async function DonatePage() {
       </div>
       <div className="card border-2 border-brand-light bg-brand-50">
         <p className="text-sm leading-relaxed">
-          単発寄付は、月々の支援とは別に、一回限りの応援として受け付けております。<br />
-          いただいたご寄付は、引退競走馬のケア・見学会運営にありがたく活用させていただきます。
+          Retouchへの寄付・収入は「約20％：事務費・運営費」「約80％：馬の支援活動費」（馬の購入費・輸送費・管理費 等）として使用させていただいております。
         </p>
       </div>
       <DonationForm />
