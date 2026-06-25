@@ -76,6 +76,7 @@ export type Horse = {
   stripe_price_half_id: string | null;
   stripe_price_full_id: string | null;
   is_supportable: boolean;
+  is_emergency_recruitment?: boolean;
   sort_order: number;
 };
 

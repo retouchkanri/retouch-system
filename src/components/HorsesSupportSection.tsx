@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formatUnits } from "@/lib/format";
+import { compareHorsesForDisplay, isEmergencyRecruitmentHorse } from "@/lib/horses";
+import EmergencyHorseImage from "@/components/EmergencyHorseImage";
 import horsePortrait from "@/assets/images/horse-portrait.jpg";
 
 type HorseRow = {
@@ -10,6 +12,8 @@ type HorseRow = {
   profile: string | null;
   image_url: string | null;
   is_supportable: boolean;
+  is_emergency_recruitment?: boolean;
+  sort_order: number;
 };
 type SupportInfo = {
   totalUnits: number;
@@ -39,7 +43,7 @@ export default async function HorsesSupportSection({
   const [{ data: horses }, { data: supporters }] = await Promise.all([
     admin
       .from("horses")
-      .select("id, name, profile, image_url, is_supportable")
+      .select("id, name, profile, image_url, is_supportable, is_emergency_recruitment, sort_order")
       .order("sort_order"),
     admin
       .from("support_subscriptions")
@@ -60,14 +64,9 @@ export default async function HorsesSupportSection({
     byHorse.set(s.horse_id, cur);
   }
 
-  // Sort: most-supported horses first (descending by units). Horses with no
-  // support yet — incl. オーナー決定・募集停止中 — fall to the end. Ties keep
-  // the original sort_order (Array.prototype.sort is stable).
-  const sorted = [...(horses as HorseRow[])].sort((a, b) => {
-    const ua = byHorse.get(a.id)?.totalUnits ?? 0;
-    const ub = byHorse.get(b.id)?.totalUnits ?? 0;
-    return ub - ua;
-  });
+  const sorted = [...(horses as HorseRow[])].sort((a, b) =>
+    compareHorsesForDisplay(a, b, (id) => byHorse.get(id)?.totalUnits ?? 0),
+  );
 
   const displayed = limit != null ? sorted.slice(0, limit) : sorted;
   const hasMore = limit != null && sorted.length > limit;
@@ -93,35 +92,55 @@ export default async function HorsesSupportSection({
             const supporters = info?.supporters ?? 0;
             const nicknames = info?.nicknames ?? [];
             const hasSupport = units > 0;
+            const emergency = isEmergencyRecruitmentHorse(horse);
 
             return (
               <div
                 key={horse.id}
                 className={`relative rounded-xl border flex flex-col transition-shadow hover:shadow-md overflow-hidden
-                  ${hasSupport ? "border-surface-line bg-white" : "border-dashed border-brand/30 bg-brand-50/20"}`}
+                  ${emergency
+                    ? "border-pink-300 bg-pink-50/30"
+                    : hasSupport
+                      ? "border-surface-line bg-white"
+                      : "border-dashed border-brand/30 bg-brand-50/20"}`}
               >
                 {/* Top: image + name row */}
                 <div className="flex items-center gap-3 p-3">
-                  <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-brand-50">
-                    {horse.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={horse.image_url}
-                        alt={horse.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Image
-                        src={horsePortrait}
-                        alt={horse.name}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
+                  {emergency ? (
+                    <EmergencyHorseImage
+                      name={horse.name}
+                      imageUrl={horse.image_url}
+                      sizeClass="w-14 h-14"
+                      portraitFallback
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-brand-50">
+                      {horse.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={horse.image_url}
+                          alt={horse.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Image
+                          src={horsePortrait}
+                          alt={horse.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
+                  )}
 
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold text-ink truncate">{horse.name}</p>
-                    {hasSupport ? (
+                    <p className={`font-bold truncate ${emergency ? "text-pink-700" : "text-ink"}`}>
+                      {horse.name}
+                    </p>
+                    {emergency ? (
+                      <p className="text-xs text-pink-600 font-semibold mt-0.5">
+                        ★支援募集開始★
+                      </p>
+                    ) : hasSupport ? (
                       <p className="text-xs text-ink-soft mt-0.5">
                         支援者 {supporters}名 / {formatUnits(units)}
                       </p>

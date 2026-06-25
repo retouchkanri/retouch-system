@@ -132,6 +132,7 @@ create table if not exists public.horses (
   stripe_price_half_id text,
   stripe_price_full_id text,
   is_supportable boolean not null default true,
+  is_emergency_recruitment boolean not null default false,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
