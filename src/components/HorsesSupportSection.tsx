@@ -107,12 +107,7 @@ export default async function HorsesSupportSection({
                 {/* Top: image + name row */}
                 <div className="flex items-center gap-3 p-3">
                   {emergency ? (
-                    <EmergencyHorseImage
-                      name={horse.name}
-                      imageUrl={horse.image_url}
-                      sizeClass="w-14 h-14"
-                      portraitFallback
-                    />
+                    <EmergencyHorseImage name={horse.name} sizeClass="w-14 h-14" />
                   ) : (
                     <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-brand-50">
                       {horse.image_url ? (

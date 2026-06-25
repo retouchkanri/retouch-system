@@ -1,24 +1,13 @@
-import Image from "next/image";
-import horseImage from "@/assets/images/horse.png";
-import horsePortrait from "@/assets/images/horse-portrait.jpg";
-
 type Props = {
   name: string;
-  imageUrl?: string | null;
   /** Tailwind size class for width/height, e.g. w-14 h-14 */
   sizeClass?: string;
-  /** Use portrait fallback on public pages */
-  portraitFallback?: boolean;
 };
 
 export default function EmergencyHorseImage({
   name,
-  imageUrl,
   sizeClass = "w-14 h-14",
-  portraitFallback = false,
 }: Props) {
-  const fallback = portraitFallback ? horsePortrait : horseImage;
-
   return (
     <div className={`emergency-horse-thumb shrink-0 ${sizeClass}`}>
       <div
@@ -33,13 +22,13 @@ export default function EmergencyHorseImage({
         }}
         aria-hidden
       />
-      <div className="emergency-horse-thumb__inner">
-        {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
-        ) : (
-          <Image src={fallback} alt={name} className="w-full h-full object-cover" />
-        )}
+      <div
+        className="emergency-horse-thumb__inner flex items-center justify-center bg-gray-200"
+        aria-label={name}
+      >
+        <span className="text-[10px] sm:text-xs font-bold text-gray-500 leading-tight text-center px-1">
+          準備中
+        </span>
       </div>
     </div>
   );

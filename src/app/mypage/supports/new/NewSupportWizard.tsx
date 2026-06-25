@@ -97,7 +97,7 @@ export default function NewSupportWizard({ horses, plan, existingHorseIds, confl
                     onChange={() => setHorseId(h.id)}
                   />
                   {emergency ? (
-                    <EmergencyHorseImage name={h.name} imageUrl={h.image_url} />
+                    <EmergencyHorseImage name={h.name} />
                   ) : h.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={h.image_url} alt={h.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
