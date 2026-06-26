@@ -70,6 +70,7 @@ export default function PublicDonationForm() {
     <form onSubmit={submit} className="card space-y-4">
       <div>
         <label className="label">寄付金額</label>
+        <p className="text-xs text-ink-mute mb-2">金額を選ぶか、下の入力欄に自由に金額を入力できます。</p>
         <div className="grid grid-cols-3 gap-2 mb-3">
           {PRESETS.map((p) => (
             <button
@@ -84,14 +85,24 @@ export default function PublicDonationForm() {
             </button>
           ))}
         </div>
-        <input
-          type="number"
-          min={100}
-          step={100}
-          className="input text-lg font-bold text-right"
-          value={amount}
-          onChange={(e) => setAmount(Number(e.target.value))}
-        />
+        <div className="flex items-center gap-2 mb-1">
+          <div className="flex-1 border-t border-surface-line" />
+          <span className="text-xs text-ink-mute whitespace-nowrap">または金額を直接入力</span>
+          <div className="flex-1 border-t border-surface-line" />
+        </div>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-ink-mute">¥</span>
+          <input
+            type="number"
+            min={100}
+            step={100}
+            className="input text-lg font-bold text-right pl-8"
+            value={amount}
+            placeholder="例：7000"
+            onChange={(e) => setAmount(Number(e.target.value))}
+          />
+        </div>
+        <p className="text-xs text-ink-mute mt-1">100円以上のお好きな金額をご入力ください。</p>
       </div>
 
       <div>
