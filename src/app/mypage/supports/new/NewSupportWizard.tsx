@@ -16,12 +16,15 @@ type Props = {
   existingHorseIds: string[];
   conflictingContractId: string | null;
   conflictingPlanName: string | null;
+  initialHorseId?: string | null;
 };
 
-export default function NewSupportWizard({ horses, plan, existingHorseIds, conflictingContractId, conflictingPlanName }: Props) {
+export default function NewSupportWizard({ horses, plan, existingHorseIds, conflictingContractId, conflictingPlanName, initialHorseId }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [horseId, setHorseId] = useState<string | null>(null);
+  const [horseId, setHorseId] = useState<string | null>(
+    initialHorseId && horses.some((h) => h.id === initialHorseId) ? initialHorseId : null
+  );
   const [units, setUnits] = useState<number>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

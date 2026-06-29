@@ -216,25 +216,24 @@ export default function MemberMessageForm({
 
       <div className="space-y-2">
         <label className="label">配信対象</label>
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="audience"
-              checked={form.audience === "all"}
-              onChange={() => setForm((p: any) => ({ ...p, audience: "all" }))}
-            />
-            <span>全アクティブ会員</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="audience"
-              checked={form.audience === "subset"}
-              onChange={() => setForm((p: any) => ({ ...p, audience: "subset" }))}
-            />
-            <span>指定した会員のみ</span>
-          </label>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {[
+            { value: "all", label: "全アクティブ会員" },
+            { value: "rpt_only", label: "リタポ会員のみ" },
+            { value: "support_only", label: "1口支援者のみ" },
+            { value: "no_class", label: "会員種別・空白の人のみ" },
+            { value: "subset", label: "手動指定した会員のみ" },
+          ].map((opt) => (
+            <label key={opt.value} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="audience"
+                checked={form.audience === opt.value}
+                onChange={() => setForm((p: any) => ({ ...p, audience: opt.value }))}
+              />
+              <span>{opt.label}</span>
+            </label>
+          ))}
         </div>
 
         {form.audience === "subset" && (

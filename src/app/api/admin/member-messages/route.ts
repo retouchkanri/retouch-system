@@ -17,7 +17,7 @@ const schema = z
     tag_color: z.string().max(100).default("bg-brand-50 text-brand-dark"),
     channel_inapp: z.boolean().default(true),
     channel_email: z.boolean().default(false),
-    audience: z.enum(["all", "subset"]).default("all"),
+    audience: z.enum(["all", "subset", "rpt_only", "support_only", "no_class"]).default("all"),
     target_customer_ids: z.array(z.string().uuid()).default([]),
     scheduled_at: z.string().optional().nullable(),
     // draft=下書き保存 / schedule=予約 / send=即時配信

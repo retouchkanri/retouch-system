@@ -6,7 +6,11 @@ import { MEMBER_SELF_SERVICE_ENABLED } from "@/lib/featureFlags";
 import SelfServiceClosedNotice from "@/components/SelfServiceClosedNotice";
 import NewSupportWizard from "./NewSupportWizard";
 
-export default async function NewSupportPage() {
+export default async function NewSupportPage({
+  searchParams,
+}: {
+  searchParams?: { horse_id?: string };
+}) {
   const session = await requireMember();
   if (!session.customerId) return <div className="card">会員情報が見つかりません。</div>;
   if (!MEMBER_SELF_SERVICE_ENABLED) {
@@ -69,6 +73,7 @@ export default async function NewSupportPage() {
         existingHorseIds={existingSupports.map((s) => s.horse_id)}
         conflictingContractId={conflictingContract?.id ?? null}
         conflictingPlanName={basicPlan?.name ?? null}
+        initialHorseId={searchParams?.horse_id ?? null}
       />
     </div>
   );

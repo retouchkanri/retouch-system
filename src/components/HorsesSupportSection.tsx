@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatUnits } from "@/lib/format";
 import { compareHorsesForDisplay, isEmergencyRecruitmentHorse } from "@/lib/horses";
 import EmergencyHorseImage from "@/components/EmergencyHorseImage";
@@ -39,6 +40,16 @@ export default async function HorsesSupportSection({
   supportHref = "/signup",
 }: Props = {}) {
   const admin = createSupabaseAdminClient();
+
+  // ユーザーのログイン状態を確認（エラーは無視してゲスト扱い）
+  let isLoggedIn = false;
+  try {
+    const supabase = createSupabaseServerClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    isLoggedIn = !!session;
+  } catch {
+    // セッション取得失敗 → ゲスト扱い
+  }
 
   const [{ data: horses }, { data: supporters }] = await Promise.all([
     admin
@@ -93,6 +104,11 @@ export default async function HorsesSupportSection({
             const nicknames = info?.nicknames ?? [];
             const hasSupport = units > 0;
             const emergency = isEmergencyRecruitmentHorse(horse);
+
+            // 馬ごとの「支援する」リンク先
+            const horseSupport = isLoggedIn
+              ? `/mypage/supports/new?horse_id=${horse.id}`
+              : `/signup?horse_id=${horse.id}`;
 
             return (
               <div
@@ -149,7 +165,7 @@ export default async function HorsesSupportSection({
 
                 {/* Nicknames */}
                 {nicknames.length > 0 && (
-                  <div className="px-3 pb-3 flex flex-wrap gap-1">
+                  <div className="px-3 pb-2 flex flex-wrap gap-1">
                     {nicknames.map((name, i) => (
                       <span
                         key={i}
@@ -163,9 +179,24 @@ export default async function HorsesSupportSection({
 
                 {/* Profile tooltip (if no nicknames, show profile snippet) */}
                 {nicknames.length === 0 && horse.profile && (
-                  <p className="px-3 pb-3 text-xs text-ink-mute line-clamp-2 leading-relaxed">
+                  <p className="px-3 pb-2 text-xs text-ink-mute line-clamp-2 leading-relaxed">
                     {horse.profile}
                   </p>
+                )}
+
+                {/* 支援するボタン（募集中の馬のみ） */}
+                {horse.is_supportable && (
+                  <div className="mt-auto px-3 pb-3 pt-1">
+                    <Link
+                      href={horseSupport}
+                      className={`block w-full text-center text-xs font-bold py-1.5 rounded-lg transition-colors
+                        ${emergency
+                          ? "bg-pink-500 hover:bg-pink-600 text-white"
+                          : "bg-brand hover:bg-brand-dark text-white"}`}
+                    >
+                      この馬を支援する
+                    </Link>
+                  </div>
                 )}
               </div>
             );
@@ -185,7 +216,7 @@ export default async function HorsesSupportSection({
           )}
           <p className="text-ink-soft text-sm">あなたの応援が、馬たちの毎日を支えます。</p>
           <div className="flex flex-wrap justify-center gap-3">
-            <Link href={supportHref} className="btn-primary btn-pulse">
+            <Link href={isLoggedIn ? "/mypage/supports/new" : supportHref} className="btn-primary btn-pulse">
               支援を始める
             </Link>
             <Link href="/support-guide" className="btn-secondary">

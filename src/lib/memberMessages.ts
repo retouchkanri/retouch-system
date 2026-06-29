@@ -50,12 +50,15 @@ export function messageBodyHtml(body: string, format: "html" | "text"): string {
   return body; // HTMLは管理者（スタッフ）が作成する信頼済みコンテンツ
 }
 
-function unsubscribeUrl(baseUrl: string, token: string): string {
-  return `${baseUrl}/api/newsletter/unsubscribe?t=${token}`;
-}
-
 function openPixelUrl(baseUrl: string, token: string): string {
   return `${baseUrl}/api/track/open/${token}`;
+}
+
+function autoLinkUrls(html: string): string {
+  return html.replace(/(<[^>]*>|https?:\/\/[^\s<>"']+)/g, (match) => {
+    if (match.startsWith("<")) return match;
+    return `<a href="${match}" style="color:#78716c;">${match}</a>`;
+  });
 }
 
 /** メルマガ用の完全なHTMLメールを組み立てる（開封ピクセル・配信停止リンク込み）。 */
@@ -68,8 +71,7 @@ export function renderEmailHtml(params: {
   token: string;
 }): string {
   const who = (params.name?.trim() || "会員") + "様";
-  const inner = messageBodyHtml(params.body, params.bodyFormat);
-  const unsub = unsubscribeUrl(params.baseUrl, params.token);
+  const inner = autoLinkUrls(messageBodyHtml(params.body, params.bodyFormat));
   const pixel = openPixelUrl(params.baseUrl, params.token);
   return `<!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8" />
@@ -86,12 +88,7 @@ export function renderEmailHtml(params: {
 </td></tr>
 <tr><td style="padding:20px 28px 28px;font-family:'Hiragino Kaku Gothic ProN',Meiryo,sans-serif;">
 <hr style="border:none;border-top:1px solid #e7e5e4;margin:0 0 16px;" />
-<p style="margin:0 0 6px;font-size:12px;color:#78716c;">Retouchメンバーズサイト 運営事務局</p>
-<p style="margin:0;font-size:12px;color:#a8a29e;">
-このメールの配信を停止する場合は
-<a href="${unsub}" style="color:#78716c;">こちら</a>
-からお手続きください。
-</p>
+<p style="margin:0;font-size:12px;color:#78716c;">Retouchメンバーズサイト 運営事務局</p>
 </td></tr>
 </table>
 </td></tr>
@@ -116,8 +113,7 @@ export function renderEmailText(params: {
     `${params.title}\n\n` +
     `${bodyText}\n\n` +
     `——————————————————\n` +
-    `Retouchメンバーズサイト 運営事務局\n` +
-    `配信停止: ${unsubscribeUrl(params.baseUrl, params.token)}`
+    `Retouchメンバーズサイト 運営事務局`
   );
 }
 
@@ -131,6 +127,21 @@ type AudienceCustomer = {
   full_name: string | null;
   newsletter_opt_out: boolean;
 };
+
+async function fetchCustomersByIds(admin: SupabaseClient, ids: string[]): Promise<AudienceCustomer[]> {
+  if (ids.length === 0) return [];
+  const pageSize = 500;
+  const all: AudienceCustomer[] = [];
+  for (let i = 0; i < ids.length; i += pageSize) {
+    const { data } = await admin
+      .from("customers")
+      .select("id, email, full_name, newsletter_opt_out")
+      .in("id", ids.slice(i, i + pageSize))
+      .eq("status", "active");
+    if (data) all.push(...(data as AudienceCustomer[]));
+  }
+  return all;
+}
 
 async function resolveAudienceCustomers(
   admin: SupabaseClient,
@@ -146,6 +157,37 @@ async function resolveAudienceCustomers(
       .eq("status", "active");
     return (data as AudienceCustomer[]) ?? [];
   }
+
+  if (msg.audience === "rpt_only") {
+    const { data } = await admin
+      .from("v_customer_summary")
+      .select("customer_id")
+      .eq("rpt_active", true)
+      .eq("status", "active");
+    const ids = ((data ?? []) as any[]).map((r) => r.customer_id as string);
+    return fetchCustomersByIds(admin, ids);
+  }
+
+  if (msg.audience === "support_only") {
+    const { data } = await admin
+      .from("v_customer_summary")
+      .select("customer_id")
+      .gt("total_support_horses", 0)
+      .eq("status", "active");
+    const ids = ((data ?? []) as any[]).map((r) => r.customer_id as string);
+    return fetchCustomersByIds(admin, ids);
+  }
+
+  if (msg.audience === "no_class") {
+    const { data } = await admin
+      .from("v_customer_summary")
+      .select("customer_id")
+      .is("member_class_code", null)
+      .eq("status", "active");
+    const ids = ((data ?? []) as any[]).map((r) => r.customer_id as string);
+    return fetchCustomersByIds(admin, ids);
+  }
+
   // audience = 'all' → 全アクティブ会員（1000件上限を超える場合に備えページング）
   const all: AudienceCustomer[] = [];
   const pageSize = 1000;
@@ -280,7 +322,6 @@ export async function sendMemberMessage(
           subject: message.title,
           body_text: text,
           body_html: html,
-          headers: { "List-Unsubscribe": `<${opts.baseUrl}/api/newsletter/unsubscribe?t=${r.token}>` },
           meta: { message_id: messageId, recipient_id: r.id },
         });
         await admin

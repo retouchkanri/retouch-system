@@ -221,6 +221,8 @@ export type NewsItem = {
   tag_color: string;
   image_url: string | null;
   pdf_url: string | null;
+  pdf_urls: string[] | null;
+  image_urls: string[] | null;
   published_at: string;
   is_published: boolean;
   sort_order: number;
@@ -255,7 +257,7 @@ export type CustomerSummary = {
 // 会員向けメッセージ配信（お知らせ閲覧 + メルマガ）
 // ---------------------------------------------------------------------
 export type MemberMessageStatus = "draft" | "scheduled" | "sending" | "sent" | "canceled";
-export type MemberMessageAudience = "all" | "subset";
+export type MemberMessageAudience = "all" | "subset" | "rpt_only" | "support_only" | "no_class";
 export type MemberMessageBodyFormat = "html" | "text";
 export type RecipientEmailStatus = "pending" | "sent" | "failed" | "skipped";
 

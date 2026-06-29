@@ -85,24 +85,45 @@ export default async function NewsDetailPage({ params }: { params: { id: string 
             )
           )}
 
-          {/* PDF 添付ダウンロード */}
-          {(news as any).pdf_url && (
-            <div className="mt-6 p-4 border border-surface-line rounded-xl bg-surface-soft flex items-center gap-3">
-              <span className="text-2xl">📄</span>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-ink">添付資料（PDF）</p>
-                <p className="text-xs text-ink-mute">クリックしてPDFを開く・ダウンロード</p>
+          {/* 本文追加画像 */}
+          {((news as any).image_urls as string[] | null)?.filter(Boolean).map((url, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={i} src={url} alt={`添付画像 ${i + 1}`} className="mt-4 w-full rounded-xl object-contain" />
+          ))}
+
+          {/* PDF 添付ダウンロード（複数対応） */}
+          {(() => {
+            const allPdfs: string[] = [];
+            const legacyUrl = (news as any).pdf_url as string | null;
+            const multiUrls = (news as any).pdf_urls as string[] | null;
+            if (Array.isArray(multiUrls) && multiUrls.length > 0) {
+              allPdfs.push(...multiUrls.filter(Boolean));
+            } else if (legacyUrl) {
+              allPdfs.push(legacyUrl);
+            }
+            if (allPdfs.length === 0) return null;
+            return (
+              <div className="mt-6 space-y-2">
+                {allPdfs.map((pdfUrl, i) => (
+                  <div key={i} className="p-4 border border-surface-line rounded-xl bg-surface-soft flex items-center gap-3">
+                    <span className="text-2xl">📄</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-ink">添付資料（PDF）{allPdfs.length > 1 ? ` ${i + 1}` : ""}</p>
+                      <p className="text-xs text-ink-mute">クリックしてPDFを開く・ダウンロード</p>
+                    </div>
+                    <a
+                      href={pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary !py-2 !px-4 !text-sm shrink-0"
+                    >
+                      PDFを開く
+                    </a>
+                  </div>
+                ))}
               </div>
-              <a
-                href={(news as any).pdf_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-secondary !py-2 !px-4 !text-sm shrink-0"
-              >
-                PDFを開く
-              </a>
-            </div>
-          )}
+            );
+          })()}
 
           {isEvent && (
             <div className="mt-6 pt-6 border-t border-surface-line text-center">
