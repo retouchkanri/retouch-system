@@ -92,6 +92,9 @@ export async function POST(req: Request) {
   }
 
   let contractId = existingContract?.id as string | undefined;
+  // Track if we created a new contract in this request so we can roll it back
+  // if the subsequent support_subscriptions insert fails (no DB transaction).
+  let createdContractId: string | undefined;
   if (!contractId) {
     const { data: supportPlan } = await admin
       .from("membership_plans")
@@ -113,6 +116,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "契約作成に失敗しました" }, { status: 500 });
     }
     contractId = created.id;
+    createdContractId = created.id;
   }
 
   const effectiveUnitAmount = unit_amount ?? 12000;
@@ -131,6 +135,12 @@ export async function POST(req: Request) {
     .select("id")
     .single();
   if (insErr || !inserted) {
+    // Roll back the contract we just created to avoid an orphaned SUPPORT
+    // contract with no support_subscriptions (which causes 会員種別=— on the
+    // member detail page because v_customer_summary reads from support_subscriptions).
+    if (createdContractId) {
+      await admin.from("contracts").delete().eq("id", createdContractId);
+    }
     return NextResponse.json({ error: insErr?.message ?? "登録に失敗しました" }, { status: 500 });
   }
 

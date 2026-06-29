@@ -24,7 +24,6 @@ async function main() {
   });
 
   const sampleHorses = [
-    { name: "サクラエース", name_kana: "サクラエース", sex: "牡", birth_year: 2012, profile: "やさしい性格で人気。", sort_order: 10 },
     { name: "ミドリノカゼ", name_kana: "ミドリノカゼ", sex: "牝", birth_year: 2014, profile: "穏やかで見学会の看板馬。", sort_order: 20 },
     { name: "ハヤテボーイ", name_kana: "ハヤテボーイ", sex: "牡", birth_year: 2011, profile: "元重賞勝ち馬。", sort_order: 30 },
   ];

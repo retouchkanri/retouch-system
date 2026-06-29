@@ -587,16 +587,9 @@ where mp.is_active = true
 
 -- ダミー馬データを削除（支援・契約等が紐付いていない場合のみ）
 delete from public.horses
-where name in ('ミドリノカゼ','ハヤテボーイ')
+where name in ('ミドリノカゼ','ハヤテボーイ','サクラエース')
   and not exists (select 1 from public.support_subscriptions ss where ss.horse_id = public.horses.id)
   and not exists (select 1 from public.special_team_memberships stm where stm.horse_id = public.horses.id);
-
-insert into public.horses (name, name_kana, sex, birth_year, profile, is_supportable, sort_order)
-select v.name, v.kana, v.sex, v.y, v.bio, true, v.ord
-from (values
-  ('サクラエース','サクラエース','牡',2012,'2017年引退。やさしい性格で高齢者にも人気。',10)
-) as v(name, kana, sex, y, bio, ord)
-where not exists (select 1 from public.horses h where h.name = v.name);
 
 -- 緊急支援募集馬（54・55番）
 alter table public.horses
