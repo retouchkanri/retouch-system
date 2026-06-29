@@ -10,6 +10,7 @@ import SpecialMembershipsManager from "./SpecialMembershipsManager";
 import BasicPlanManager from "./BasicPlanManager";
 import VisitHistory from "./VisitHistory";
 import PaymentHistory from "./PaymentHistory";
+import SupportsManager from "./SupportsManager";
 import { getSession } from "@/lib/auth";
 import { can } from "@/lib/roles";
 import {
@@ -187,23 +188,20 @@ export default async function CustomerDetail({ params }: { params: { id: string 
 
       <section className="card">
         <h2 className="section-title">支援履歴</h2>
-        <table className="table">
-          <thead><tr><th className="w-12 text-right">No.</th><th>馬</th><th>口数</th><th>月額</th><th>状態</th><th>開始</th><th>停止</th></tr></thead>
-          <tbody>
-            {(supports ?? []).map((x: any, i: number) => (
-              <tr key={x.id}>
-                <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
-                <td>{x.horse?.name ?? "—"}</td>
-                <td>{formatUnits(x.units)}</td>
-                <td>{formatYen(x.monthly_amount)}</td>
-                <td>{statusLabel(x.status)}</td>
-                <td>{formatDate(x.started_at)}</td>
-                <td>{x.canceled_at ? formatDate(x.canceled_at) : "—"}</td>
-              </tr>
-            ))}
-            {(supports ?? []).length === 0 && <tr><td colSpan={7} className="text-center text-ink-mute py-3">支援履歴はまだありません。</td></tr>}
-          </tbody>
-        </table>
+        <SupportsManager
+          customerId={c.id}
+          supports={((supports as any[]) ?? []).map((x: any) => ({
+            id: x.id,
+            horse_id: x.horse_id,
+            horse: x.horse ? { name: x.horse.name } : null,
+            units: x.units,
+            monthly_amount: x.monthly_amount,
+            status: x.status,
+            started_at: x.started_at,
+            canceled_at: x.canceled_at ?? null,
+          }))}
+          horses={((horses as any[]) ?? []).map((h: any) => ({ id: h.id, name: h.name }))}
+        />
       </section>
 
       <section className="card">

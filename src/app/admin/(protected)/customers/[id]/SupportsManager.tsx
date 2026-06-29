@@ -47,6 +47,7 @@ export default function SupportsManager({
   const [addUnitAmount, setAddUnitAmount] = useState<string>("12000");
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editHorseId, setEditHorseId] = useState<string>("");
   const [editUnits, setEditUnits] = useState<string>("");
   const [editUnitAmount, setEditUnitAmount] = useState<string>("");
 
@@ -76,6 +77,7 @@ export default function SupportsManager({
 
   const startEdit = (s: Support) => {
     setEditingId(s.id);
+    setEditHorseId(s.horse_id);
     setEditUnits(String(s.units));
     setEditUnitAmount(String(unitAmountFrom(s)));
     setErr(null);
@@ -85,13 +87,18 @@ export default function SupportsManager({
     if (!editingId) return;
     setBusyId(editingId);
     setErr(null);
+    const original = supports.find((s) => s.id === editingId);
+    const body: Record<string, any> = {
+      units: Number(editUnits),
+      unit_amount: Number(editUnitAmount),
+    };
+    if (editHorseId && editHorseId !== original?.horse_id) {
+      body.horse_id = editHorseId;
+    }
     const res = await fetch(`/api/admin/supports/${editingId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        units: Number(editUnits),
-        unit_amount: Number(editUnitAmount),
-      }),
+      body: JSON.stringify(body),
     });
     const j = await res.json().catch(() => ({}));
     setBusyId(null);
@@ -192,7 +199,21 @@ export default function SupportsManager({
             return (
               <tr key={s.id}>
                 <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
-                <td>{s.horse?.name ?? "—"}</td>
+                <td>
+                  {editing ? (
+                    <select
+                      className="input !py-1"
+                      value={editHorseId}
+                      onChange={(e) => setEditHorseId(e.target.value)}
+                    >
+                      {horses.map((h) => (
+                        <option key={h.id} value={h.id}>{h.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    s.horse?.name ?? "—"
+                  )}
+                </td>
                 <td>
                   {editing ? (
                     <input

@@ -6,6 +6,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 const patchSchema = z.object({
   units: z.coerce.number().positive().max(99).optional(),
   unit_amount: z.coerce.number().int().positive().optional(),
+  horse_id: z.string().uuid().optional(),
   status: z.enum(["active", "past_due", "canceled", "paused", "incomplete"]).optional(),
 });
 
@@ -25,6 +26,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!current) return NextResponse.json({ error: "支援が見つかりません" }, { status: 404 });
 
   const patch: Record<string, any> = {};
+  if (parsed.data.horse_id !== undefined) {
+    patch.horse_id = parsed.data.horse_id;
+  }
   if (parsed.data.units !== undefined) {
     patch.units = parsed.data.units;
     const unitAmount =
@@ -50,7 +54,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     action: "support.update",
     target_table: "support_subscriptions",
     target_id: params.id,
-    meta: patch,
+    meta: {
+      prev_units: current.units,
+      prev_monthly: current.monthly_amount,
+      units: patch.units ?? current.units,
+      monthly: patch.monthly_amount ?? current.monthly_amount,
+      horse_id: patch.horse_id,
+    },
   });
 
   return NextResponse.json({ ok: true });

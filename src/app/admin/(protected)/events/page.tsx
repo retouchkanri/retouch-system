@@ -8,7 +8,7 @@ export default async function EventsPage() {
   const { data: events } = await supabase
     .from("events")
     .select("*")
-    .order("sort_order", { ascending: true })
+    .order("sort_order", { ascending: false })
     .order("starts_at", { ascending: false });
   return (
     <div className="space-y-4">
