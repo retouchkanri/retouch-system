@@ -12,7 +12,7 @@ const patchSchema = z.object({
   tag_color: z.string().max(100).optional(),
   channel_inapp: z.boolean().optional(),
   channel_email: z.boolean().optional(),
-  audience: z.enum(["all", "subset"]).optional(),
+  audience: z.enum(["all", "subset", "rpt_only", "support_only", "no_class"]).optional(),
   target_customer_ids: z.array(z.string().uuid()).optional(),
   // 'draft' に戻す / 'scheduled' に予約変更
   status: z.enum(["draft", "scheduled"]).optional(),

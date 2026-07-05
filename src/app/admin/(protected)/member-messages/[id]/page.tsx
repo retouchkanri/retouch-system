@@ -19,6 +19,13 @@ const EMAIL_STATUS_LABEL: Record<string, string> = {
   failed: "失敗",
   skipped: "対象外",
 };
+const AUDIENCE_LABEL: Record<string, string> = {
+  all: "全アクティブ会員",
+  rpt_only: "リタポ会員のみ",
+  support_only: "1口支援者のみ",
+  no_class: "会員種別・空白の人のみ",
+  subset: "指定会員",
+};
 
 export default async function MemberMessageDetailPage({ params }: { params: { id: string } }) {
   await requireCapability("messages.manage");
@@ -64,7 +71,7 @@ export default async function MemberMessageDetailPage({ params }: { params: { id
       <div className="card grid sm:grid-cols-3 gap-3 text-sm">
         <div><span className="text-ink-mute">状態</span><div className="font-semibold">{STATUS_LABEL[m.status] ?? m.status}</div></div>
         <div><span className="text-ink-mute">チャネル</span><div>{[m.channel_inapp && "お知らせ", m.channel_email && "メール"].filter(Boolean).join(" / ") || "—"}</div></div>
-        <div><span className="text-ink-mute">対象</span><div>{m.audience === "all" ? "全アクティブ会員" : "指定会員"}</div></div>
+        <div><span className="text-ink-mute">対象</span><div>{AUDIENCE_LABEL[m.audience] ?? "指定会員"}</div></div>
         <div><span className="text-ink-mute">配信先 / 送信</span><div className="tabular-nums">{m.recipient_count} / {m.sent_count}</div></div>
         <div><span className="text-ink-mute">開封（ユニーク）</span><div className="tabular-nums">{m.open_count}（開封率 {openRate}%）</div></div>
         <div><span className="text-ink-mute">{m.status === "scheduled" ? "予約日時" : "配信日時"}</span><div>{formatDate(m.status === "scheduled" ? m.scheduled_at : m.sent_at, true)}</div></div>

@@ -262,22 +262,20 @@ export default function SupportsManager({
                     </div>
                   ) : (
                     <div className="flex gap-1 justify-end">
+                      <button
+                        className="btn-secondary !py-1 !px-2 text-xs"
+                        onClick={() => startEdit(s)}
+                      >
+                        変更
+                      </button>
                       {s.status !== "canceled" && (
-                        <>
-                          <button
-                            className="btn-secondary !py-1 !px-2 text-xs"
-                            onClick={() => startEdit(s)}
-                          >
-                            変更
-                          </button>
-                          <button
-                            className="btn-danger !py-1 !px-2 text-xs"
-                            onClick={() => cancelSupport(s.id)}
-                            disabled={busyId === s.id}
-                          >
-                            停止
-                          </button>
-                        </>
+                        <button
+                          className="btn-danger !py-1 !px-2 text-xs"
+                          onClick={() => cancelSupport(s.id)}
+                          disabled={busyId === s.id}
+                        >
+                          停止
+                        </button>
                       )}
                     </div>
                   )}

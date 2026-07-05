@@ -11,6 +11,13 @@ const STATUS_LABEL: Record<string, string> = {
   sent: "配信済",
   canceled: "取消",
 };
+const AUDIENCE_LABEL: Record<string, string> = {
+  all: "全会員",
+  rpt_only: "リタポ会員のみ",
+  support_only: "1口支援者のみ",
+  no_class: "会員種別・空白",
+  subset: "指定会員",
+};
 
 export default async function MemberMessagesPage() {
   await requireCapability("messages.manage");
@@ -63,7 +70,7 @@ export default async function MemberMessagesPage() {
                       {m.channel_inapp && m.channel_email ? " / " : ""}
                       {m.channel_email ? "メール" : ""}
                     </td>
-                    <td className="text-xs">{m.audience === "all" ? "全会員" : "指定会員"}</td>
+                    <td className="text-xs">{AUDIENCE_LABEL[m.audience] ?? "指定会員"}</td>
                     <td className="text-right tabular-nums text-xs">
                       {m.channel_email ? (
                         <>
