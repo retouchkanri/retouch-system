@@ -22,8 +22,7 @@ export default function AccountCreateForm({
     username: "",
     last_name: "",
     first_name: "",
-    last_name_kana: "",
-    first_name_kana: "",
+    nickname: "",
     phone: "",
     postal_code: "",
     prefecture: "",
@@ -144,13 +143,8 @@ export default function AccountCreateForm({
       </div>
 
       <div>
-        <label className="label">
-          氏名（カナ）<Req />
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <input className="input" placeholder="セイ" value={form.last_name_kana} onChange={set("last_name_kana")} required maxLength={60} />
-          <input className="input" placeholder="メイ" value={form.first_name_kana} onChange={set("first_name_kana")} required maxLength={60} />
-        </div>
+        <label className="label">ニックネーム</label>
+        <input className="input" placeholder="公開ページに表示される名前（任意）" value={form.nickname} onChange={set("nickname")} maxLength={60} />
       </div>
 
       <div>

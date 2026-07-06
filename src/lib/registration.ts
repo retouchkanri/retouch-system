@@ -7,7 +7,9 @@ import { randomBytes } from "crypto";
  *
  * 合成方針：新カラム（姓名・住所の分割）を正本としつつ、既存の読取コード
  * （マイページ・管理画面・メールテンプレート）が参照する full_name /
- * full_name_kana / address1 / address2 を常に同期させ、後方互換を保つ。
+ * address1 / address2 を常に同期させ、後方互換を保つ。
+ * full_name_kana は氏名の読み仮名ではなく「ニックネーム」項目として独立に
+ * 扱い、ユーザーの入力値をそのまま書き込む（自動合成しない）。
  */
 
 /** 確認トークンの有効期限（ミリ秒）。24時間。 */
@@ -44,25 +46,25 @@ export function composeAddress1(
 /**
  * 詳細プロフィール項目から、customers に書き込む合成カラムを組み立てる。
  * 新カラムと合成カラムをまとめて返すので、そのまま update のパッチに展開できる。
+ *
+ * 注意：full_name_kana は「ニックネーム」表示用の項目であり、氏名の読み仮名とは
+ * 独立している。ここでは合成せず、呼び出し側がニックネーム入力値をそのまま
+ * 書き込むこと。
  */
 export function buildCustomerSyncPatch(input: {
   last_name?: string | null;
   first_name?: string | null;
-  last_name_kana?: string | null;
-  first_name_kana?: string | null;
   prefecture?: string | null;
   address_city?: string | null;
   address_town?: string | null;
   address_building?: string | null;
 }): {
   full_name: string;
-  full_name_kana: string;
   address1: string;
   address2: string;
 } {
   return {
     full_name: composeFullName(input.last_name, input.first_name),
-    full_name_kana: composeFullName(input.last_name_kana, input.first_name_kana),
     address1: composeAddress1(
       input.prefecture,
       input.address_city,

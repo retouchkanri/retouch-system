@@ -29,8 +29,7 @@ export default function ProfileForm({
     username: customer.username ?? "",
     last_name: customer.last_name ?? customer.full_name ?? "",
     first_name: customer.first_name ?? "",
-    last_name_kana: customer.last_name_kana ?? customer.full_name_kana ?? "",
-    first_name_kana: customer.first_name_kana ?? "",
+    nickname: customer.full_name_kana ?? "",
     phone: customer.phone ?? "",
     postal_code: customer.postal_code ?? "",
     prefecture: customer.prefecture ?? "",
@@ -220,11 +219,8 @@ export default function ProfileForm({
           </div>
         </div>
         <div>
-          <label className="label">氏名（カナ）<Req /></label>
-          <div className="grid grid-cols-2 gap-2">
-            <input className="input" placeholder="セイ" value={form.last_name_kana} onChange={set("last_name_kana")} required disabled={!selfServiceEnabled} maxLength={60} />
-            <input className="input" placeholder="メイ" value={form.first_name_kana} onChange={set("first_name_kana")} required disabled={!selfServiceEnabled} maxLength={60} />
-          </div>
+          <label className="label">ニックネーム</label>
+          <input className="input" placeholder="公開ページに表示される名前（任意）" value={form.nickname} onChange={set("nickname")} disabled={!selfServiceEnabled} maxLength={60} />
         </div>
         <div>
           <label className="label">電話番号<Req /></label>
