@@ -225,6 +225,7 @@ export type NewsItem = {
   image_urls: string[] | null;
   published_at: string;
   is_published: boolean;
+  public_access: "public" | "members_only";
   sort_order: number;
   created_at: string;
   updated_at: string;

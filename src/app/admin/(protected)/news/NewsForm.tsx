@@ -27,6 +27,7 @@ export default function NewsForm({ initial, id }: { initial?: any; id?: string }
     image_url: "",
     published_at: "",
     is_published: true,
+    public_access: "public",
     sort_order: 0,
     pdf_url: "",
     pdf_urls: [],
@@ -320,6 +321,34 @@ export default function NewsForm({ initial, id }: { initial?: any; id?: string }
         <input type="checkbox" className="w-5 h-5" checked={Boolean(form.is_published)} onChange={set("is_published")} />
         <span>公開する</span>
       </label>
+
+      {/* 公開範囲 */}
+      <div>
+        <label className="label">公開範囲</label>
+        <div className="flex items-center gap-5">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="public_access"
+              className="w-4 h-4"
+              checked={form.public_access !== "members_only"}
+              onChange={() => setForm((p: any) => ({ ...p, public_access: "public" }))}
+            />
+            <span>全体公開</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="public_access"
+              className="w-4 h-4"
+              checked={form.public_access === "members_only"}
+              onChange={() => setForm((p: any) => ({ ...p, public_access: "members_only" }))}
+            />
+            <span>会員限定</span>
+          </label>
+        </div>
+        <p className="text-xs text-ink-mute mt-1">「会員限定」を選択すると、ログイン中の会員のみ閲覧できます。</p>
+      </div>
 
       {msg && <p className={`text-sm ${msg === "保存しました。" ? "text-ok" : "text-danger"}`}>{msg}</p>}
 

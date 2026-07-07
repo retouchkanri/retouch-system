@@ -23,6 +23,7 @@ export default async function NewsPage() {
               <th>タグ</th>
               <th>公開日</th>
               <th>公開</th>
+              <th>公開範囲</th>
               <th>順序</th>
               <th></th>
             </tr>
@@ -37,6 +38,7 @@ export default async function NewsPage() {
                 </td>
                 <td>{formatDate(n.published_at)}</td>
                 <td>{n.is_published ? "公開" : "非公開"}</td>
+                <td>{n.public_access === "members_only" ? "会員限定" : "全体公開"}</td>
                 <td className="tabular-nums">{n.sort_order}</td>
                 <td className="text-right space-x-2">
                   <a href={`/admin/news/${n.id}`} className="text-brand underline text-sm">編集</a>
@@ -45,7 +47,7 @@ export default async function NewsPage() {
               </tr>
             ))}
             {(news ?? []).length === 0 && (
-              <tr><td colSpan={7} className="text-center py-6 text-ink-mute">ニュースはまだありません。</td></tr>
+              <tr><td colSpan={8} className="text-center py-6 text-ink-mute">ニュースはまだありません。</td></tr>
             )}
           </tbody>
         </table>

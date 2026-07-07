@@ -15,6 +15,7 @@ const patchSchema = z.object({
   image_urls: z.array(z.string().max(500)).max(20).optional(),
   published_at: z.string().optional(),
   is_published: z.boolean().optional(),
+  public_access: z.enum(["public", "members_only"]).optional(),
   sort_order: z.coerce.number().int().min(0).optional(),
 });
 
@@ -36,7 +37,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const payload: Record<string, any> = { updated_at: new Date().toISOString() };
-  for (const key of ["title", "body", "tag", "tag_color", "image_url", "pdf_url", "is_published", "sort_order"] as const) {
+  for (const key of ["title", "body", "tag", "tag_color", "image_url", "pdf_url", "is_published", "public_access", "sort_order"] as const) {
     if (parsed.data[key] !== undefined) payload[key] = parsed.data[key] ?? null;
   }
   if (parsed.data.pdf_urls !== undefined) payload.pdf_urls = parsed.data.pdf_urls;

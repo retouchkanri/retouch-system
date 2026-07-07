@@ -15,6 +15,7 @@ const schema = z.object({
   image_urls: z.array(z.string().max(500)).max(20).optional().default([]),
   published_at: z.string().optional(),
   is_published: z.boolean().optional().default(true),
+  public_access: z.enum(["public", "members_only"]).optional().default("public"),
   sort_order: z.coerce.number().int().min(0).default(0),
 });
 
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
       ? new Date(parsed.data.published_at).toISOString()
       : new Date().toISOString(),
     is_published: parsed.data.is_published,
+    public_access: parsed.data.public_access,
     sort_order: parsed.data.sort_order,
   };
 
