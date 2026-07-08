@@ -258,7 +258,19 @@ export type CustomerSummary = {
 // 会員向けメッセージ配信（お知らせ閲覧 + メルマガ）
 // ---------------------------------------------------------------------
 export type MemberMessageStatus = "draft" | "scheduled" | "sending" | "sent" | "canceled";
-export type MemberMessageAudience = "all" | "subset" | "rpt_only" | "support_only" | "no_class";
+export type MemberMessageAudience =
+  | "all"
+  | "subset"
+  | "rpt_only"
+  | "support_only"
+  | "no_class"
+  | "class_attender"
+  | "class_owner"
+  | "class_b"
+  | "class_a"
+  | "class_c"
+  | "class_support"
+  | "team_only";
 export type MemberMessageBodyFormat = "html" | "text";
 export type RecipientEmailStatus = "pending" | "sent" | "failed" | "skipped";
 
@@ -273,6 +285,8 @@ export type MemberMessage = {
   channel_email: boolean;
   audience: MemberMessageAudience;
   target_customer_ids: string[];
+  image_urls: string[];
+  pdf_urls: string[];
   status: MemberMessageStatus;
   scheduled_at: string | null;
   sent_at: string | null;

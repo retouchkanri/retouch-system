@@ -15,7 +15,7 @@ export default async function MemberAnnouncementDetailPage({ params }: { params:
   // RLS により、自分が対象でない／未配信のメッセージは取得できない
   const { data: message } = await supabase
     .from("member_messages")
-    .select("id, title, body, body_format, tag, tag_color, sent_at, channel_inapp, status")
+    .select("id, title, body, body_format, tag, tag_color, sent_at, channel_inapp, status, image_urls, pdf_urls")
     .eq("id", params.id)
     .eq("channel_inapp", true)
     .eq("status", "sent")
@@ -37,6 +37,28 @@ export default async function MemberAnnouncementDetailPage({ params }: { params:
           className="prose prose-sm max-w-none text-[15px] leading-relaxed"
           dangerouslySetInnerHTML={{ __html: messageBodyHtml(m.body ?? "", m.body_format) }}
         />
+        {((m.image_urls as string[] | null) ?? []).filter(Boolean).map((url: string, i: number) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={i} src={url} alt={`添付画像 ${i + 1}`} className="w-full rounded-xl object-contain" />
+        ))}
+        {((m.pdf_urls as string[] | null) ?? []).filter(Boolean).length > 0 && (
+          <div className="space-y-2">
+            {((m.pdf_urls as string[]) ?? []).filter(Boolean).map((url: string, i: number) => (
+              <div key={i} className="p-4 border border-surface-line rounded-xl bg-surface-soft flex items-center gap-3">
+                <span className="text-2xl">📄</span>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-ink">
+                    添付資料（PDF）{((m.pdf_urls as string[]) ?? []).length > 1 ? ` ${i + 1}` : ""}
+                  </p>
+                  <p className="text-xs text-ink-mute">クリックしてPDFを開く・ダウンロード</p>
+                </div>
+                <a href={url} target="_blank" rel="noopener noreferrer" className="btn-secondary !py-2 !px-4 !text-sm shrink-0">
+                  PDFを開く
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
       </article>
     </div>
   );

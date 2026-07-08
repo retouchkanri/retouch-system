@@ -12,8 +12,25 @@ const patchSchema = z.object({
   tag_color: z.string().max(100).optional(),
   channel_inapp: z.boolean().optional(),
   channel_email: z.boolean().optional(),
-  audience: z.enum(["all", "subset", "rpt_only", "support_only", "no_class"]).optional(),
+  audience: z
+    .enum([
+      "all",
+      "subset",
+      "rpt_only",
+      "support_only",
+      "no_class",
+      "class_attender",
+      "class_owner",
+      "class_b",
+      "class_a",
+      "class_c",
+      "class_support",
+      "team_only",
+    ])
+    .optional(),
   target_customer_ids: z.array(z.string().uuid()).optional(),
+  image_urls: z.array(z.string().url()).optional(),
+  pdf_urls: z.array(z.string().url()).optional(),
   // 'draft' に戻す / 'scheduled' に予約変更
   status: z.enum(["draft", "scheduled"]).optional(),
   scheduled_at: z.string().optional().nullable(),
@@ -54,6 +71,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     "channel_inapp",
     "channel_email",
     "audience",
+    "image_urls",
+    "pdf_urls",
   ] as const) {
     if (d[k] !== undefined) payload[k] = d[k];
   }

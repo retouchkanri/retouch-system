@@ -61,6 +61,24 @@ function autoLinkUrls(html: string): string {
   });
 }
 
+function attachmentsHtml(imageUrls: string[], pdfUrls: string[]): string {
+  const images = (imageUrls ?? []).filter(Boolean);
+  const pdfs = (pdfUrls ?? []).filter(Boolean);
+  if (images.length === 0 && pdfs.length === 0) return "";
+  const imgHtml = images
+    .map((url) => `<img src="${escapeHtml(url)}" alt="添付画像" style="display:block;width:100%;max-width:544px;margin:12px 0;border-radius:8px;" />`)
+    .join("");
+  const pdfHtml = pdfs.length
+    ? `<div style="margin-top:12px;">${pdfs
+        .map(
+          (url, i) =>
+            `<p style="margin:4px 0;"><a href="${escapeHtml(url)}" style="color:#0369a1;">📄 添付資料${pdfs.length > 1 ? `${i + 1}` : ""}（PDF）を開く</a></p>`,
+        )
+        .join("")}</div>`
+    : "";
+  return `${imgHtml}${pdfHtml}`;
+}
+
 /** メルマガ用の完全なHTMLメールを組み立てる（開封ピクセル・配信停止リンク込み）。 */
 export function renderEmailHtml(params: {
   name: string | null;
@@ -69,9 +87,12 @@ export function renderEmailHtml(params: {
   bodyFormat: "html" | "text";
   baseUrl: string;
   token: string;
+  imageUrls?: string[];
+  pdfUrls?: string[];
 }): string {
   const who = (params.name?.trim() || "会員") + "様";
   const inner = autoLinkUrls(messageBodyHtml(params.body, params.bodyFormat));
+  const attachments = attachmentsHtml(params.imageUrls ?? [], params.pdfUrls ?? []);
   const pixel = openPixelUrl(params.baseUrl, params.token);
   return `<!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8" />
@@ -85,6 +106,7 @@ export function renderEmailHtml(params: {
 <p style="margin:0 0 16px;font-size:14px;color:#57534e;">${escapeHtml(who)}</p>
 <h1 style="margin:0 0 16px;font-size:20px;line-height:1.5;color:#1c1917;">${escapeHtml(params.title)}</h1>
 <div style="font-size:15px;line-height:1.8;color:#292524;">${inner}</div>
+${attachments}
 </td></tr>
 <tr><td style="padding:20px 28px 28px;font-family:'Hiragino Kaku Gothic ProN',Meiryo,sans-serif;">
 <hr style="border:none;border-top:1px solid #e7e5e4;margin:0 0 16px;" />
@@ -105,14 +127,21 @@ export function renderEmailText(params: {
   bodyFormat: "html" | "text";
   baseUrl: string;
   token: string;
+  imageUrls?: string[];
+  pdfUrls?: string[];
 }): string {
   const who = (params.name?.trim() || "会員") + "様";
   const bodyText = params.bodyFormat === "text" ? params.body : htmlToPlainText(params.body);
+  const attachments = [...(params.imageUrls ?? []), ...(params.pdfUrls ?? [])].filter(Boolean);
+  const attachmentsText = attachments.length
+    ? `\n添付資料:\n${attachments.map((url) => `- ${url}`).join("\n")}\n`
+    : "";
   return (
     `${who}\n\n` +
     `${params.title}\n\n` +
-    `${bodyText}\n\n` +
-    `——————————————————\n` +
+    `${bodyText}\n` +
+    attachmentsText +
+    `\n——————————————————\n` +
     `Retouchメンバーズサイト 運営事務局`
   );
 }
@@ -143,6 +172,24 @@ async function fetchCustomersByIds(admin: SupabaseClient, ids: string[]): Promis
   return all;
 }
 
+// 会員種別ごとの配信対象。v_customer_summary（顧客一覧の絞り込みと同一の定義）を
+// customer_id だけ取得して絞り込み、fetchCustomersByIds で実データに解決する。
+// アテンダー会員はメンバーズ会員(A)とコードを共有するため primary_plan_name で区別する
+// （src/app/admin/(protected)/customers/page.tsx の cls フィルタと同じロジック）。
+const VIEW_AUDIENCE_FILTERS: Record<string, (q: any) => any> = {
+  rpt_only: (q) => q.eq("rpt_active", true),
+  support_only: (q) => q.gt("total_support_horses", 0),
+  // 空白の人のみ（無料会員）: 基本プランなし かつ リタポなし かつ 特別チーム(がんがん等)なし
+  no_class: (q) => q.is("member_class_code", null).eq("rpt_active", false).eq("special_team_count", 0),
+  class_attender: (q) => q.eq("primary_plan_name", "アテンダー会員"),
+  class_a: (q) => q.eq("member_class_code", "A").neq("primary_plan_name", "アテンダー会員"),
+  class_b: (q) => q.eq("member_class_code", "B"),
+  class_c: (q) => q.eq("member_class_code", "C"),
+  class_owner: (q) => q.eq("member_class_code", "OWNER"),
+  class_support: (q) => q.eq("member_class_code", "SUPPORT"),
+  team_only: (q) => q.gt("special_team_count", 0),
+};
+
 async function resolveAudienceCustomers(
   admin: SupabaseClient,
   msg: MemberMessage,
@@ -158,32 +205,11 @@ async function resolveAudienceCustomers(
     return (data as AudienceCustomer[]) ?? [];
   }
 
-  if (msg.audience === "rpt_only") {
-    const { data } = await admin
-      .from("v_customer_summary")
-      .select("customer_id")
-      .eq("rpt_active", true)
-      .eq("status", "active");
-    const ids = ((data ?? []) as any[]).map((r) => r.customer_id as string);
-    return fetchCustomersByIds(admin, ids);
-  }
-
-  if (msg.audience === "support_only") {
-    const { data } = await admin
-      .from("v_customer_summary")
-      .select("customer_id")
-      .gt("total_support_horses", 0)
-      .eq("status", "active");
-    const ids = ((data ?? []) as any[]).map((r) => r.customer_id as string);
-    return fetchCustomersByIds(admin, ids);
-  }
-
-  if (msg.audience === "no_class") {
-    const { data } = await admin
-      .from("v_customer_summary")
-      .select("customer_id")
-      .is("member_class_code", null)
-      .eq("status", "active");
+  const viewFilter = VIEW_AUDIENCE_FILTERS[msg.audience];
+  if (viewFilter) {
+    let q = admin.from("v_customer_summary").select("customer_id").eq("status", "active");
+    q = viewFilter(q);
+    const { data } = await q;
     const ids = ((data ?? []) as any[]).map((r) => r.customer_id as string);
     return fetchCustomersByIds(admin, ids);
   }
@@ -306,6 +332,8 @@ export async function sendMemberMessage(
           bodyFormat: message.body_format,
           baseUrl: opts.baseUrl,
           token: r.token,
+          imageUrls: message.image_urls,
+          pdfUrls: message.pdf_urls,
         });
         const text = renderEmailText({
           name,
@@ -314,6 +342,8 @@ export async function sendMemberMessage(
           bodyFormat: message.body_format,
           baseUrl: opts.baseUrl,
           token: r.token,
+          imageUrls: message.image_urls,
+          pdfUrls: message.pdf_urls,
         });
         const res = await notify({
           kind: "member_message",

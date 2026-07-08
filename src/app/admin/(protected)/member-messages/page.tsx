@@ -13,10 +13,17 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const AUDIENCE_LABEL: Record<string, string> = {
   all: "全会員",
-  rpt_only: "リタポ会員のみ",
+  rpt_only: "リタポメンバー",
   support_only: "1口支援者のみ",
-  no_class: "会員種別・空白",
+  no_class: "空白の人のみ（無料会員）",
   subset: "指定会員",
+  class_attender: "アテンダー会員",
+  class_owner: "オーナーズ会員",
+  class_b: "サポーター会員",
+  class_a: "メンバーズ会員",
+  class_c: "リェリーフ会員",
+  class_support: "ヘルパーズ会員",
+  team_only: "がんがんチーム",
 };
 
 export default async function MemberMessagesPage() {

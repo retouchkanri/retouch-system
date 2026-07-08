@@ -1155,3 +1155,31 @@ create index if not exists registration_tokens_customer_idx
 -- サービスロール（管理用 admin client）からのみアクセスする。
 -- RLS 有効＋ポリシー無し ＝ anon/authenticated からは不可、service_role のみバイパス。
 alter table public.registration_tokens enable row level security;
+
+-- =====================================================================
+-- 20260708_member_messages_audience_attachments.sql
+-- メルマガ配信対象の拡張（会員種別ごと・がんがんチーム）＋ PDF/画像添付
+-- =====================================================================
+do $$
+declare
+  r record;
+begin
+  for r in
+    select conname from pg_constraint
+    where conrelid = 'public.member_messages'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike '%audience%'
+  loop
+    execute format('alter table public.member_messages drop constraint %I', r.conname);
+  end loop;
+end $$;
+
+alter table public.member_messages add constraint member_messages_audience_check
+  check (audience in (
+    'all', 'subset', 'rpt_only', 'support_only', 'no_class',
+    'class_attender', 'class_owner', 'class_b', 'class_a', 'class_c', 'class_support', 'team_only'
+  ));
+
+alter table public.member_messages
+  add column if not exists image_urls text[] not null default '{}',
+  add column if not exists pdf_urls text[] not null default '{}';

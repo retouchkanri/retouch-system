@@ -21,10 +21,17 @@ const EMAIL_STATUS_LABEL: Record<string, string> = {
 };
 const AUDIENCE_LABEL: Record<string, string> = {
   all: "全アクティブ会員",
-  rpt_only: "リタポ会員のみ",
+  rpt_only: "リタポメンバー",
   support_only: "1口支援者のみ",
-  no_class: "会員種別・空白の人のみ",
+  no_class: "空白の人のみ（無料会員）",
   subset: "指定会員",
+  class_attender: "アテンダー会員",
+  class_owner: "オーナーズ会員",
+  class_b: "サポーター会員",
+  class_a: "メンバーズ会員",
+  class_c: "リェリーフ会員",
+  class_support: "ヘルパーズ会員",
+  team_only: "がんがんチーム",
 };
 
 export default async function MemberMessageDetailPage({ params }: { params: { id: string } }) {
@@ -91,6 +98,19 @@ export default async function MemberMessageDetailPage({ params }: { params: { id
             <p className="font-semibold mb-2">{m.title}</p>
             <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: m.body_format === "text" ? "" : m.body }} />
             {m.body_format === "text" && <pre className="whitespace-pre-wrap text-sm">{m.body}</pre>}
+            {((m.image_urls as string[] | null) ?? []).filter(Boolean).map((url, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={i} src={url} alt={`添付画像 ${i + 1}`} className="mt-4 w-full max-w-md rounded-xl object-contain" />
+            ))}
+            {((m.pdf_urls as string[] | null) ?? []).filter(Boolean).length > 0 && (
+              <div className="mt-4 space-y-2">
+                {((m.pdf_urls as string[]) ?? []).filter(Boolean).map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-brand underline text-sm">
+                    📄 添付資料{((m.pdf_urls as string[]) ?? []).length > 1 ? ` ${i + 1}` : ""}（PDF）
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}

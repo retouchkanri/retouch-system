@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const TAG_PRESETS = [
@@ -10,6 +10,21 @@ const TAG_PRESETS = [
 ];
 
 type TargetCustomer = { id: string; full_name: string | null; email: string | null };
+type FileEntry = { url: string; name: string };
+
+const AUDIENCE_OPTIONS = [
+  { value: "all", label: "全アクティブ会員" },
+  { value: "class_attender", label: "アテンダー会員" },
+  { value: "class_owner", label: "オーナーズ会員" },
+  { value: "class_b", label: "サポーター会員" },
+  { value: "class_a", label: "メンバーズ会員" },
+  { value: "class_support", label: "ヘルパーズ会員" },
+  { value: "class_c", label: "リェリーフ会員" },
+  { value: "rpt_only", label: "リタポメンバー" },
+  { value: "team_only", label: "がんがんチーム" },
+  { value: "no_class", label: "空白の人のみ（無料会員）" },
+  { value: "subset", label: "手動指定した人のみ" },
+];
 
 // クライアント側プレビュー用（サーバの messageBodyHtml と同等の最小実装）
 function escapeHtml(s: string): string {
@@ -63,6 +78,25 @@ export default function MemberMessageForm({
   const [searchResults, setSearchResults] = useState<TargetCustomer[]>([]);
   const [searching, setSearching] = useState(false);
 
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const [images, setImages] = useState<FileEntry[]>(() =>
+    (Array.isArray(start.image_urls) ? start.image_urls : []).map((u: string) => ({
+      url: u,
+      name: u.split("/").pop() ?? "画像",
+    })),
+  );
+  const [pdfs, setPdfs] = useState<FileEntry[]>(() =>
+    (Array.isArray(start.pdf_urls) ? start.pdf_urls : []).map((u: string) => ({
+      url: u,
+      name: u.split("/").pop() ?? "PDF",
+    })),
+  );
+  const [imgBusy, setImgBusy] = useState(false);
+  const [imgMsg, setImgMsg] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfMsg, setPdfMsg] = useState<string | null>(null);
+
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -90,6 +124,48 @@ export default function MemberMessageForm({
   };
   const removeTarget = (cid: string) => setTargets((prev) => prev.filter((t) => t.id !== cid));
 
+  const handleImgChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImgBusy(true);
+    setImgMsg(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/admin/member-messages/upload-image", { method: "POST", body: fd });
+    setImgBusy(false);
+    if (imgInputRef.current) imgInputRef.current.value = "";
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setImgMsg(j.error ?? "画像のアップロードに失敗しました。");
+      return;
+    }
+    const j = await res.json();
+    setImages((prev) => [...prev, { url: j.url, name: j.name ?? file.name }]);
+    setImgMsg("画像をアップロードしました。");
+  };
+  const removeImage = (idx: number) => setImages((prev) => prev.filter((_, i) => i !== idx));
+
+  const handlePdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPdfBusy(true);
+    setPdfMsg(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/admin/member-messages/upload", { method: "POST", body: fd });
+    setPdfBusy(false);
+    if (pdfInputRef.current) pdfInputRef.current.value = "";
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setPdfMsg(j.error ?? "PDFのアップロードに失敗しました。");
+      return;
+    }
+    const j = await res.json();
+    setPdfs((prev) => [...prev, { url: j.url, name: j.name ?? file.name }]);
+    setPdfMsg("PDFをアップロードしました。");
+  };
+  const removePdf = (idx: number) => setPdfs((prev) => prev.filter((_, i) => i !== idx));
+
   const submit = async (action: "draft" | "schedule" | "send") => {
     setBusy(true);
     setMsg(null);
@@ -103,6 +179,8 @@ export default function MemberMessageForm({
       channel_email: form.channel_email,
       audience: form.audience,
       target_customer_ids: form.audience === "subset" ? targets.map((t) => t.id) : [],
+      image_urls: images.map((img) => img.url),
+      pdf_urls: pdfs.map((pdf) => pdf.url),
     };
     if (action === "schedule") payload.scheduled_at = schedule ? new Date(schedule).toISOString() : null;
 
@@ -217,13 +295,7 @@ export default function MemberMessageForm({
       <div className="space-y-2">
         <label className="label">配信対象</label>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {[
-            { value: "all", label: "全アクティブ会員" },
-            { value: "rpt_only", label: "リタポ会員のみ" },
-            { value: "support_only", label: "1口支援者のみ" },
-            { value: "no_class", label: "会員種別・空白の人のみ" },
-            { value: "subset", label: "手動指定した会員のみ" },
-          ].map((opt) => (
+          {AUDIENCE_OPTIONS.map((opt) => (
             <label key={opt.value} className="flex items-center gap-2">
               <input
                 type="radio"
@@ -271,6 +343,87 @@ export default function MemberMessageForm({
             </div>
           </div>
         )}
+      </div>
+
+      {/* 画像添付（複数可） */}
+      <div className="border border-surface-line rounded-xl p-4 space-y-2 bg-surface-soft/50">
+        <p className="label !mb-0">画像添付（複数可）</p>
+        <p className="text-xs text-ink-mute">お知らせ・メール本文の下に表示されます。最大10MB。</p>
+
+        {images.length > 0 && (
+          <div className="space-y-1">
+            {images.map((img, idx) => (
+              <div key={idx} className="flex items-center gap-3 text-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.url} alt={img.name} className="w-12 h-12 object-cover rounded border border-surface-line shrink-0" />
+                <span className="flex-1 truncate text-ink-soft">{img.name}</span>
+                <button type="button" className="text-danger text-xs underline shrink-0" onClick={() => removeImage(idx)}>
+                  削除
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={imgBusy}
+            onClick={() => imgInputRef.current?.click()}
+            className="btn-secondary !py-2 !px-4 !text-sm"
+          >
+            {imgBusy ? "アップロード中…" : "＋ 画像を追加"}
+          </button>
+          <input
+            ref={imgInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            className="hidden"
+            onChange={handleImgChange}
+          />
+          {imgMsg && <p className={`text-xs ${imgMsg.includes("失敗") ? "text-danger" : "text-ok"}`}>{imgMsg}</p>}
+        </div>
+      </div>
+
+      {/* PDF添付（複数可） */}
+      <div className="border border-surface-line rounded-xl p-4 space-y-2 bg-surface-soft/50">
+        <p className="label !mb-0">PDF添付（複数可）</p>
+        <p className="text-xs text-ink-mute">お知らせ・メールにダウンロードリンクが表示されます。最大20MB。</p>
+
+        {pdfs.length > 0 && (
+          <div className="space-y-1">
+            {pdfs.map((pdf, idx) => (
+              <div key={idx} className="flex items-center gap-3 text-sm">
+                <span className="text-xl shrink-0">📄</span>
+                <a href={pdf.url} target="_blank" rel="noopener noreferrer" className="text-brand underline flex-1 truncate">
+                  {pdf.name}
+                </a>
+                <button type="button" className="text-danger text-xs underline shrink-0" onClick={() => removePdf(idx)}>
+                  削除
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={pdfBusy}
+            onClick={() => pdfInputRef.current?.click()}
+            className="btn-secondary !py-2 !px-4 !text-sm"
+          >
+            {pdfBusy ? "アップロード中…" : "＋ PDFを追加"}
+          </button>
+          <input
+            ref={pdfInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={handlePdfChange}
+          />
+          {pdfMsg && <p className={`text-xs ${pdfMsg.includes("失敗") ? "text-danger" : "text-ok"}`}>{pdfMsg}</p>}
+        </div>
       </div>
 
       <div>
