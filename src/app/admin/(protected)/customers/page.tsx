@@ -25,7 +25,10 @@ export default async function CustomersListPage({
   if (status) query = query.eq("status", status);
   // 会員種別（基本区分）: A/B/C/SUPPORT を member_class_code で絞り込み
   // "NONE" は会員種別が未設定（NULL）の顧客を抽出する。
+  // アテンダー会員はコード A を流用しているため、plan_name で メンバーズ会員 と区別する。
   if (cls === "NONE") query = query.is("member_class_code", null);
+  else if (cls === "ATTENDER") query = query.eq("primary_plan_name", "アテンダー会員");
+  else if (cls === "A") query = query.eq("member_class_code", "A").neq("primary_plan_name", "アテンダー会員");
   else if (cls) query = query.eq("member_class_code", cls);
   // 特別参加: 特別チーム / リタポ
   if (special === "TEAM") query = query.gt("special_team_count", 0);
@@ -51,6 +54,7 @@ export default async function CustomersListPage({
         <select name="cls" defaultValue={cls} className="input">
           <option value="">会員種別：すべて</option>
           <option value="A">メンバーズ会員</option>
+          <option value="ATTENDER">アテンダー会員</option>
           <option value="B">サポーター会員</option>
           <option value="C">リェリーフ会員</option>
           <option value="OWNER">オーナーズ会員</option>
