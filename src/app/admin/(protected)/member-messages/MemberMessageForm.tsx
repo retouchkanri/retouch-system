@@ -70,6 +70,22 @@ export default function MemberMessageForm({
     scheduled_at: null,
   };
   const [form, setForm] = useState<any>({ ...start });
+  const [audiences, setAudiences] = useState<string[]>(() =>
+    Array.isArray(start.audiences) && start.audiences.length > 0
+      ? start.audiences
+      : start.audience
+        ? [start.audience]
+        : ["all"],
+  );
+  const toggleAudience = (value: string) => {
+    setAudiences((prev) => {
+      if (value === "all") return prev.includes("all") ? [] : ["all"];
+      const withoutAll = prev.filter((v) => v !== "all");
+      return withoutAll.includes(value)
+        ? withoutAll.filter((v) => v !== value)
+        : [...withoutAll, value];
+    });
+  };
   const [targets, setTargets] = useState<TargetCustomer[]>(initialTargets ?? []);
   const [schedule, setSchedule] = useState<string>(toLocalInput(start.scheduled_at));
   const [showPreview, setShowPreview] = useState(true);
@@ -167,6 +183,10 @@ export default function MemberMessageForm({
   const removePdf = (idx: number) => setPdfs((prev) => prev.filter((_, i) => i !== idx));
 
   const submit = async (action: "draft" | "schedule" | "send") => {
+    if (audiences.length === 0) {
+      setMsg("配信対象を1つ以上選択してください。");
+      return;
+    }
     setBusy(true);
     setMsg(null);
     const payload: any = {
@@ -177,8 +197,8 @@ export default function MemberMessageForm({
       tag_color: form.tag_color,
       channel_inapp: form.channel_inapp,
       channel_email: form.channel_email,
-      audience: form.audience,
-      target_customer_ids: form.audience === "subset" ? targets.map((t) => t.id) : [],
+      audiences,
+      target_customer_ids: audiences.includes("subset") ? targets.map((t) => t.id) : [],
       image_urls: images.map((img) => img.url),
       pdf_urls: pdfs.map((pdf) => pdf.url),
     };
@@ -293,22 +313,24 @@ export default function MemberMessageForm({
       </div>
 
       <div className="space-y-2">
-        <label className="label">配信対象</label>
+        <label className="label">配信対象（複数選択可）</label>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           {AUDIENCE_OPTIONS.map((opt) => (
             <label key={opt.value} className="flex items-center gap-2">
               <input
-                type="radio"
-                name="audience"
-                checked={form.audience === opt.value}
-                onChange={() => setForm((p: any) => ({ ...p, audience: opt.value }))}
+                type="checkbox"
+                checked={audiences.includes(opt.value)}
+                onChange={() => toggleAudience(opt.value)}
               />
               <span>{opt.label}</span>
             </label>
           ))}
         </div>
+        {audiences.length === 0 && (
+          <p className="text-xs text-danger">配信対象を1つ以上選択してください。</p>
+        )}
 
-        {form.audience === "subset" && (
+        {audiences.includes("subset") && (
           <div className="space-y-2">
             <input
               className="input"

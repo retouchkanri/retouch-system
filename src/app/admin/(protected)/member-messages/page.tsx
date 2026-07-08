@@ -26,6 +26,11 @@ const AUDIENCE_LABEL: Record<string, string> = {
   team_only: "がんがんチーム",
 };
 
+function audienceLabel(m: any): string {
+  const list: string[] = Array.isArray(m.audiences) && m.audiences.length > 0 ? m.audiences : [m.audience];
+  return list.map((a) => AUDIENCE_LABEL[a] ?? "指定会員").join("、");
+}
+
 export default async function MemberMessagesPage() {
   await requireCapability("messages.manage");
   const admin = createSupabaseAdminClient();
@@ -77,7 +82,7 @@ export default async function MemberMessagesPage() {
                       {m.channel_inapp && m.channel_email ? " / " : ""}
                       {m.channel_email ? "メール" : ""}
                     </td>
-                    <td className="text-xs">{AUDIENCE_LABEL[m.audience] ?? "指定会員"}</td>
+                    <td className="text-xs">{audienceLabel(m)}</td>
                     <td className="text-right tabular-nums text-xs">
                       {m.channel_email ? (
                         <>

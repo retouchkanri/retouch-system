@@ -1183,3 +1183,14 @@ alter table public.member_messages add constraint member_messages_audience_check
 alter table public.member_messages
   add column if not exists image_urls text[] not null default '{}',
   add column if not exists pdf_urls text[] not null default '{}';
+
+-- =====================================================================
+-- 20260709_member_messages_audiences_array.sql
+-- メルマガ配信対象の複数選択対応（audiences 配列カラム）
+-- =====================================================================
+alter table public.member_messages
+  add column if not exists audiences text[] not null default '{}';
+
+update public.member_messages
+set audiences = array[audience]
+where audiences = '{}';

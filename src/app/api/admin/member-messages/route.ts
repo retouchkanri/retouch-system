@@ -4,7 +4,7 @@ import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { writeAudit } from "@/lib/audit";
 import { getBaseUrl } from "@/lib/site";
-import { sendMemberMessage } from "@/lib/memberMessages";
+import { sendMemberMessage, AUDIENCE_VALUES } from "@/lib/memberMessages";
 
 export const maxDuration = 60;
 
@@ -17,22 +17,7 @@ const schema = z
     tag_color: z.string().max(100).default("bg-brand-50 text-brand-dark"),
     channel_inapp: z.boolean().default(true),
     channel_email: z.boolean().default(false),
-    audience: z
-      .enum([
-        "all",
-        "subset",
-        "rpt_only",
-        "support_only",
-        "no_class",
-        "class_attender",
-        "class_owner",
-        "class_b",
-        "class_a",
-        "class_c",
-        "class_support",
-        "team_only",
-      ])
-      .default("all"),
+    audiences: z.array(z.enum(AUDIENCE_VALUES)).min(1, "配信対象を1つ以上選択してください"),
     target_customer_ids: z.array(z.string().uuid()).default([]),
     image_urls: z.array(z.string().url()).default([]),
     pdf_urls: z.array(z.string().url()).default([]),
@@ -44,7 +29,7 @@ const schema = z
     message: "配信チャネルを1つ以上選択してください",
     path: ["channel_inapp"],
   })
-  .refine((d) => d.audience !== "subset" || d.target_customer_ids.length > 0, {
+  .refine((d) => !d.audiences.includes("subset") || d.target_customer_ids.length > 0, {
     message: "配信対象の会員を選択してください",
     path: ["target_customer_ids"],
   })
@@ -86,8 +71,10 @@ export async function POST(req: Request) {
       tag_color: d.tag_color,
       channel_inapp: d.channel_inapp,
       channel_email: d.channel_email,
-      audience: d.audience,
-      target_customer_ids: d.audience === "subset" ? d.target_customer_ids : [],
+      // audience（単一値）は後方互換のため先頭の選択値を保持。実際の配信対象解決は audiences を使う。
+      audience: d.audiences[0],
+      audiences: d.audiences,
+      target_customer_ids: d.audiences.includes("subset") ? d.target_customer_ids : [],
       image_urls: d.image_urls,
       pdf_urls: d.pdf_urls,
       status,
@@ -105,7 +92,7 @@ export async function POST(req: Request) {
     action: `message.${d.action === "send" ? "send" : d.action === "schedule" ? "schedule" : "create"}`,
     targetTable: "member_messages",
     targetId: inserted.id,
-    meta: { title: d.title, audience: d.audience, channel_email: d.channel_email, action: d.action },
+    meta: { title: d.title, audiences: d.audiences, channel_email: d.channel_email, action: d.action },
   });
 
   // 即時配信

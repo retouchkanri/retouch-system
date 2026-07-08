@@ -284,6 +284,7 @@ export type MemberMessage = {
   channel_inapp: boolean;
   channel_email: boolean;
   audience: MemberMessageAudience;
+  audiences: MemberMessageAudience[];
   target_customer_ids: string[];
   image_urls: string[];
   pdf_urls: string[];

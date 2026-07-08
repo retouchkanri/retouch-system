@@ -34,6 +34,13 @@ const AUDIENCE_LABEL: Record<string, string> = {
   team_only: "がんがんチーム",
 };
 
+function audienceList(m: any): string[] {
+  return Array.isArray(m.audiences) && m.audiences.length > 0 ? m.audiences : [m.audience];
+}
+function audienceLabel(m: any): string {
+  return audienceList(m).map((a) => AUDIENCE_LABEL[a] ?? "指定会員").join("、");
+}
+
 export default async function MemberMessageDetailPage({ params }: { params: { id: string } }) {
   await requireCapability("messages.manage");
   const admin = createSupabaseAdminClient();
@@ -50,7 +57,7 @@ export default async function MemberMessageDetailPage({ params }: { params: { id
 
   // 指定会員の場合は名前を解決してフォームへ渡す
   let initialTargets: { id: string; full_name: string | null; email: string | null }[] = [];
-  if (m.audience === "subset" && (m.target_customer_ids ?? []).length > 0) {
+  if (audienceList(m).includes("subset") && (m.target_customer_ids ?? []).length > 0) {
     const { data } = await admin
       .from("customers")
       .select("id, full_name, email")
@@ -78,7 +85,7 @@ export default async function MemberMessageDetailPage({ params }: { params: { id
       <div className="card grid sm:grid-cols-3 gap-3 text-sm">
         <div><span className="text-ink-mute">状態</span><div className="font-semibold">{STATUS_LABEL[m.status] ?? m.status}</div></div>
         <div><span className="text-ink-mute">チャネル</span><div>{[m.channel_inapp && "お知らせ", m.channel_email && "メール"].filter(Boolean).join(" / ") || "—"}</div></div>
-        <div><span className="text-ink-mute">対象</span><div>{AUDIENCE_LABEL[m.audience] ?? "指定会員"}</div></div>
+        <div><span className="text-ink-mute">対象</span><div>{audienceLabel(m)}</div></div>
         <div><span className="text-ink-mute">配信先 / 送信</span><div className="tabular-nums">{m.recipient_count} / {m.sent_count}</div></div>
         <div><span className="text-ink-mute">開封（ユニーク）</span><div className="tabular-nums">{m.open_count}（開封率 {openRate}%）</div></div>
         <div><span className="text-ink-mute">{m.status === "scheduled" ? "予約日時" : "配信日時"}</span><div>{formatDate(m.status === "scheduled" ? m.scheduled_at : m.sent_at, true)}</div></div>

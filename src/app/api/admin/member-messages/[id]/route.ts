@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { writeAudit } from "@/lib/audit";
+import { AUDIENCE_VALUES } from "@/lib/memberMessages";
 
 const patchSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
@@ -12,22 +13,7 @@ const patchSchema = z.object({
   tag_color: z.string().max(100).optional(),
   channel_inapp: z.boolean().optional(),
   channel_email: z.boolean().optional(),
-  audience: z
-    .enum([
-      "all",
-      "subset",
-      "rpt_only",
-      "support_only",
-      "no_class",
-      "class_attender",
-      "class_owner",
-      "class_b",
-      "class_a",
-      "class_c",
-      "class_support",
-      "team_only",
-    ])
-    .optional(),
+  audiences: z.array(z.enum(AUDIENCE_VALUES)).min(1).optional(),
   target_customer_ids: z.array(z.string().uuid()).optional(),
   image_urls: z.array(z.string().url()).optional(),
   pdf_urls: z.array(z.string().url()).optional(),
@@ -70,16 +56,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     "tag_color",
     "channel_inapp",
     "channel_email",
-    "audience",
     "image_urls",
     "pdf_urls",
   ] as const) {
     if (d[k] !== undefined) payload[k] = d[k];
   }
-  if (d.audience !== undefined || d.target_customer_ids !== undefined) {
-    const audience = d.audience ?? (existing as any).audience;
+  if (d.audiences !== undefined) {
+    // audience（単一値）は後方互換のため先頭の選択値を保持。
+    payload.audience = d.audiences[0];
+    payload.audiences = d.audiences;
+  }
+  if (d.audiences !== undefined || d.target_customer_ids !== undefined) {
+    const audiences = d.audiences ?? ((existing as any).audiences?.length ? (existing as any).audiences : [(existing as any).audience]);
     payload.target_customer_ids =
-      audience === "subset" ? d.target_customer_ids ?? (existing as any).target_customer_ids : [];
+      audiences.includes("subset") ? d.target_customer_ids ?? (existing as any).target_customer_ids : [];
   }
 
   // チャネル整合性チェック（最低1つ）

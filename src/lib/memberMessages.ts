@@ -15,6 +15,22 @@ import type { MemberMessage } from "@/types/db";
 const SEND_TIME_BUDGET_MS = 25_000;
 const MAX_PER_CALL = Number(process.env.NEWSLETTER_BATCH ?? 80);
 
+/** 配信対象チェックボックス／APIバリデーションの共通の値一覧（単一の情報源）。 */
+export const AUDIENCE_VALUES = [
+  "all",
+  "subset",
+  "rpt_only",
+  "support_only",
+  "no_class",
+  "class_attender",
+  "class_owner",
+  "class_b",
+  "class_a",
+  "class_c",
+  "class_support",
+  "team_only",
+] as const;
+
 // ---------------------------------------------------------------------------
 // HTML / text rendering
 // ---------------------------------------------------------------------------
@@ -190,12 +206,13 @@ const VIEW_AUDIENCE_FILTERS: Record<string, (q: any) => any> = {
   team_only: (q) => q.gt("special_team_count", 0),
 };
 
-async function resolveAudienceCustomers(
+async function resolveSingleAudience(
   admin: SupabaseClient,
-  msg: MemberMessage,
+  audience: string,
+  targetCustomerIds: string[],
 ): Promise<AudienceCustomer[]> {
-  if (msg.audience === "subset") {
-    const ids = msg.target_customer_ids ?? [];
+  if (audience === "subset") {
+    const ids = targetCustomerIds ?? [];
     if (ids.length === 0) return [];
     const { data } = await admin
       .from("customers")
@@ -205,7 +222,7 @@ async function resolveAudienceCustomers(
     return (data as AudienceCustomer[]) ?? [];
   }
 
-  const viewFilter = VIEW_AUDIENCE_FILTERS[msg.audience];
+  const viewFilter = VIEW_AUDIENCE_FILTERS[audience];
   if (viewFilter) {
     let q = admin.from("v_customer_summary").select("customer_id").eq("status", "active");
     q = viewFilter(q);
@@ -214,7 +231,7 @@ async function resolveAudienceCustomers(
     return fetchCustomersByIds(admin, ids);
   }
 
-  // audience = 'all' → 全アクティブ会員（1000件上限を超える場合に備えページング）
+  // 'all'（または未知の値のフォールバック）→ 全アクティブ会員（1000件上限を超える場合に備えページング）
   const all: AudienceCustomer[] = [];
   const pageSize = 1000;
   for (let from = 0; ; from += pageSize) {
@@ -228,6 +245,28 @@ async function resolveAudienceCustomers(
     if (data.length < pageSize) break;
   }
   return all;
+}
+
+async function resolveAudienceCustomers(
+  admin: SupabaseClient,
+  msg: MemberMessage,
+): Promise<AudienceCustomer[]> {
+  // 複数選択（audiences）を優先。空なら旧単一値（audience）にフォールバック
+  // （移行前の履歴メッセージ用）。
+  const audienceList =
+    msg.audiences && msg.audiences.length > 0 ? msg.audiences : [msg.audience];
+
+  // 「全アクティブ会員」がどれか1つでも含まれていれば、他の選択に関わらず全員が対象。
+  if (audienceList.includes("all")) {
+    return resolveSingleAudience(admin, "all", []);
+  }
+
+  const merged = new Map<string, AudienceCustomer>();
+  for (const audience of audienceList) {
+    const customers = await resolveSingleAudience(admin, audience, msg.target_customer_ids);
+    for (const c of customers) merged.set(c.id, c);
+  }
+  return Array.from(merged.values());
 }
 
 async function recomputeCounts(admin: SupabaseClient, messageId: string) {
