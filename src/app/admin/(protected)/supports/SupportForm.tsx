@@ -10,7 +10,6 @@ export default function SupportForm({ horses }: { horses: Horse[] }) {
     customer_id: "",
     horse_id: horses[0]?.id ?? "",
     units: "1",
-    unit_amount: "12000",
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -31,7 +30,6 @@ export default function SupportForm({ horses }: { horses: Horse[] }) {
         customer_id: form.customer_id,
         horse_id: form.horse_id,
         units: Number(form.units),
-        unit_amount: Number(form.unit_amount),
       }),
     });
     setBusy(false);
@@ -45,7 +43,7 @@ export default function SupportForm({ horses }: { horses: Horse[] }) {
   };
 
   return (
-    <form onSubmit={submit} className="grid md:grid-cols-5 gap-3">
+    <form onSubmit={submit} className="grid md:grid-cols-4 gap-3">
       <div className="md:col-span-2">
         <label className="label">顧客ID または メールアドレス</label>
         <input
@@ -67,15 +65,11 @@ export default function SupportForm({ horses }: { horses: Horse[] }) {
         </select>
       </div>
       <div>
-        <label className="label">口数</label>
+        <label className="label">口数（1口=12,000円/月・半口=0.5）</label>
         <input type="number" step="0.5" className="input" value={form.units} onChange={set("units")} min={0.5} />
       </div>
-      <div>
-        <label className="label">単価（円/口）</label>
-        <input type="number" className="input" value={form.unit_amount} onChange={set("unit_amount")} min={100} />
-      </div>
-      {msg && <p className="md:col-span-5 text-sm">{msg}</p>}
-      <div className="md:col-span-5">
+      {msg && <p className="md:col-span-4 text-sm">{msg}</p>}
+      <div className="md:col-span-4">
         <button className="btn-primary" disabled={busy}>
           {busy ? "登録中..." : "支援を追加"}
         </button>

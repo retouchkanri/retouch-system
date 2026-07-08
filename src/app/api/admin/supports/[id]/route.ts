@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
 
 const patchSchema = z.object({
   units: z.coerce.number().positive().max(99).optional(),
-  unit_amount: z.coerce.number().int().positive().optional(),
   horse_id: z.string().uuid().optional(),
   status: z.enum(["active", "past_due", "canceled", "paused", "incomplete"]).optional(),
 });
@@ -31,12 +31,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
   if (parsed.data.units !== undefined) {
     patch.units = parsed.data.units;
-    const unitAmount =
-      parsed.data.unit_amount ??
-      (current.units > 0 ? Math.round(current.monthly_amount / current.units) : 12000);
-    patch.monthly_amount = Math.round(unitAmount * parsed.data.units);
-  } else if (parsed.data.unit_amount !== undefined) {
-    patch.monthly_amount = Math.round(parsed.data.unit_amount * current.units);
+    // 単価は常に SUPPORT_UNIT_PRICE（1口=12,000円）を正とする（route.ts の POST と同じ理由）。
+    patch.monthly_amount = Math.round(SUPPORT_UNIT_PRICE * parsed.data.units);
   }
   if (parsed.data.status !== undefined) {
     patch.status = parsed.data.status;

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isBasicMemberPlanCode } from "@/lib/constraints";
+import { isBasicMemberPlanCode, SUPPORT_UNIT_PRICE } from "@/lib/constraints";
 import { notify, staffRecipients, supportAddedTemplate } from "@/lib/notify";
 
 const schema = z.object({
@@ -10,7 +10,6 @@ const schema = z.object({
   customer_id: z.string().trim().min(1),
   horse_id: z.string().uuid(),
   units: z.coerce.number().positive().max(99),
-  unit_amount: z.coerce.number().int().positive().optional(),
 });
 
 export async function POST(req: Request) {
@@ -22,7 +21,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const { horse_id, units, unit_amount } = parsed.data;
+  const { horse_id, units } = parsed.data;
   const admin = createSupabaseAdminClient();
 
   // 入力された識別子から顧客を特定する。
@@ -119,8 +118,10 @@ export async function POST(req: Request) {
     createdContractId = created.id;
   }
 
-  const effectiveUnitAmount = unit_amount ?? 12000;
-  const monthlyAmount = Math.round(effectiveUnitAmount * units);
+  // 単価は常に SUPPORT_UNIT_PRICE（1口=12,000円）を正とする。
+  // 半口支援プラン自体の unit_amount（6,000円）を使って計算すると
+  // 「半額の半額」で3,000円になってしまうため、ここでは絶対に使わない。
+  const monthlyAmount = Math.round(SUPPORT_UNIT_PRICE * units);
 
   const { data: inserted, error: insErr } = await admin
     .from("support_subscriptions")

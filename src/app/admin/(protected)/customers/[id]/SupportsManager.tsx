@@ -44,12 +44,10 @@ export default function SupportsManager({
   const [addOpen, setAddOpen] = useState(false);
   const [addHorse, setAddHorse] = useState<string>(horses[0]?.id ?? "");
   const [addUnits, setAddUnits] = useState<string>("1");
-  const [addUnitAmount, setAddUnitAmount] = useState<string>("12000");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editHorseId, setEditHorseId] = useState<string>("");
   const [editUnits, setEditUnits] = useState<string>("");
-  const [editUnitAmount, setEditUnitAmount] = useState<string>("");
 
   const refresh = () => router.refresh();
 
@@ -64,7 +62,6 @@ export default function SupportsManager({
         customer_id: customerId,
         horse_id: addHorse,
         units: Number(addUnits),
-        unit_amount: Number(addUnitAmount),
       }),
     });
     const j = await res.json().catch(() => ({}));
@@ -79,7 +76,6 @@ export default function SupportsManager({
     setEditingId(s.id);
     setEditHorseId(s.horse_id);
     setEditUnits(String(s.units));
-    setEditUnitAmount(String(unitAmountFrom(s)));
     setErr(null);
   };
 
@@ -90,7 +86,6 @@ export default function SupportsManager({
     const original = supports.find((s) => s.id === editingId);
     const body: Record<string, any> = {
       units: Number(editUnits),
-      unit_amount: Number(editUnitAmount),
     };
     if (editHorseId && editHorseId !== original?.horse_id) {
       body.horse_id = editHorseId;
@@ -136,7 +131,7 @@ export default function SupportsManager({
       </div>
 
       {addOpen && (
-        <div className="grid md:grid-cols-4 gap-2 p-3 bg-surface-soft rounded-xl border border-surface-line">
+        <div className="grid md:grid-cols-3 gap-2 p-3 bg-surface-soft rounded-xl border border-surface-line">
           <div>
             <label className="label">馬</label>
             <select className="input" value={addHorse} onChange={(e) => setAddHorse(e.target.value)}>
@@ -148,7 +143,7 @@ export default function SupportsManager({
             </select>
           </div>
           <div>
-            <label className="label">口数</label>
+            <label className="label">口数（1口=12,000円/月・半口=0.5）</label>
             <input
               className="input"
               type="number"
@@ -156,17 +151,6 @@ export default function SupportsManager({
               min="0.5"
               value={addUnits}
               onChange={(e) => setAddUnits(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">単価（円/口）</label>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="1"
-              value={addUnitAmount}
-              onChange={(e) => setAddUnitAmount(e.target.value)}
             />
           </div>
           <div className="flex items-end">
@@ -227,18 +211,7 @@ export default function SupportsManager({
                     `${s.units}口`
                   )}
                 </td>
-                <td>
-                  {editing ? (
-                    <input
-                      className="input !py-1"
-                      type="number"
-                      value={editUnitAmount}
-                      onChange={(e) => setEditUnitAmount(e.target.value)}
-                    />
-                  ) : (
-                    formatYen(unitAmountFrom(s))
-                  )}
-                </td>
+                <td>{formatYen(unitAmountFrom(s))}</td>
                 <td>{formatYen(s.monthly_amount)}</td>
                 <td>{s.status}</td>
                 <td>{formatDate(s.started_at)}</td>
