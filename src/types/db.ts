@@ -222,6 +222,8 @@ export type NewsItem = {
   image_url: string | null;
   pdf_url: string | null;
   pdf_urls: string[] | null;
+  /** pdf_urls と同じ並び順のアップロード時の元ファイル名。無い場合は連番表示にフォールバック。 */
+  pdf_names: string[] | null;
   image_urls: string[] | null;
   published_at: string;
   is_published: boolean;

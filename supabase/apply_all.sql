@@ -93,6 +93,11 @@ create index if not exists customers_email_idx on public.customers (lower(email)
 create index if not exists customers_name_idx on public.customers (full_name);
 create index if not exists customers_status_idx on public.customers (status);
 
+-- 既存DB向け（create table if not exists が既存の profiles テーブルをスキップした
+-- 場合、customer_id 列が無いまま次の FK 制約が失敗する: 42703）。
+alter table public.profiles
+  add column if not exists customer_id uuid;
+
 alter table public.profiles
   drop constraint if exists profiles_customer_fkey;
 alter table public.profiles
@@ -236,6 +241,35 @@ create table if not exists public.bookings (
   canceled_at timestamptz,
   unique (customer_id, event_id)
 );
+-- 既存DB向け（create table if not exists が既存の bookings テーブルをスキップした
+-- 場合、event_id 列が無いまま次のインデックスが失敗する: 42703）。
+alter table public.bookings add column if not exists customer_id uuid;
+alter table public.bookings add column if not exists event_id uuid;
+alter table public.bookings add column if not exists party_size integer not null default 1;
+alter table public.bookings add column if not exists note text;
+alter table public.bookings add column if not exists status booking_status not null default 'reserved';
+alter table public.bookings add column if not exists booked_at timestamptz not null default now();
+alter table public.bookings add column if not exists canceled_at timestamptz;
+alter table public.bookings drop constraint if exists bookings_party_size_check;
+alter table public.bookings
+  add constraint bookings_party_size_check check (party_size > 0);
+alter table public.bookings
+  drop constraint if exists bookings_customer_id_fkey;
+alter table public.bookings
+  add constraint bookings_customer_id_fkey
+  foreign key (customer_id) references public.customers(id) on delete cascade
+  not valid;
+alter table public.bookings validate constraint bookings_customer_id_fkey;
+alter table public.bookings
+  drop constraint if exists bookings_event_id_fkey;
+alter table public.bookings
+  add constraint bookings_event_id_fkey
+  foreign key (event_id) references public.events(id) on delete cascade
+  not valid;
+alter table public.bookings validate constraint bookings_event_id_fkey;
+alter table public.bookings drop constraint if exists bookings_customer_id_event_id_key;
+alter table public.bookings
+  add constraint bookings_customer_id_event_id_key unique (customer_id, event_id);
 create index if not exists bookings_event_idx on public.bookings (event_id);
 create index if not exists bookings_customer_idx on public.bookings (customer_id);
 -- 見学会（千葉・大阪）申込フォームの追加項目（migrations/20260606_booking_visit_fields.sql）
@@ -739,15 +773,40 @@ create table if not exists public.news (
 create index if not exists idx_news_published on public.news (is_published, published_at desc);
 -- 既存DB向け（create table が既存テーブルをスキップした場合に備える）
 alter table public.news add column if not exists pdf_url text;
+-- 本文内の複数PDF・複数画像添付（NewsForm の複数アップロード機能用）
+alter table public.news add column if not exists pdf_urls text[] not null default '{}';
+alter table public.news add column if not exists image_urls text[] not null default '{}';
+-- PDFの元ファイル名（pdf_urls と同じ並び順）。migrations/20260711_news_pdf_names.sql と同一内容。
+alter table public.news add column if not exists pdf_names text[] not null default '{}';
+-- 公開範囲（全体公開 / 会員限定）。既存レコードは 'public'（従来どおり全体公開）。
+alter table public.news add column if not exists public_access text not null default 'public';
+do $$ begin
+  alter table public.news add constraint news_public_access_check check (public_access in ('public', 'members_only'));
+exception when duplicate_object then null; end $$;
 
 alter table public.news enable row level security;
 
+-- 古い（アクセス範囲を判定しない）ポリシー名が残っている場合は削除する。
 drop policy if exists "news public read" on public.news;
-create policy "news public read" on public.news
-  for select using (is_published = true or public.is_admin());
 drop policy if exists "news admin write" on public.news;
-create policy "news admin write" on public.news
+drop policy if exists "news_admin_all" on public.news;
+drop policy if exists "news_public_read" on public.news;
+
+-- 管理者は常に全件アクセス可（未公開・会員限定を含む）。
+create policy "news_admin_all" on public.news
   for all using (public.is_admin()) with check (public.is_admin());
+
+-- 公開記事は誰でも閲覧可。会員限定記事はログイン中の会員（current_customer_id）と
+-- 管理者のみ閲覧可 — ログインしていない訪問者には members_only 記事を一切返さない。
+create policy "news_public_read" on public.news
+  for select using (
+    is_published = true
+    and (
+      public_access = 'public'
+      or public.current_customer_id() is not null
+      or public.is_admin()
+    )
+  );
 
 -- updated_at trigger for news
 drop trigger if exists news_set_updated_at on public.news;

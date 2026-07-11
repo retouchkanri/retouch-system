@@ -12,6 +12,7 @@ const patchSchema = z.object({
   image_url: z.string().max(500).optional().nullable(),
   pdf_url: z.string().max(1000).optional().nullable(),
   pdf_urls: z.array(z.string().max(1000)).max(80).optional(),
+  pdf_names: z.array(z.string().max(200)).max(80).optional(),
   image_urls: z.array(z.string().max(500)).max(20).optional(),
   published_at: z.string().optional(),
   is_published: z.boolean().optional(),
@@ -41,6 +42,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (parsed.data[key] !== undefined) payload[key] = parsed.data[key] ?? null;
   }
   if (parsed.data.pdf_urls !== undefined) payload.pdf_urls = parsed.data.pdf_urls;
+  if (parsed.data.pdf_names !== undefined) payload.pdf_names = parsed.data.pdf_names;
   if (parsed.data.image_urls !== undefined) payload.image_urls = parsed.data.image_urls;
   if (parsed.data.published_at) {
     const d = new Date(parsed.data.published_at);

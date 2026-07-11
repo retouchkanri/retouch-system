@@ -31,6 +31,7 @@ export default function NewsForm({ initial, id }: { initial?: any; id?: string }
     sort_order: 0,
     pdf_url: "",
     pdf_urls: [],
+    pdf_names: [],
     image_urls: [],
   };
 
@@ -38,15 +39,19 @@ export default function NewsForm({ initial, id }: { initial?: any; id?: string }
     ...start,
     pdf_url: start.pdf_url ?? "",
     pdf_urls: Array.isArray(start.pdf_urls) ? start.pdf_urls : [],
+    pdf_names: Array.isArray(start.pdf_names) ? start.pdf_names : [],
     image_urls: Array.isArray(start.image_urls) ? start.image_urls : [],
   });
 
-  // PDF entries: combine legacy pdf_url + pdf_urls array
+  // PDF entries: pdf_urls + pdf_names (same order), plus legacy single pdf_url fallback
   const [pdfs, setPdfs] = useState<FileEntry[]>(() => {
-    const entries: FileEntry[] = [];
-    if (start.pdf_url) entries.push({ url: start.pdf_url, name: "添付PDF" });
-    for (const u of Array.isArray(start.pdf_urls) ? start.pdf_urls : []) {
-      if (u && u !== start.pdf_url) entries.push({ url: u, name: u.split("/").pop() ?? "PDF" });
+    const urls: string[] = Array.isArray(start.pdf_urls) ? start.pdf_urls : [];
+    const names: string[] = Array.isArray(start.pdf_names) ? start.pdf_names : [];
+    const entries: FileEntry[] = urls
+      .filter((u: string) => Boolean(u))
+      .map((u: string, i: number) => ({ url: u, name: names[i] || u.split("/").pop() || "PDF" }));
+    if (start.pdf_url && !urls.includes(start.pdf_url)) {
+      entries.unshift({ url: start.pdf_url, name: "添付PDF" });
     }
     return entries;
   });
@@ -121,13 +126,14 @@ export default function NewsForm({ initial, id }: { initial?: any; id?: string }
     setBusy(true);
     setMsg(null);
 
-    // Serialize pdfs: first entry → pdf_url (legacy), all → pdf_urls
+    // Serialize pdfs: first entry → pdf_url (legacy), all → pdf_urls/pdf_names
     const allPdfUrls = pdfs.map((p) => p.url);
     const payload = {
       ...form,
       sort_order: Number(form.sort_order),
       pdf_url: allPdfUrls[0] ?? null,
       pdf_urls: allPdfUrls,
+      pdf_names: pdfs.map((p) => p.name),
       image_urls: images.map((img) => img.url),
     };
 

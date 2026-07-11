@@ -96,6 +96,7 @@ export default async function NewsDetailPage({ params }: { params: { id: string 
             const allPdfs: string[] = [];
             const legacyUrl = (news as any).pdf_url as string | null;
             const multiUrls = (news as any).pdf_urls as string[] | null;
+            const multiNames = ((news as any).pdf_names as string[] | null) ?? [];
             if (Array.isArray(multiUrls) && multiUrls.length > 0) {
               allPdfs.push(...multiUrls.filter(Boolean));
             } else if (legacyUrl) {
@@ -104,23 +105,28 @@ export default async function NewsDetailPage({ params }: { params: { id: string 
             if (allPdfs.length === 0) return null;
             return (
               <div className="mt-6 space-y-2">
-                {allPdfs.map((pdfUrl, i) => (
-                  <div key={i} className="p-4 border border-surface-line rounded-xl bg-surface-soft flex items-center gap-3">
-                    <span className="text-2xl">📄</span>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-ink">添付資料（PDF）{allPdfs.length > 1 ? ` ${i + 1}` : ""}</p>
-                      <p className="text-xs text-ink-mute">クリックしてPDFを開く・ダウンロード</p>
+                {allPdfs.map((pdfUrl, i) => {
+                  const label =
+                    multiNames[i]?.trim() ||
+                    `添付資料（PDF）${allPdfs.length > 1 ? ` ${i + 1}` : ""}`;
+                  return (
+                    <div key={i} className="p-4 border border-surface-line rounded-xl bg-surface-soft flex items-center gap-3">
+                      <span className="text-2xl">📄</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-ink truncate">{label}</p>
+                        <p className="text-xs text-ink-mute">クリックしてPDFを開く・ダウンロード</p>
+                      </div>
+                      <a
+                        href={pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-secondary !py-2 !px-4 !text-sm shrink-0"
+                      >
+                        PDFを開く
+                      </a>
                     </div>
-                    <a
-                      href={pdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-secondary !py-2 !px-4 !text-sm shrink-0"
-                    >
-                      PDFを開く
-                    </a>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             );
           })()}

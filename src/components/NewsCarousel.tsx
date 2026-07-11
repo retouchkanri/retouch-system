@@ -4,13 +4,39 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { NewsItem } from "@/types/db";
 
+/**
+ * 本文（HTML）からプレーンテキストの抜粋を作る。
+ * RichTextEditor で保存された本文は `<p>...</p>` のような HTML なので、
+ * そのまま表示するとタグや実体参照が文字として見えてしまう。
+ */
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<\s*br\s*\/?\s*>/gi, " ")
+    .replace(/<\/(p|div|h[1-6]|li)>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// 見せかけのループ用に配列を2倍にすると、件数が少ないうちは同じ記事が
+// 隣り合って2回表示され「2件アップされた」ように見えてしまう。
+// ある程度件数が増えて初めてループを有効にする。
+const LOOP_MIN_ITEMS = 5;
+
 export default function NewsCarousel({ items }: { items: NewsItem[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
+  const shouldLoop = items.length >= LOOP_MIN_ITEMS;
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || items.length === 0) return;
+    if (!el || !shouldLoop) return;
 
     let raf: number;
     let pos = 0;
@@ -28,16 +54,16 @@ export default function NewsCarousel({ items }: { items: NewsItem[] }) {
 
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [paused, items.length]);
+  }, [paused, shouldLoop]);
 
   if (items.length === 0) return null;
 
-  const doubled = [...items, ...items];
+  const doubled = shouldLoop ? [...items, ...items] : items;
 
   return (
     <div
       ref={scrollRef}
-      className="flex gap-6 overflow-hidden"
+      className={`flex gap-6 ${shouldLoop ? "overflow-hidden" : "overflow-x-auto"}`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onTouchStart={() => setPaused(true)}
@@ -75,7 +101,9 @@ export default function NewsCarousel({ items }: { items: NewsItem[] }) {
               {n.title}
             </h3>
             {n.body && (
-              <p className="text-xs text-ink-soft leading-relaxed line-clamp-2">{n.body}</p>
+              <p className="text-xs text-ink-soft leading-relaxed line-clamp-2">
+                {htmlToPlainText(n.body)}
+              </p>
             )}
           </div>
         </Link>
