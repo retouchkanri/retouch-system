@@ -7,13 +7,22 @@ import type { MemberMessage } from "@/types/db";
  *
  * - 配信対象を materialize（member_message_recipients を1会員1行で生成）
  * - メール配信（HTML + テキスト）。開封ピクセル・配信停止リンクを埋め込む
- * - 大量送信に備え 1 呼び出しあたり時間/件数のバジェット内で送信し、
- *   未送信が残れば status='sending' のまま返す（cron / 再実行で続きを送る）
+ * - 件数は無制限（配信対象は絞り込みなしで全件を materialize）。1回のHTTP呼び出し
+ *   には Vercel の実行時間上限があるため、時間バジェット内で送れる分だけ送り、
+ *   残りがあれば status='sending' のまま返す。管理画面はこれを検知して自動的に
+ *   続きを呼び出し続けるため、管理者が手動で「配信を続ける」を押し直す必要はない
+ *   （/api/admin/member-messages/[id]/send を残数が0になるまで自動で繰り返し呼ぶ）。
+ *   ブラウザを閉じてしまった場合も cron（/api/cron/newsletters）が続きを送る。
  * - 冪等: recipients は unique(message_id, customer_id)。送信済みは再送しない。
  */
 
-const SEND_TIME_BUDGET_MS = 25_000;
-const MAX_PER_CALL = Number(process.env.NEWSLETTER_BATCH ?? 80);
+// Vercel の maxDuration=60 に対し十分なバッファを残して 1 呼び出しあたりの送信時間を確保。
+const SEND_TIME_BUDGET_MS = Number(process.env.NEWSLETTER_TIME_BUDGET_MS ?? 45_000);
+// 1 呼び出しあたりの送信件数上限（時間バジェットが先に尽きるのが通常のため、実質は時間で制御される）。
+// 会員数に応じて無理なく上げられるよう十分大きい値をデフォルトにしている。
+const MAX_PER_CALL = Number(process.env.NEWSLETTER_BATCH ?? 100_000);
+// Supabase から一度に取得する未送信件数（多いほど往復が減り高速化する）。
+const FETCH_CHUNK_SIZE = Number(process.env.NEWSLETTER_FETCH_CHUNK ?? 50);
 
 /** 配信対象チェックボックス／APIバリデーションの共通の値一覧（単一の情報源）。 */
 export const AUDIENCE_VALUES = [
@@ -70,9 +79,24 @@ function openPixelUrl(baseUrl: string, token: string): string {
   return `${baseUrl}/api/track/open/${token}`;
 }
 
+/**
+ * 本文中の裸のURL（管理者がリンク設定せずそのまま貼り付けたURL）を自動的にリンク化する。
+ * リッチテキストエディタで既に <a href="..."> として設定済みのリンクはそのまま保持し、
+ * その内側（アンカー要素の中）にある文字列は再リンク化しない（入れ子の <a> を防ぐ）。
+ */
 function autoLinkUrls(html: string): string {
-  return html.replace(/(<[^>]*>|https?:\/\/[^\s<>"']+)/g, (match) => {
+  let anchorDepth = 0;
+  return html.replace(/(<a\b[^>]*>|<\/a>|<[^>]*>|https?:\/\/[^\s<>"']+)/gi, (match) => {
+    if (/^<a\b/i.test(match)) {
+      anchorDepth++;
+      return match;
+    }
+    if (/^<\/a>/i.test(match)) {
+      anchorDepth = Math.max(0, anchorDepth - 1);
+      return match;
+    }
     if (match.startsWith("<")) return match;
+    if (anchorDepth > 0) return match; // 既存の <a>...</a> の内側はそのまま
     return `<a href="${match}" style="color:#78716c;">${match}</a>`;
   });
 }
@@ -359,7 +383,7 @@ export async function sendMemberMessage(
         .select("id, customer_id, email, token, customer:customers(full_name)")
         .eq("message_id", messageId)
         .eq("email_status", "pending")
-        .limit(10);
+        .limit(FETCH_CHUNK_SIZE);
       if (!batch || batch.length === 0) break;
       for (const r of batch as any[]) {
         if (processed >= MAX_PER_CALL || Date.now() - start >= SEND_TIME_BUDGET_MS) break;

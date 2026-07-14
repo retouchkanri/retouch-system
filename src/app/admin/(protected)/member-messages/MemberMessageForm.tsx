@@ -1,6 +1,10 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+import { sendMemberMessageUntilDone } from "@/lib/memberMessagesClient";
+
+const RichTextEditor = dynamic(() => import("@/components/admin/RichTextEditor"), { ssr: false });
 
 const TAG_PRESETS = [
   { tag: "お知らせ", color: "bg-brand-50 text-brand-dark" },
@@ -231,7 +235,33 @@ export default function MemberMessageForm({
     if (!id) {
       const created = j.id as string | undefined;
       if (action === "send") {
-        setMsg(`配信を開始しました（送信 ${j.result?.sentCount ?? 0} / 残り ${j.result?.remaining ?? 0}）。`);
+        let remaining = j.result?.remaining ?? 0;
+        let sentCount = j.result?.sentCount ?? 0;
+        setMsg(`配信中… ${sentCount} 件送信済み`);
+        // 件数の上限なく配信するため、残数が0になるまで自動的に続きを送信する
+        // （管理者が「配信を続ける」を手動で押し直す必要はない）。
+        if (created && remaining > 0) {
+          setBusy(true);
+          const result = await sendMemberMessageUntilDone(created, (p) => {
+            sentCount = p.sentCount;
+            remaining = p.remaining;
+            setMsg(
+              p.recipientCount > 0
+                ? `配信中… ${p.sentCount} / ${p.recipientCount} 件送信済み`
+                : `配信中… ${p.sentCount} 件送信済み`,
+            );
+          });
+          setBusy(false);
+          if (result.finished) {
+            setMsg(`配信が完了しました（送信 ${result.progress.sentCount} 件）。`);
+          } else if (!result.ok) {
+            setMsg(`${result.error ?? "配信中にエラーが発生しました。"}（送信済み ${result.progress.sentCount} 件。続きは配信詳細ページから再開できます）`);
+          } else {
+            setMsg(`送信 ${result.progress.sentCount} 件まで完了しました。残り ${result.progress.remaining} 件は配信詳細ページから続けられます（しばらくすると自動配信でも送信されます）。`);
+          }
+        } else {
+          setMsg(`配信が完了しました（送信 ${sentCount} 件）。`);
+        }
       } else {
         setMsg(action === "schedule" ? "予約しました。" : "下書きを保存しました。");
       }
@@ -289,26 +319,42 @@ export default function MemberMessageForm({
 
       <div>
         <div className="flex items-center justify-between">
-          <label className="label">本文{form.body_format === "html" ? "（HTML）" : "（テキスト）"}</label>
-          <button type="button" className="text-brand underline text-sm" onClick={() => setShowPreview((v) => !v)}>
-            {showPreview ? "プレビューを隠す" : "プレビュー表示"}
-          </button>
+          <label className="label">本文{form.body_format === "html" ? "（書式・リンク設定可）" : "（テキスト）"}</label>
+          {form.body_format === "text" && (
+            <button type="button" className="text-brand underline text-sm" onClick={() => setShowPreview((v) => !v)}>
+              {showPreview ? "プレビューを隠す" : "プレビュー表示"}
+            </button>
+          )}
         </div>
-        <textarea
-          className="input font-mono text-sm"
-          rows={10}
-          value={form.body}
-          onChange={set("body")}
-          placeholder={form.body_format === "html" ? "<p>こんにちは。今月のお知らせです。</p>" : "こんにちは。今月のお知らせです。"}
-        />
-        {showPreview && (
-          <div className="mt-2 border border-surface-line rounded-lg p-4 bg-white">
-            <p className="text-xs text-ink-mute mb-2">プレビュー</p>
-            <div
-              className="prose prose-sm max-w-none text-[15px] leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: previewHtml(form.body ?? "", form.body_format) }}
+        {form.body_format === "html" ? (
+          <>
+            <RichTextEditor
+              value={form.body ?? ""}
+              onChange={(html) => setForm((p: any) => ({ ...p, body: html }))}
+              placeholder="本文を入力…　見出し・文字色・リンクなどを自由に設定できます。"
+              minHeight={200}
             />
-          </div>
+            <p className="text-xs text-ink-mute mt-1">🔗 ボタンでリンク（URL）を選択中の文字に設定できます。H1/H2/H3 で見出し、A で文字色も設定できます。</p>
+          </>
+        ) : (
+          <>
+            <textarea
+              className="input font-mono text-sm"
+              rows={10}
+              value={form.body}
+              onChange={set("body")}
+              placeholder="こんにちは。今月のお知らせです。"
+            />
+            {showPreview && (
+              <div className="mt-2 border border-surface-line rounded-lg p-4 bg-white">
+                <p className="text-xs text-ink-mute mb-2">プレビュー</p>
+                <div
+                  className="prose prose-sm max-w-none text-[15px] leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: previewHtml(form.body ?? "", form.body_format) }}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 
