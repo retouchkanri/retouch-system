@@ -25,9 +25,10 @@ export default async function CustomersListPage({
   }
   if (status) query = query.eq("status", status);
   // 会員種別（基本区分）: A/B/C/SUPPORT を member_class_code で絞り込み
-  // "NONE" は会員種別が未設定（NULL）の顧客を抽出する。
+  // "NONE" は会員種別が未設定（NULL）かつ リタポ・特別チーム（ガンガン等）にも
+  // 加入していない、契約が一切ない顧客のみを抽出する（メッセージ配信の no_class と同一条件）。
   // アテンダー会員はコード A を流用しているため、plan_name で メンバーズ会員 と区別する。
-  if (cls === "NONE") query = query.is("member_class_code", null);
+  if (cls === "NONE") query = query.is("member_class_code", null).eq("rpt_active", false).eq("special_team_count", 0);
   else if (cls === "ATTENDER") query = query.eq("primary_plan_name", "アテンダー会員");
   else if (cls === "A") query = query.eq("member_class_code", "A").neq("primary_plan_name", "アテンダー会員");
   else if (cls) query = query.eq("member_class_code", cls);
