@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { isoToJstLocalInput, jstLocalInputToIso } from "@/lib/datetimeLocal";
 
 export default function EventForm({ initial, id }: { initial?: any; id?: string }) {
   const router = useRouter();
@@ -8,6 +9,9 @@ export default function EventForm({ initial, id }: { initial?: any; id?: string 
   const start = initial
     ? {
         ...initial,
+        // DB には UTC の ISO 文字列で入っているため、日本時間の datetime-local 表示用に変換しておく
+        starts_at: isoToJstLocalInput(initial.starts_at),
+        ends_at: isoToJstLocalInput(initial.ends_at),
         // DB から来る値が null の場合に備えて明示的に boolean へ変換
         is_published: initial.is_published ?? true,
         supporters_only: initial.supporters_only ?? false,
@@ -42,6 +46,8 @@ export default function EventForm({ initial, id }: { initial?: any; id?: string 
     setMsg(null);
     const payload = {
       ...form,
+      starts_at: jstLocalInputToIso(form.starts_at),
+      ends_at: jstLocalInputToIso(form.ends_at),
       capacity: Number(form.capacity),
       sort_order: Number(form.sort_order ?? 0),
       is_published: Boolean(form.is_published),
@@ -63,8 +69,6 @@ export default function EventForm({ initial, id }: { initial?: any; id?: string 
     router.refresh();
   };
 
-  const toLocal = (v: string) => (v ? new Date(v).toISOString().slice(0, 16) : "");
-
   return (
     <form onSubmit={save} className="card grid md:grid-cols-4 gap-3">
       <div className="md:col-span-3">
@@ -83,7 +87,7 @@ export default function EventForm({ initial, id }: { initial?: any; id?: string 
         <input
           type="datetime-local"
           className="input"
-          value={toLocal(form.starts_at)}
+          value={form.starts_at}
           onChange={(e) => setForm((p: any) => ({ ...p, starts_at: e.target.value }))}
           required
         />
@@ -93,7 +97,7 @@ export default function EventForm({ initial, id }: { initial?: any; id?: string 
         <input
           type="datetime-local"
           className="input"
-          value={toLocal(form.ends_at)}
+          value={form.ends_at}
           onChange={(e) => setForm((p: any) => ({ ...p, ends_at: e.target.value }))}
         />
       </div>

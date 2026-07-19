@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { isoToJstLocalInput, jstLocalInputToIso } from "@/lib/datetimeLocal";
 
 const RichTextEditor = dynamic(() => import("@/components/admin/RichTextEditor"), { ssr: false });
 
@@ -19,21 +20,23 @@ export default function NewsForm({ initial, id }: { initial?: any; id?: string }
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
-  const start = initial ?? {
-    title: "",
-    body: "",
-    tag: "お知らせ",
-    tag_color: "bg-brand-50 text-brand-dark",
-    image_url: "",
-    published_at: "",
-    is_published: true,
-    public_access: "public",
-    sort_order: 0,
-    pdf_url: "",
-    pdf_urls: [],
-    pdf_names: [],
-    image_urls: [],
-  };
+  const start = initial
+    ? { ...initial, published_at: isoToJstLocalInput(initial.published_at) }
+    : {
+        title: "",
+        body: "",
+        tag: "お知らせ",
+        tag_color: "bg-brand-50 text-brand-dark",
+        image_url: "",
+        published_at: "",
+        is_published: true,
+        public_access: "public",
+        sort_order: 0,
+        pdf_url: "",
+        pdf_urls: [],
+        pdf_names: [],
+        image_urls: [],
+      };
 
   const [form, setForm] = useState<any>({
     ...start,
@@ -71,8 +74,6 @@ export default function NewsForm({ initial, id }: { initial?: any; id?: string }
 
   const set = (k: string) => (e: any) =>
     setForm((p: any) => ({ ...p, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
-
-  const toLocal = (v: string) => (v ? new Date(v).toISOString().slice(0, 16) : "");
 
   /* PDF アップロード */
   const handlePdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,6 +131,7 @@ export default function NewsForm({ initial, id }: { initial?: any; id?: string }
     const allPdfUrls = pdfs.map((p) => p.url);
     const payload = {
       ...form,
+      published_at: jstLocalInputToIso(form.published_at) ?? undefined,
       sort_order: Number(form.sort_order),
       pdf_url: allPdfUrls[0] ?? null,
       pdf_urls: allPdfUrls,
@@ -212,7 +214,7 @@ export default function NewsForm({ initial, id }: { initial?: any; id?: string }
           <input
             type="datetime-local"
             className="input"
-            value={toLocal(form.published_at)}
+            value={form.published_at}
             onChange={(e) => setForm((p: any) => ({ ...p, published_at: e.target.value }))}
           />
         </div>
