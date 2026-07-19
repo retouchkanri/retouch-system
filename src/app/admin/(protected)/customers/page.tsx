@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatYen, formatUnits, memberClassLabel, statusLabel } from "@/lib/format";
 import { isHiddenAccountEmail } from "@/lib/hiddenAccounts";
+import CustomerDeleteButton from "./CustomerDeleteButton";
 
 export default async function CustomersListPage({
   searchParams,
@@ -141,8 +142,10 @@ export default async function CustomersListPage({
                     </span>
                   </td>
                   <td>{statusLabel(r.status ?? "active")}</td>
-                  <td className="text-right">
+                  <td className="text-right whitespace-nowrap">
                     <Link href={`/admin/customers/${r.customer_id}`} className="text-brand underline">詳細</Link>
+                    <span className="mx-1 text-ink-mute">|</span>
+                    <CustomerDeleteButton id={r.customer_id} name={r.full_name ?? "この顧客"} />
                   </td>
                 </tr>
               );

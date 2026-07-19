@@ -89,13 +89,23 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   const session = await requireCapability("customers.manage");
   const admin = createSupabaseAdminClient();
-  const { error } = await admin.from("customers").update({ status: "withdrawn" }).eq("id", params.id);
+
+  const { data: customer } = await admin
+    .from("customers")
+    .select("full_name, email")
+    .eq("id", params.id)
+    .maybeSingle();
+
+  const { error } = await admin.from("customers").delete().eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
   await admin.from("audit_logs").insert({
     actor_id: session.userId,
-    action: "customer.withdraw",
+    action: "customer.delete",
     target_table: "customers",
     target_id: params.id,
+    meta: { full_name: (customer as any)?.full_name ?? null, email: (customer as any)?.email ?? null },
   });
+
   return NextResponse.json({ ok: true });
 }
