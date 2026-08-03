@@ -17,8 +17,9 @@ export default async function HistoryPage() {
 
   const [donations, bookings, payments, supportAuditsResult] = await Promise.all([
     loadDonations(session.customerId),
-    loadBookings(session.customerId, 30),
-    loadPayments(session.customerId, 30),
+    // 「全履歴」ページなので件数を切らない（null = 全件ページング取得）。
+    loadBookings(session.customerId, null),
+    loadPayments(session.customerId, null),
     supportIds.length
       ? admin
           .from("audit_logs")

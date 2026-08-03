@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { csvToObjects, toCsv } from "@/lib/csv";
+import { fetchAllRows } from "@/lib/fetchAll";
 
 const EXPORT_COLUMNS = [
   "id","full_name","full_name_kana","email","phone",
@@ -12,14 +13,20 @@ const EXPORT_COLUMNS = [
 export async function GET() {
   await requireCapability("csv");
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin
-    .from("customers")
-    .select(EXPORT_COLUMNS.join(","))
-    .order("full_name")
-    .limit(10_000);
+  // PostgREST の 1000 行上限があるため .limit(10_000) は効かない。顧客は 1,200 件を
+  // 超えており、ページングしないと 200 件以上が CSV から欠落する。
+  // full_name は重複しうるのでページ境界を安定させるため id を第2キーにする。
+  const { rows, error } = await fetchAllRows<any>((from, to) =>
+    admin
+      .from("customers")
+      .select(EXPORT_COLUMNS.join(","))
+      .order("full_name")
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const csv = toCsv(data as any[], EXPORT_COLUMNS);
+  const csv = toCsv(rows, EXPORT_COLUMNS);
   const bom = "\uFEFF";
   return new NextResponse(bom + csv, {
     headers: {

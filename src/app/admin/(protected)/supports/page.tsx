@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatUnits, formatYen, statusLabel } from "@/lib/format";
 import { NO_MATCH_ID, resolveMatchingIds } from "@/lib/adminSearch";
 import { getSession } from "@/lib/auth";
+import { fetchAllRows } from "@/lib/fetchAll";
 import { can } from "@/lib/roles";
 import SupportRow from "./SupportRow";
 import SupportForm from "./SupportForm";
@@ -24,12 +25,18 @@ export default async function AdminSupportsPage({
   const page = Math.max(1, Number(searchParams?.page ?? "1") || 1);
   const from = (page - 1) * PAGE_SIZE;
 
-  const [{ data: horses }, { data: horseStats }] = await Promise.all([
+  // 馬ごとの口数・金額は全件の合計。素のクエリは PostgREST の 1000 行上限で
+  // 黙って打ち切られ、集計が過少になるためページングする。
+  const [{ data: horses }, { rows: horseStats }] = await Promise.all([
     supabase.from("horses").select("id, name, image_url").order("sort_order"),
-    supabase
-      .from("support_subscriptions")
-      .select("horse_id, units, monthly_amount, status, horse:horses(name, image_url)")
-      .eq("status", "active"),
+    fetchAllRows<any>((from, to) =>
+      supabase
+        .from("support_subscriptions")
+        .select("horse_id, units, monthly_amount, status, horse:horses(name, image_url)")
+        .eq("status", "active")
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
   ]);
 
   let query = supabase
@@ -60,7 +67,7 @@ export default async function AdminSupportsPage({
 
   // horse-wise visualization
   const stats = new Map<string, { name: string; image_url: string | null; units: number; monthly: number; supporters: number }>();
-  for (const r of horseStats ?? []) {
+  for (const r of horseStats) {
     const id = (r as any).horse_id as string;
     const name = (r as any).horse?.name ?? "—";
     const image_url = (r as any).horse?.image_url ?? null;

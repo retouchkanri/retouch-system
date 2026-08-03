@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { fetchAllRows } from "@/lib/fetchAll";
 import PublicFooterNav from "@/components/PublicFooterNav";
 
 export const metadata: Metadata = {
@@ -28,29 +29,39 @@ function uniqSortedKana(values: (string | null | undefined)[]): string[] {
 export default async function SupportersPage() {
   const admin = createSupabaseAdminClient();
 
-  const [{ data: rptContracts }, { data: teamRows }] = await Promise.all([
+  // 掲載する支援者は全件が前提。素のクエリは PostgREST の 1000 行上限で
+  // 黙って打ち切られ、支援者が公開ページから漏れるためページングする。
+  const [{ rows: rptContracts }, { rows: teamRows }] = await Promise.all([
     // リタポ（RPT）支援者：有効な RPT 契約の会員。
-    admin
-      .from("contracts")
-      .select("status, customer:customers(full_name_kana), plan:membership_plans(code)")
-      .eq("status", "active"),
+    fetchAllRows<any>((from, to) =>
+      admin
+        .from("contracts")
+        .select("id, status, customer:customers(full_name_kana), plan:membership_plans(code)")
+        .eq("status", "active")
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
     // 特別チーム支援者（¥1,000）：有効な special_team_memberships。
-    admin
-      .from("special_team_memberships")
-      .select("status, team_name, customer:customers(full_name_kana), horse:horses(name)")
-      .in("status", ["active", "past_due"]),
+    fetchAllRows<any>((from, to) =>
+      admin
+        .from("special_team_memberships")
+        .select("id, status, team_name, customer:customers(full_name_kana), horse:horses(name)")
+        .in("status", ["active", "past_due"])
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
   ]);
 
   // リタポ
   const rptNicknames = uniqSortedKana(
-    ((rptContracts as any[]) ?? [])
+    rptContracts
       .filter((c) => c.plan?.code === "RPT")
       .map((c) => c.customer?.full_name_kana),
   );
 
   // 特別チーム：チームごとにまとめる（team_name 未設定なら馬名で代替）。
   const byTeam = new Map<string, (string | null)[]>();
-  for (const r of (teamRows as any[]) ?? []) {
+  for (const r of teamRows) {
     const label = (r.team_name?.trim() || r.horse?.name?.trim() || "特別チーム") as string;
     const arr = byTeam.get(label) ?? [];
     arr.push(r.customer?.full_name_kana ?? null);

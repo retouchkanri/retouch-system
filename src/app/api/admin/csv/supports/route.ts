@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { csvToObjects, toCsv } from "@/lib/csv";
+import { fetchAllRows } from "@/lib/fetchAll";
 
 const EXPORT_COLUMNS = [
   "support_id",
@@ -26,17 +27,22 @@ const EXPORT_COLUMNS = [
 export async function GET() {
   await requireCapability("csv");
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin
-    .from("support_subscriptions")
-    .select(
-      "id, customer_id, horse_id, units, monthly_amount, status, started_at, canceled_at, " +
-        "customer:customers(email, full_name), horse:horses(name)",
-    )
-    .order("started_at", { ascending: false })
-    .limit(50000);
+  // PostgREST の 1000 行上限があるため .limit(50000) は効かない。支援は現在 300 件強で
+  // 上限未満だが、増えた時点で無言で欠落するのでページングして全件を出す。
+  const { rows: records, error } = await fetchAllRows<any>((from, to) =>
+    admin
+      .from("support_subscriptions")
+      .select(
+        "id, customer_id, horse_id, units, monthly_amount, status, started_at, canceled_at, " +
+          "customer:customers(email, full_name), horse:horses(name)",
+      )
+      .order("started_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const rows = (data ?? []).map((r: any) => ({
+  const rows = records.map((r: any) => ({
     support_id: r.id,
     customer_id: r.customer_id,
     customer_email: r.customer?.email ?? "",

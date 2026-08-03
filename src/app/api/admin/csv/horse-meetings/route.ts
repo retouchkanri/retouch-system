@@ -7,6 +7,7 @@ import {
   horseMeetingFacilityLabel,
   horseMeetingStatusLabel,
 } from "@/lib/horseMeetings";
+import { fetchAllRows } from "@/lib/fetchAll";
 
 const EXPORT_COLUMNS = [
   "request_id",
@@ -34,17 +35,20 @@ export async function GET(req: Request) {
   const status = url.searchParams.get("status");
 
   const admin = createSupabaseAdminClient();
-  let query = admin
-    .from("horse_meeting_requests")
-    .select("*, customer:customers(full_name, email)")
-    .order("requested_at", { ascending: false })
-    .limit(50000);
-  if (status) query = query.eq("status", status);
-
-  const { data, error } = await query;
+  // PostgREST の 1000 行上限があるため .limit(50000) は効かない。全件出力するには
+  // ページングが必須（requested_at は重複しうるので id を第2ソートキーに置く）。
+  const { rows: records, error } = await fetchAllRows<any>((from, to) => {
+    let query = admin
+      .from("horse_meeting_requests")
+      .select("*, customer:customers(full_name, email)")
+      .order("requested_at", { ascending: false })
+      .order("id", { ascending: true });
+    if (status) query = query.eq("status", status);
+    return query.range(from, to);
+  });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const rows = (data ?? []).map((r: any) => ({
+  const rows = records.map((r: any) => ({
     request_id: r.id,
     requested_at: r.requested_at ?? "",
     customer_id: r.customer_id,

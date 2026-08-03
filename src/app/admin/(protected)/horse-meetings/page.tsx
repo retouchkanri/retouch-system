@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/fetchAll";
 import HorseMeetingAdminRow, { type HorseMeetingRow } from "./HorseMeetingRow";
 
 export default async function AdminHorseMeetingsPage({
@@ -13,21 +14,25 @@ export default async function AdminHorseMeetingsPage({
   const q = (searchParams?.q ?? "").trim();
   const supabase = createSupabaseServerClient();
 
-  let query = supabase
-    .from("horse_meeting_requests")
-    .select("*, customer:customers(full_name, email)")
-    .order("requested_at", { ascending: false })
-    .limit(500);
-  if (status) query = query.eq("status", status);
-  if (q) {
-    const like = `%${q}%`;
-    query = query.or(
-      `applicant_name.ilike.${like},supported_horses.ilike.${like},note.ilike.${like}`,
-    );
-  }
+  // 件数（{rows.length} 件）をそのまま表示するため、.limit(500) や PostgREST の
+  // 1000 行上限で切られないよう最後までページングして全件を取得する。
+  const { rows: records, error } = await fetchAllRows<any>((from, to) => {
+    let query = supabase
+      .from("horse_meeting_requests")
+      .select("*, customer:customers(full_name, email)")
+      .order("requested_at", { ascending: false })
+      .order("id", { ascending: true });
+    if (status) query = query.eq("status", status);
+    if (q) {
+      const like = `%${q}%`;
+      query = query.or(
+        `applicant_name.ilike.${like},supported_horses.ilike.${like},note.ilike.${like}`,
+      );
+    }
+    return query.range(from, to);
+  });
 
-  const { data, error } = await query;
-  const rows: HorseMeetingRow[] = ((data as any[]) ?? []).map((r) => ({
+  const rows: HorseMeetingRow[] = records.map((r) => ({
     id: r.id,
     customer_id: r.customer_id,
     customer_name: r.customer?.full_name ?? "—",

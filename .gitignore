@@ -31,3 +31,17 @@ supabase/backups/
 *.tmp.*
 *.swp
 Thumbs.db
+
+# Vercel CLI が `vercel link` 時に追記。あらゆる .env を確実に除外する。
+# ただしサンプルはリポジトリに残す必要があるため除外を打ち消す。
+.env*
+!.env*.example
+
+# next-pwa（@ducanh2912/next-pwa）が `next build` で public/ に生成する成果物。
+# ビルドのたびに未追跡ファイルとして現れるため、誤コミットを防ぐ。
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+public/swe-worker-*.js
+public/swe-worker-*.js.map

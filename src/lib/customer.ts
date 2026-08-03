@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "./supabase/server";
 import { isBasicMemberPlanCode } from "./constraints";
+import { fetchAllRows } from "./fetchAll";
 import type {
   Booking,
   Contract,
@@ -82,25 +83,39 @@ export async function loadDonations(customerId: string, limit = 20): Promise<Don
   return (data as Donation[] | null) ?? [];
 }
 
-export async function loadBookings(customerId: string, limit = 20): Promise<Booking[]> {
+/** limit に null を渡すと全件（1000 行上限を越えてページング）取得する。 */
+export async function loadBookings(customerId: string, limit: number | null = 20): Promise<Booking[]> {
   const supabase = createSupabaseServerClient();
-  const { data } = await supabase
-    .from("bookings")
-    .select("*, event:events(*)")
-    .eq("customer_id", customerId)
-    .order("booked_at", { ascending: false })
-    .limit(limit);
+  const base = () =>
+    supabase
+      .from("bookings")
+      .select("*, event:events(*)")
+      .eq("customer_id", customerId)
+      .order("booked_at", { ascending: false })
+      .order("id", { ascending: true });
+  if (limit == null) {
+    const { rows } = await fetchAllRows<Booking>((from, to) => base().range(from, to));
+    return rows;
+  }
+  const { data } = await base().limit(limit);
   return (data as Booking[] | null) ?? [];
 }
 
-export async function loadPayments(customerId: string, limit = 20): Promise<Payment[]> {
+/** limit に null を渡すと全件（1000 行上限を越えてページング）取得する。 */
+export async function loadPayments(customerId: string, limit: number | null = 20): Promise<Payment[]> {
   const supabase = createSupabaseServerClient();
-  const { data } = await supabase
-    .from("payments")
-    .select("*")
-    .eq("customer_id", customerId)
-    .order("occurred_at", { ascending: false })
-    .limit(limit);
+  const base = () =>
+    supabase
+      .from("payments")
+      .select("*")
+      .eq("customer_id", customerId)
+      .order("occurred_at", { ascending: false })
+      .order("id", { ascending: true });
+  if (limit == null) {
+    const { rows } = await fetchAllRows<Payment>((from, to) => base().range(from, to));
+    return rows;
+  }
+  const { data } = await base().limit(limit);
   return (data as Payment[] | null) ?? [];
 }
 

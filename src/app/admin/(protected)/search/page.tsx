@@ -34,6 +34,21 @@ export default async function AdminSearchPage({
   let horses: AnyRow[] = [];
   let memos: AnyRow[] = [];
 
+  // 各表示リストは URL 長（.in(...) に UUID を並べるため）の都合で上位 N 件に
+  // 絞っている。件数まで配列長で出すと実際より少ない数を「合計」として表示して
+  // しまうので、件数は必ず count:"exact"（サーバ側の実数）を使う。
+  const hits = {
+    customers: 0,
+    supports: 0,
+    donations: 0,
+    bookings: 0,
+    payments: 0,
+    horses: 0,
+    memos: 0,
+  };
+  // 候補プール（customers）が上限に達した＝関連表の絞り込みが不完全、の警告用。
+  let candidatePoolTruncated = false;
+
   if (q.length > 0) {
     const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
     const wantsAll = scope === "all";
@@ -46,12 +61,17 @@ export default async function AdminSearchPage({
     const wantsMemos = wantsAll || scope === "memos";
 
     // --- 1. Candidate pools -------------------------------------------------
-    const [{ data: custMatches }, { data: horseMatches }, { data: memoMatches }] =
-      await Promise.all([
+    const CANDIDATE_LIMIT = 200;
+    const [
+      { data: custMatches, count: custMatchCount },
+      { data: horseMatches, count: horseMatchCount },
+      { data: memoMatches, count: memoMatchCount },
+    ] = await Promise.all([
         supabase
           .from("customers")
           .select(
             "id, full_name, full_name_kana, email, phone, status, avatar_url, joined_at",
+            { count: "exact" },
           )
           .or(
             [
@@ -66,10 +86,10 @@ export default async function AdminSearchPage({
             ].join(","),
           )
           .order("full_name")
-          .limit(200),
+          .limit(CANDIDATE_LIMIT),
         supabase
           .from("horses")
-          .select("id, name, name_kana, sex, birth_year, profile, sort_order")
+          .select("id, name, name_kana, sex, birth_year, profile, sort_order", { count: "exact" })
           .or(
             [`name.ilike.${like}`, `name_kana.ilike.${like}`, `profile.ilike.${like}`].join(","),
           )
@@ -77,11 +97,16 @@ export default async function AdminSearchPage({
           .limit(100),
         supabase
           .from("admin_memos")
-          .select("id, customer_id, slot, body, updated_at, customer:customers(id, full_name, email)")
+          .select(
+            "id, customer_id, slot, body, updated_at, customer:customers(id, full_name, email)",
+            { count: "exact" },
+          )
           .ilike("body", like)
           .order("updated_at", { ascending: false })
           .limit(100),
       ]);
+
+    candidatePoolTruncated = ((custMatches as AnyRow[]) ?? []).length >= CANDIDATE_LIMIT;
 
     // 内部テスト用アカウントは検索結果（および id プールを介した関連表）から除外。
     const candidateCustomers = ((custMatches as AnyRow[]) ?? []).filter(
@@ -102,19 +127,32 @@ export default async function AdminSearchPage({
     if (wantsCustomers) {
       // Pull ALL customers hit through direct fields OR memo matches.
       if (customerIds.length > 0) {
-        const { data } = await supabase
+        const { data, count } = await supabase
           .from("customers")
-          .select("id, full_name, full_name_kana, email, phone, status, avatar_url, joined_at")
+          .select(
+            "id, full_name, full_name_kana, email, phone, status, avatar_url, joined_at",
+            { count: "exact" },
+          )
           .in("id", customerIds)
           .order("full_name")
           .limit(100);
         customers = (data as AnyRow[]) ?? [];
+        // 候補プールが上限に達している場合は、直接一致した顧客の実数の方が正しい。
+        hits.customers = candidatePoolTruncated
+          ? Math.max(count ?? 0, custMatchCount ?? 0)
+          : count ?? 0;
       } else {
         customers = [];
       }
     }
-    if (wantsHorses) horses = candidateHorses;
-    if (wantsMemos) memos = candidateMemos;
+    if (wantsHorses) {
+      horses = candidateHorses;
+      hits.horses = horseMatchCount ?? 0;
+    }
+    if (wantsMemos) {
+      memos = candidateMemos;
+      hits.memos = memoMatchCount ?? 0;
+    }
 
     const tasks: Array<() => Promise<void>> = [];
 
@@ -127,15 +165,17 @@ export default async function AdminSearchPage({
           supports = [];
           return;
         }
-        const { data } = await supabase
+        const { data, count } = await supabase
           .from("support_subscriptions")
           .select(
             "id, units, monthly_amount, status, started_at, canceled_at, customer:customers(id, full_name, email), horse:horses(id, name)",
+            { count: "exact" },
           )
           .or(orParts.join(","))
           .order("started_at", { ascending: false })
           .limit(200);
         supports = (data as AnyRow[]) ?? [];
+        hits.supports = count ?? 0;
       });
     }
 
@@ -148,15 +188,17 @@ export default async function AdminSearchPage({
           `stripe_payment_intent_id.ilike.${like}`,
         ];
         if (customerIds.length > 0) orParts.push(`customer_id.in.(${customerIds.join(",")})`);
-        const { data } = await supabase
+        const { data, count } = await supabase
           .from("donations")
           .select(
             "id, amount, message, status, donated_at, donor_name, donor_email, customer:customers(id, full_name, email)",
+            { count: "exact" },
           )
           .or(orParts.join(","))
           .order("donated_at", { ascending: false })
           .limit(200);
         donations = (data as AnyRow[]) ?? [];
+        hits.donations = count ?? 0;
       });
     }
 
@@ -173,15 +215,17 @@ export default async function AdminSearchPage({
         if (customerIds.length > 0) orParts.push(`customer_id.in.(${customerIds.join(",")})`);
         if (eventIds.length > 0) orParts.push(`event_id.in.(${eventIds.join(",")})`);
 
-        const { data } = await supabase
+        const { data, count } = await supabase
           .from("bookings")
           .select(
             "id, party_size, note, status, booked_at, customer:customers(id, full_name, email), event:events(id, title, type, starts_at)",
+            { count: "exact" },
           )
           .or(orParts.join(","))
           .order("booked_at", { ascending: false })
           .limit(200);
         bookings = (data as AnyRow[]) ?? [];
+        hits.bookings = count ?? 0;
       });
     }
 
@@ -193,15 +237,17 @@ export default async function AdminSearchPage({
           `failure_reason.ilike.${like}`,
         ];
         if (customerIds.length > 0) orParts.push(`customer_id.in.(${customerIds.join(",")})`);
-        const { data } = await supabase
+        const { data, count } = await supabase
           .from("payments")
           .select(
             "id, amount, kind, status, occurred_at, failure_reason, stripe_payment_intent_id, stripe_invoice_id, customer:customers(id, full_name, email)",
+            { count: "exact" },
           )
           .or(orParts.join(","))
           .order("occurred_at", { ascending: false })
           .limit(200);
         payments = (data as AnyRow[]) ?? [];
+        hits.payments = count ?? 0;
       });
     }
 
@@ -209,13 +255,19 @@ export default async function AdminSearchPage({
   }
 
   const totalHits =
-    customers.length +
-    supports.length +
-    donations.length +
-    bookings.length +
-    payments.length +
-    horses.length +
-    memos.length;
+    hits.customers +
+    hits.supports +
+    hits.donations +
+    hits.bookings +
+    hits.payments +
+    hits.horses +
+    hits.memos;
+
+  /** 表示件数が実件数に満たない場合に「上位 N 件を表示」を出す。 */
+  const shownNote = (shown: number, total: number) =>
+    total > shown ? (
+      <span className="text-ink-mute text-xs ml-2">（上位 {shown} 件を表示）</span>
+    ) : null;
 
   return (
     <div className="space-y-4">
@@ -249,13 +301,19 @@ export default async function AdminSearchPage({
       ) : (
         <p className="text-sm text-ink-soft">
           「{q}」の検索結果：合計 <span className="font-bold">{totalHits}</span> 件
+          {candidatePoolTruncated && (
+            <span className="block text-warn text-xs mt-1">
+              ※ 一致した顧客が多すぎるため、関連する支援・寄付・予約・決済は上位 200 名分のみを対象に検索しています。
+              キーワードをもう少し絞り込んでください。
+            </span>
+          )}
         </p>
       )}
 
       {customers.length > 0 && (
         <section className="card">
           <h2 className="section-title">
-            顧客 <span className="text-ink-mute text-sm">({customers.length})</span>
+            顧客 <span className="text-ink-mute text-sm">({hits.customers})</span>{shownNote(customers.length, hits.customers)}
           </h2>
           <table className="table">
             <thead>
@@ -304,7 +362,7 @@ export default async function AdminSearchPage({
       {horses.length > 0 && (
         <section className="card">
           <h2 className="section-title">
-            馬 <span className="text-ink-mute text-sm">({horses.length})</span>
+            馬 <span className="text-ink-mute text-sm">({hits.horses})</span>{shownNote(horses.length, hits.horses)}
           </h2>
           <table className="table">
             <thead>
@@ -340,7 +398,7 @@ export default async function AdminSearchPage({
       {supports.length > 0 && (
         <section className="card">
           <h2 className="section-title">
-            支援 <span className="text-ink-mute text-sm">({supports.length})</span>
+            支援 <span className="text-ink-mute text-sm">({hits.supports})</span>{shownNote(supports.length, hits.supports)}
           </h2>
           <table className="table">
             <thead>
@@ -385,7 +443,7 @@ export default async function AdminSearchPage({
       {donations.length > 0 && (
         <section className="card">
           <h2 className="section-title">
-            寄付 <span className="text-ink-mute text-sm">({donations.length})</span>
+            寄付 <span className="text-ink-mute text-sm">({hits.donations})</span>{shownNote(donations.length, hits.donations)}
           </h2>
           <table className="table">
             <thead>
@@ -428,7 +486,7 @@ export default async function AdminSearchPage({
       {bookings.length > 0 && (
         <section className="card">
           <h2 className="section-title">
-            予約 <span className="text-ink-mute text-sm">({bookings.length})</span>
+            予約 <span className="text-ink-mute text-sm">({hits.bookings})</span>{shownNote(bookings.length, hits.bookings)}
           </h2>
           <table className="table">
             <thead>
@@ -473,7 +531,7 @@ export default async function AdminSearchPage({
       {payments.length > 0 && (
         <section className="card">
           <h2 className="section-title">
-            決済 <span className="text-ink-mute text-sm">({payments.length})</span>
+            決済 <span className="text-ink-mute text-sm">({hits.payments})</span>{shownNote(payments.length, hits.payments)}
           </h2>
           <table className="table">
             <thead>
@@ -520,7 +578,7 @@ export default async function AdminSearchPage({
       {memos.length > 0 && (
         <section className="card">
           <h2 className="section-title">
-            社内メモ <span className="text-ink-mute text-sm">({memos.length})</span>
+            社内メモ <span className="text-ink-mute text-sm">({hits.memos})</span>{shownNote(memos.length, hits.memos)}
           </h2>
           <table className="table">
             <thead>

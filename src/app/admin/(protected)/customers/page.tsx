@@ -1,23 +1,29 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatYen, formatUnits, memberClassLabel, statusLabel } from "@/lib/format";
-import { isHiddenAccountEmail } from "@/lib/hiddenAccounts";
+import { HIDDEN_ACCOUNT_EMAILS, isHiddenAccountEmail } from "@/lib/hiddenAccounts";
 import CustomerDeleteButton from "./CustomerDeleteButton";
+
+const PAGE_SIZE = 50;
 
 export default async function CustomersListPage({
   searchParams,
 }: {
-  searchParams: { q?: string; cls?: string; special?: string; status?: string; pay?: string };
+  searchParams: { q?: string; cls?: string; special?: string; status?: string; pay?: string; page?: string };
 }) {
   const q = (searchParams.q ?? "").trim();
   const cls = searchParams.cls ?? "";
   const special = searchParams.special ?? "";
   const status = searchParams.status ?? "";
   const pay = searchParams.pay ?? "";
+  const page = Math.max(1, Number(searchParams.page ?? "1") || 1);
+  const from = (page - 1) * PAGE_SIZE;
 
   const supabase = createSupabaseServerClient();
   // Base: view for aggregated info.
-  let query = supabase.from("v_customer_summary").select("*").order("full_name");
+  // 件数は count:"exact"（サーバ側の実数）を使う。取得ページの配列長を件数として
+  // 表示すると、該当者が 1 ページ分を超えた時点で表示が頭打ちになるため。
+  let query = supabase.from("v_customer_summary").select("*", { count: "exact" }).order("full_name");
 
   if (q) {
     const like = `%${q}%`;
@@ -37,9 +43,19 @@ export default async function CustomersListPage({
   if (special === "RPT") query = query.eq("rpt_active", true);
   if (pay) query = query.eq("contract_status", pay);
 
-  const { data, error } = await query.limit(200);
   // 内部テスト用アカウントは一覧・件数から除外（Supabase 上には存在する）。
+  // count と一覧を一致させるため、取得後ではなくクエリ段階で除外する。
+  // NOT IN は email が NULL の行も落としてしまうので、NULL は明示的に残す。
+  if (HIDDEN_ACCOUNT_EMAILS.length > 0) {
+    const hidden = HIDDEN_ACCOUNT_EMAILS.map((e) => `"${e}"`).join(",");
+    query = query.or(`email.is.null,email.not.in.(${hidden})`);
+  }
+
+  const { data, error, count } = await query.range(from, from + PAGE_SIZE - 1);
+  // 大文字小文字の違いで DB 側の除外をすり抜けた場合の保険（表示のみ）。
   const rows = ((data as any[]) ?? []).filter((r) => !isHiddenAccountEmail(r.email));
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="space-y-4">
@@ -83,7 +99,7 @@ export default async function CustomersListPage({
         <div className="md:col-span-6 flex gap-2">
           <button className="btn-primary !py-2 !px-4">絞り込む</button>
           <Link href="/admin/customers" className="btn-ghost !py-2 !px-4">リセット</Link>
-          <span className="ml-auto text-sm text-ink-soft self-center">{rows.length}件</span>
+          <span className="ml-auto text-sm text-ink-soft self-center">全 {total} 件</span>
         </div>
       </form>
 
@@ -111,7 +127,7 @@ export default async function CustomersListPage({
               const hasSpecial = (r.special_team_count ?? 0) > 0 || r.rpt_active;
               return (
                 <tr key={r.customer_id} className="hover:bg-surface-soft">
-                  <td className="text-right text-ink-mute tabular-nums">{i + 1}</td>
+                  <td className="text-right text-ink-mute tabular-nums">{from + i + 1}</td>
                   <td className="font-semibold">{r.full_name}</td>
                   <td>{r.email ?? "—"}</td>
                   <td>{r.primary_plan_name ?? memberClassLabel(r.member_class_code)}</td>
@@ -157,6 +173,29 @@ export default async function CustomersListPage({
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-2">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => {
+            const qs = new URLSearchParams();
+            if (q) qs.set("q", q);
+            if (cls) qs.set("cls", cls);
+            if (special) qs.set("special", special);
+            if (status) qs.set("status", status);
+            if (pay) qs.set("pay", pay);
+            qs.set("page", String(n));
+            return (
+              <Link
+                key={n}
+                href={`/admin/customers?${qs.toString()}`}
+                className={`px-3 py-1 rounded-lg border ${n === page ? "bg-brand text-white border-brand" : "border-surface-line"}`}
+              >
+                {n}
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

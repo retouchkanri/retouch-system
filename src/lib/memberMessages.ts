@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notify } from "./notify";
+import { fetchAllRows } from "@/lib/fetchAll";
 import type { MemberMessage } from "@/types/db";
 
 /**
@@ -238,20 +239,20 @@ async function resolveSingleAudience(
   if (audience === "subset") {
     const ids = targetCustomerIds ?? [];
     if (ids.length === 0) return [];
-    const { data } = await admin
-      .from("customers")
-      .select("id, email, full_name, newsletter_opt_out")
-      .in("id", ids)
-      .eq("status", "active");
-    return (data as AudienceCustomer[]) ?? [];
+    // ids が 1000 を超えても取りこぼさないよう、チャンク取得に統一する。
+    return fetchCustomersByIds(admin, ids);
   }
 
   const viewFilter = VIEW_AUDIENCE_FILTERS[audience];
   if (viewFilter) {
-    let q = admin.from("v_customer_summary").select("customer_id").eq("status", "active");
-    q = viewFilter(q);
-    const { data } = await q;
-    const ids = ((data ?? []) as any[]).map((r) => r.customer_id as string);
+    // 配信対象の抽出は取りこぼしが即「未配信」になるため、1000 行上限を越えて
+    // 最後までページングする。
+    const { rows } = await fetchAllRows<any>((from, to) => {
+      let q = admin.from("v_customer_summary").select("customer_id").eq("status", "active");
+      q = viewFilter(q);
+      return q.order("customer_id", { ascending: true }).range(from, to);
+    });
+    const ids = rows.map((r) => r.customer_id as string);
     return fetchCustomersByIds(admin, ids);
   }
 

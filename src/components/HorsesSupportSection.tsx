@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatUnits } from "@/lib/format";
 import { compareHorsesForDisplay, isEmergencyRecruitmentHorse } from "@/lib/horses";
+import { fetchAllRows } from "@/lib/fetchAll";
 import EmergencyHorseImage from "@/components/EmergencyHorseImage";
 import horsePortrait from "@/assets/images/horse-portrait.jpg";
 
@@ -51,22 +52,28 @@ export default async function HorsesSupportSection({
     // セッション取得失敗 → ゲスト扱い
   }
 
-  const [{ data: horses }, { data: supporters }] = await Promise.all([
+  // 支援口数・支援者数は全件を合計する必要がある。素のクエリは PostgREST の
+  // 1000 行上限で黙って打ち切られ、公開ページの口数が過少表示になるためページングする。
+  const [{ data: horses }, { rows: supporters }] = await Promise.all([
     admin
       .from("horses")
       .select("id, name, profile, image_url, is_supportable, sort_order")
       .order("sort_order"),
-    admin
-      .from("support_subscriptions")
-      .select("horse_id, units, customer:customers(full_name_kana)")
-      .in("status", ["active", "past_due"]),
+    fetchAllRows<any>((from, to) =>
+      admin
+        .from("support_subscriptions")
+        .select("horse_id, units, customer:customers(full_name_kana)")
+        .in("status", ["active", "past_due"])
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
   ]);
 
   if (!horses || horses.length === 0) return null;
 
   // Build per-horse support info
   const byHorse = new Map<string, SupportInfo>();
-  for (const s of supporters ?? []) {
+  for (const s of supporters) {
     const cur = byHorse.get(s.horse_id) ?? { totalUnits: 0, supporters: 0, nicknames: [] };
     cur.totalUnits += Number(s.units);
     cur.supporters += 1;

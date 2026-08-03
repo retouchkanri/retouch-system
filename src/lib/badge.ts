@@ -7,6 +7,8 @@
  * caller, which already has them, and combined via roles.resolveBadge().
  */
 
+import { fetchAllByIds } from "@/lib/fetchAll";
+
 export type PaymentStat = {
   firstPaymentAt: string | null;
   totalPaidYen: number;
@@ -22,13 +24,20 @@ export async function loadPaymentStats(
   const map = new Map<string, PaymentStat>();
   if (!customerIds.length) return map;
 
-  const { data } = await client
-    .from("payments")
-    .select("customer_id, amount, occurred_at")
-    .in("customer_id", customerIds)
-    .eq("status", "succeeded");
+  // payments は 16,000 行を超えるため、素のクエリでは PostgREST の 1000 行上限で
+  // 黙って打ち切られ、合計額・初回決済日がどちらも過少になる（バッジ判定が狂う）。
+  // 顧客 ID をチャンクに割ったうえで、各チャンクを最後までページングする。
+  const { rows } = await fetchAllByIds<any>(customerIds, (chunk, from, to) =>
+    client
+      .from("payments")
+      .select("customer_id, amount, occurred_at")
+      .in("customer_id", chunk)
+      .eq("status", "succeeded")
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
-  for (const p of (data ?? []) as any[]) {
+  for (const p of rows) {
     const cid = p.customer_id as string | null;
     if (!cid) continue;
     const cur = map.get(cid) ?? { firstPaymentAt: null, totalPaidYen: 0 };

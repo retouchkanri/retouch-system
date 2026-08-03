@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getChatSettings } from "@/lib/chatbot";
+import { fetchAllRows } from "@/lib/fetchAll";
 import ChatbotSettingsForm from "./ChatbotSettingsForm";
 import KbForm from "./KbForm";
 import KbDeleteButton from "./KbDeleteButton";
@@ -13,16 +14,21 @@ export default async function ChatbotAdminPage() {
   await requireCapability("chatbot.manage");
   const admin = createSupabaseAdminClient();
 
-  const [settings, { data: entries }] = await Promise.all([
+  // ナレッジ件数・埋め込み未生成件数をそのまま表示するため、.limit(200) や
+  // PostgREST の 1000 行上限で切られないよう最後までページングする。
+  const [settings, { rows: entries }] = await Promise.all([
     getChatSettings(admin),
-    admin
-      .from("kb_entries")
-      .select("id, title, category, is_active, embedding, updated_at")
-      .order("created_at", { ascending: false })
-      .limit(200),
+    fetchAllRows<any>((from, to) =>
+      admin
+        .from("kb_entries")
+        .select("id, title, category, is_active, embedding, updated_at")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
   ]);
 
-  const missingEmbeddings = (entries ?? []).filter(
+  const missingEmbeddings = entries.filter(
     (e: any) => e.is_active && !e.embedding,
   ).length;
 

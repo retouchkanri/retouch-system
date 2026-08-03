@@ -3,6 +3,7 @@ import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { toCsv } from "@/lib/csv";
 import { seatUsageBatch } from "@/lib/bookings";
+import { fetchAllRows } from "@/lib/fetchAll";
 
 const EXPORT_COLUMNS = [
   "event_id",
@@ -23,19 +24,24 @@ const EXPORT_COLUMNS = [
 export async function GET() {
   await requireCapability("csv");
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin
-    .from("events")
-    .select(
-      "id, type, title, starts_at, ends_at, capacity, location, supporters_only, is_published, description, created_at",
-    )
-    .order("starts_at", { ascending: false })
-    .limit(10000);
+  // PostgREST の 1000 行上限があるため .limit(10000) は効かない。全件出力するには
+  // ページングが必須（starts_at は重複しうるので id を第2ソートキーに置く）。
+  const { rows: records, error } = await fetchAllRows<any>((from, to) =>
+    admin
+      .from("events")
+      .select(
+        "id, type, title, starts_at, ends_at, capacity, location, supporters_only, is_published, description, created_at",
+      )
+      .order("starts_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const ids = (data ?? []).map((r: any) => r.id);
+  const ids = records.map((r: any) => r.id);
   const usage = await seatUsageBatch(admin as any, ids);
 
-  const rows = (data ?? []).map((r: any) => {
+  const rows = records.map((r: any) => {
     const used = usage.get(r.id) ?? 0;
     return {
       event_id: r.id,

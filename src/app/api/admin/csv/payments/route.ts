@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { toCsv } from "@/lib/csv";
+import { fetchAllRows } from "@/lib/fetchAll";
 
 const EXPORT_COLUMNS = [
   "payment_id",
@@ -33,18 +34,24 @@ function pmLabel(raw: any): string {
 export async function GET() {
   await requireCapability("csv");
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin
-    .from("payments")
-    .select(
-      "id, occurred_at, customer_id, kind, amount, currency, status, failure_reason, " +
-        "stripe_invoice_id, stripe_payment_intent_id, stripe_charge_id, raw, " +
-        "customer:customers(full_name, email)",
-    )
-    .order("occurred_at", { ascending: false })
-    .limit(50000);
+  // PostgREST は 1 レスポンスあたり 1000 行が上限で .limit(50000) は効かない。
+  // payments は 16,000 行を超えるため、ページングしないと大半が欠落する。
+  // occurred_at だけではページ境界が不安定なので id を第2ソートキーに置く。
+  const { rows: records, error } = await fetchAllRows<any>((from, to) =>
+    admin
+      .from("payments")
+      .select(
+        "id, occurred_at, customer_id, kind, amount, currency, status, failure_reason, " +
+          "stripe_invoice_id, stripe_payment_intent_id, stripe_charge_id, raw, " +
+          "customer:customers(full_name, email)",
+      )
+      .order("occurred_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const rows = (data ?? []).map((r: any) => ({
+  const rows = records.map((r: any) => ({
     payment_id: r.id,
     occurred_at: r.occurred_at ?? "",
     customer_id: r.customer_id ?? "",

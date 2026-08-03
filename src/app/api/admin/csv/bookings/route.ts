@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCapability } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { toCsv } from "@/lib/csv";
+import { fetchAllRows } from "@/lib/fetchAll";
 
 const EXPORT_COLUMNS = [
   "booking_id",
@@ -25,20 +26,23 @@ export async function GET(req: Request) {
   const eventId = url.searchParams.get("event_id");
 
   const admin = createSupabaseAdminClient();
-  let query = admin
-    .from("bookings")
-    .select(
-      "id, event_id, party_size, status, booked_at, canceled_at, note, " +
-        "customer_id, customer:customers(full_name, email), event:events(title, type, starts_at)",
-    )
-    .order("booked_at", { ascending: false })
-    .limit(50000);
-  if (eventId) query = query.eq("event_id", eventId);
-
-  const { data, error } = await query;
+  // PostgREST の 1000 行上限があるため .limit(50000) は効かない。全件出力するには
+  // ページングが必須（booked_at は重複しうるので id を第2ソートキーに置く）。
+  const { rows: records, error } = await fetchAllRows<any>((from, to) => {
+    let query = admin
+      .from("bookings")
+      .select(
+        "id, event_id, party_size, status, booked_at, canceled_at, note, " +
+          "customer_id, customer:customers(full_name, email), event:events(title, type, starts_at)",
+      )
+      .order("booked_at", { ascending: false })
+      .order("id", { ascending: true });
+    if (eventId) query = query.eq("event_id", eventId);
+    return query.range(from, to);
+  });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const rows = (data ?? []).map((b: any) => ({
+  const rows = records.map((b: any) => ({
     booking_id: b.id,
     event_id: b.event_id,
     event_title: b.event?.title ?? "",

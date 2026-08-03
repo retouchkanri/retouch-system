@@ -14,6 +14,7 @@ import {
   type Role,
 } from "@/lib/roles";
 import { loadPaymentStats } from "@/lib/badge";
+import { fetchAllByIds, fetchAllRows } from "@/lib/fetchAll";
 import { isHiddenAccountEmail } from "@/lib/hiddenAccounts";
 import RoleBadge from "@/components/RoleBadge";
 
@@ -45,21 +46,28 @@ export default async function AdminUsersPage({
   // Source of truth: every login account has a `profiles` row (created on
   // signup and on admin-create). Reading directly from the DB tables
   // reflects live state and avoids stale auth-admin listing.
-  const { data: profiles } = await admin
-    .from("profiles")
-    .select("id, role, customer_id, created_at")
-    .order("created_at", { ascending: true });
+  // 登録ユーザー数をそのまま表示するので、1000 行上限で切られないよう全件取得する。
+  const { rows: profiles } = await fetchAllRows<any>((from, to) =>
+    admin
+      .from("profiles")
+      .select("id, role, customer_id, created_at")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
-  const customerIds = (profiles ?? [])
+  const customerIds = profiles
     .map((p: any) => p.customer_id)
     .filter((id: string | null): id is string => !!id);
-  const { data: customers } = customerIds.length
-    ? await admin
-        .from("customers")
-        .select("id, full_name, email, status, avatar_url, joined_at, created_at")
-        .in("id", customerIds)
-    : { data: [] as any[] };
-  const customerMap = new Map<string, any>((customers ?? []).map((c: any) => [c.id, c]));
+  const { rows: customers } = await fetchAllByIds<any>(customerIds, (chunk, from, to) =>
+    admin
+      .from("customers")
+      .select("id, full_name, email, status, avatar_url, joined_at, created_at")
+      .in("id", chunk)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  const customerMap = new Map<string, any>(customers.map((c: any) => [c.id, c]));
 
   // Succeeded-payment stats (first payment + total paid) drive the member badge.
   const payStats = await loadPaymentStats(admin, customerIds);
@@ -67,27 +75,38 @@ export default async function AdminUsersPage({
   // Customers holding an RPT (RetouchPony【リタポ】) contract — forced gold badge.
   const rptCustomerIds = new Set<string>();
   if (customerIds.length) {
-    const { data: rptRows } = await admin
-      .from("contracts")
-      .select("customer_id, membership_plans!inner(code)")
-      .in("customer_id", customerIds)
-      .eq("membership_plans.code", "RPT");
-    for (const r of rptRows ?? []) rptCustomerIds.add((r as any).customer_id);
+    const { rows: rptRows } = await fetchAllByIds<any>(customerIds, (chunk, from, to) =>
+      admin
+        .from("contracts")
+        .select("id, customer_id, membership_plans!inner(code)")
+        .in("customer_id", chunk)
+        .eq("membership_plans.code", "RPT")
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+    for (const r of rptRows) rptCustomerIds.add((r as any).customer_id);
   }
 
   // Fill in emails for any profile whose customer row lacks one, using the
   // auth record as a fallback (best-effort; never throws).
   const emailFallback = new Map<string, string>();
   try {
-    const { data: authPage } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    for (const u of authPage?.users ?? []) {
-      if (u.email) emailFallback.set(u.id, u.email);
+    // listUsers は 1 ページ最大 1000 件。1 ページ目だけ見ると 1001 人目以降の
+    // メールが埋まらないので、空ページに当たるまで辿る。
+    const perPage = 1000;
+    for (let page = 1; ; page += 1) {
+      const { data: authPage } = await admin.auth.admin.listUsers({ page, perPage });
+      const users = authPage?.users ?? [];
+      for (const u of users) {
+        if (u.email) emailFallback.set(u.id, u.email);
+      }
+      if (users.length < perPage) break;
     }
   } catch {
     // ignore — customers.email is the primary source
   }
 
-  const rows: Row[] = (profiles ?? []).map((p: any) => {
+  const rows: Row[] = profiles.map((p: any) => {
     const cust = p.customer_id ? customerMap.get(p.customer_id) : null;
     const r = toRole(p.role);
     const hasRpt = !!p.customer_id && rptCustomerIds.has(p.customer_id);

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllByIds } from "@/lib/fetchAll";
 
 export type EventCore = {
   id: string;
@@ -49,11 +50,17 @@ export async function seatUsageBatch(
 ): Promise<Map<string, number>> {
   const used = new Map<string, number>();
   if (eventIds.length === 0) return used;
-  const { data } = await admin
-    .from("bookings")
-    .select("event_id, party_size, status")
-    .in("event_id", eventIds);
-  for (const row of data ?? []) {
+  // 予約席数の合計は全件が前提。素のクエリは PostgREST の 1000 行上限で
+  // 打ち切られ、残席が実際より多く表示されてしまうためページングする。
+  const { rows } = await fetchAllByIds<any>(eventIds, (chunk, from, to) =>
+    admin
+      .from("bookings")
+      .select("event_id, party_size, status")
+      .in("event_id", chunk)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  for (const row of rows) {
     const r: any = row;
     if (r.status === "canceled") continue;
     used.set(r.event_id, (used.get(r.event_id) ?? 0) + Number(r.party_size ?? 1));
