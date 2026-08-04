@@ -17,18 +17,25 @@ export type SendProgress = {
 export type SendLoopResult = {
   ok: boolean;
   finished: boolean;
+  /** サーバがメール基盤側の障害（レート制限・認証失敗等）を検知して配信を一時停止した。 */
+  throttled?: boolean;
+  /** 一時停止の理由（SMTPエラー文言など）。 */
+  throttleReason?: string;
   error?: string;
   progress: SendProgress;
 };
 
 /** 無限ループ・過剰リクエストを防ぐための保険的な上限（十分大きい値）。 */
 const MAX_ROUNDS = 2000;
+/** 一時的な通信エラーで即座に諦めないための連続リトライ上限。 */
+const MAX_CONSECUTIVE_ERRORS = 3;
 
 export async function sendMemberMessageUntilDone(
   id: string,
   onProgress?: (progress: SendProgress) => void,
 ): Promise<SendLoopResult> {
   let round = 0;
+  let consecutiveErrors = 0;
   let last: SendProgress = { sentCount: 0, remaining: 0, recipientCount: 0, status: "sending", round: 0 };
 
   while (round < MAX_ROUNDS) {
@@ -37,12 +44,18 @@ export async function sendMemberMessageUntilDone(
     try {
       res = await fetch(`/api/admin/member-messages/${id}/send`, { method: "POST" });
     } catch {
-      return { ok: false, finished: false, error: "通信エラーが発生しました。", progress: last };
+      consecutiveErrors++;
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        return { ok: false, finished: false, error: "通信エラーが発生しました。", progress: last };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000 * consecutiveErrors));
+      continue;
     }
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
       return { ok: false, finished: false, error: j.error ?? "配信に失敗しました。", progress: last };
     }
+    consecutiveErrors = 0;
     const r = j.result ?? {};
     last = {
       sentCount: r.sentCount ?? 0,
@@ -53,6 +66,11 @@ export async function sendMemberMessageUntilDone(
     };
     onProgress?.(last);
 
+    if (r.throttled) {
+      // サーバ側がレート制限等を検知して中断した。ここで呼び出しを重ねると
+      // ログイン試行が積み上がり制限が長引くため、ループを止めて cron に委ねる。
+      return { ok: true, finished: false, throttled: true, throttleReason: r.throttleReason, progress: last };
+    }
     if ((r.remaining ?? 0) <= 0) {
       return { ok: true, finished: true, progress: last };
     }

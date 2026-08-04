@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { notify } from "./notify";
+import { notify, numEnv } from "./notify";
 import { fetchAllRows } from "@/lib/fetchAll";
 import type { MemberMessage } from "@/types/db";
 
@@ -18,12 +18,33 @@ import type { MemberMessage } from "@/types/db";
  */
 
 // Vercel の maxDuration=60 に対し十分なバッファを残して 1 呼び出しあたりの送信時間を確保。
-const SEND_TIME_BUDGET_MS = Number(process.env.NEWSLETTER_TIME_BUDGET_MS ?? 45_000);
+// 60秒を超える値を設定すると関数ごと強制終了され「送信済み記録だけ残って実際は
+// 未送信」の行が生まれるため、環境変数でも 45 秒を上限とする。
+const SEND_TIME_BUDGET_MS = Math.min(numEnv("NEWSLETTER_TIME_BUDGET_MS", 45_000), 45_000);
 // 1 呼び出しあたりの送信件数上限（時間バジェットが先に尽きるのが通常のため、実質は時間で制御される）。
 // 会員数に応じて無理なく上げられるよう十分大きい値をデフォルトにしている。
-const MAX_PER_CALL = Number(process.env.NEWSLETTER_BATCH ?? 100_000);
+const MAX_PER_CALL = numEnv("NEWSLETTER_BATCH", 100_000);
 // Supabase から一度に取得する未送信件数（多いほど往復が減り高速化する）。
-const FETCH_CHUNK_SIZE = Number(process.env.NEWSLETTER_FETCH_CHUNK ?? 50);
+const FETCH_CHUNK_SIZE = numEnv("NEWSLETTER_FETCH_CHUNK", 50);
+// 行を「送信済み」に先取りしてから実送信するため、残り時間がこの猶予を下回ったら
+// 新しい行のクレームをやめる（送信中に関数が強制終了されると未送信のまま
+// 送信済み扱いになるのを避ける）。
+const CLAIM_HEADROOM_MS = 5_000;
+
+/**
+ * Gmail 無料アカウントは1日あたり約500通が上限で、超えると
+ * "550 5.4.5 Daily user sending limit exceeded" で拒否される。上限ぎりぎりまで
+ * 送り続けると Google の不正利用検知に引っかかりアカウント停止のリスクが
+ * 上がるため、余裕をもって手前で自主的に止める（同一アカウントから送る
+ * 予約確認・パスワード再設定等の業務メール分の枠も残す）。
+ * Xserver 等の商用SMTP（1,500通/時・15,000通/日）に切り替えた場合はこの上限
+ * 自体が意味をなさなくなるため、SMTP_HOST に応じて既定値を自動で切り替える。
+ */
+function defaultNewsletterDailyCap(): number {
+  const host = (process.env.SMTP_HOST ?? "").toLowerCase();
+  return host.includes("gmail") ? 400 : 5_000;
+}
+const NEWSLETTER_DAILY_CAP = numEnv("NEWSLETTER_DAILY_CAP", defaultNewsletterDailyCap());
 
 /** 配信対象チェックボックス／APIバリデーションの共通の値一覧（単一の情報源）。 */
 export const AUDIENCE_VALUES = [
@@ -294,16 +315,76 @@ async function resolveAudienceCustomers(
   return Array.from(merged.values());
 }
 
-async function recomputeCounts(admin: SupabaseClient, messageId: string) {
+export async function recomputeCounts(admin: SupabaseClient, messageId: string) {
   const base = () =>
     admin
       .from("member_message_recipients")
       .select("id", { count: "exact", head: true })
       .eq("message_id", messageId);
-  const { count: total } = await base();
-  const { count: sent } = await base().eq("email_status", "sent");
-  const { count: pending } = await base().eq("email_status", "pending");
-  return { total: total ?? 0, sent: sent ?? 0, pending: pending ?? 0 };
+  const [totalQ, sentQ, pendingQ, failedQ, skippedQ] = await Promise.all([
+    base(),
+    base().eq("email_status", "sent"),
+    base().eq("email_status", "pending"),
+    base().eq("email_status", "failed"),
+    base().eq("email_status", "skipped"),
+  ]);
+  // カウント取得の失敗を 0 と解釈してはならない。pending=0 と誤認すると
+  // 未送信を大量に残したまま status='sent' で確定してしまう。
+  const err = totalQ.error ?? sentQ.error ?? pendingQ.error ?? failedQ.error ?? skippedQ.error;
+  if (err) throw new Error(`recipient counts unavailable: ${err.message}`);
+  return {
+    total: totalQ.count ?? 0,
+    sent: sentQ.count ?? 0,
+    pending: pendingQ.count ?? 0,
+    failed: failedQ.count ?? 0,
+    skipped: skippedQ.count ?? 0,
+  };
+}
+
+/**
+ * 「サーバ／設定全体に波及する障害」（このまま続けても以降の全受信者が同じ理由で
+ * 失敗するもの）か判定する。該当したら受信者を failed（終端状態）にせず pending の
+ * まま残して送信を中断し、cron / 再実行に委ねる。
+ *
+ * 2026-08-03 の障害では Gmail の 454-4.7.0（ログイン回数制限）が1件出た時点で
+ * 以降の527件も全て同じ失敗になることが確定していたのに、全件を failed で
+ * 焼き払ってしまった。この判定がその再発を防ぐ。
+ *
+ * 対象はあくまで基盤側の障害のみ:
+ *   - 認証まわり（パスワード誤り含む。誤設定のままログイン試行を重ねると制限が悪化する）
+ *   - レート制限・日次上限・一時抑制
+ *   - ネットワーク・DNS・タイムアウト
+ *   - トランスポート未設定
+ * 宛先固有のエラー（アドレス不正・メールボックス満杯等）は従来どおり failed とし、
+ * 管理画面の「失敗分を再送」で個別にリトライできる。
+ */
+export function isInfrastructureSendError(error: string | null | undefined): boolean {
+  if (!error) return false;
+  // 宛先メールボックス側の容量超過（552 5.2.2 / over quota / mailbox full）は
+  // その受信者だけの問題。基盤エラー扱いにすると order-by-id で毎回同じ行が先頭に
+  // 来て配信全体が永久に止まる「毒薬行」になるため、必ず failed（個別再送）に落とす。
+  if (/5\.2\.2|over quota|quota exceeded|mailbox (is )?full/i.test(error)) return false;
+  return (
+    /invalid login|too many login|username and password not accepted|authentication|try again later|rate ?limit|too many (connections|messages)|daily user sending limit|5\.4\.5|sending quota|timeout|timed ?out|ETIMEDOUT|ESOCKET|ECONN|EPIPE|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ENETUNREACH|greeting never received|socket (close|hang ?up)|connection (closed|refused|reset|lost)|not configured|no transport/i.test(
+      error,
+    )
+  );
+}
+
+/**
+ * 直近24時間に送信したメルマガ通数（全配信メッセージ横断・現在配信中のものに限らない）。
+ * Gmail 等の送信上限はキャンペーン単位ではなくアカウント単位のため、合算する必要がある。
+ */
+async function countRecentBulkSends(
+  admin: SupabaseClient,
+): Promise<{ count: number; error: string | null }> {
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { count, error } = await admin
+    .from("member_message_recipients")
+    .select("id", { count: "exact", head: true })
+    .eq("email_status", "sent")
+    .gte("sent_at", since);
+  return { count: count ?? 0, error: error?.message ?? null };
 }
 
 // ---------------------------------------------------------------------------
@@ -316,6 +397,10 @@ export type SendResult = {
   recipientCount: number;
   sentCount: number;
   remaining: number;
+  failedCount?: number;
+  /** プロバイダのレート制限等を検知して中断した場合 true。呼び出し側は連打せず cron に委ねる。 */
+  throttled?: boolean;
+  throttleReason?: string;
   error?: string;
 };
 
@@ -326,7 +411,7 @@ export type SendResult = {
 export async function sendMemberMessage(
   admin: SupabaseClient,
   messageId: string,
-  opts: { baseUrl: string },
+  opts: { baseUrl: string; budgetMs?: number },
 ): Promise<SendResult> {
   const { data: msg } = await admin
     .from("member_messages")
@@ -337,7 +422,10 @@ export async function sendMemberMessage(
     return { ok: false, status: "missing", recipientCount: 0, sentCount: 0, remaining: 0, error: "message not found" };
   }
   const message = msg as MemberMessage;
-  if (message.status === "sent" || message.status === "canceled") {
+  // 「配信済」でも未送信（pending）が残っていれば続きを送れる（失敗分再送や、
+  // 完了判定の競合で早く sent になってしまった場合の復旧経路）。
+  const wasSent = message.status === "sent";
+  if (message.status === "canceled") {
     return {
       ok: true,
       status: message.status,
@@ -346,9 +434,27 @@ export async function sendMemberMessage(
       remaining: 0,
     };
   }
-
-  // 配信中に遷移
-  await admin.from("member_messages").update({ status: "sending" }).eq("id", messageId);
+  if (wasSent) {
+    const { count: pendingNow } = await admin
+      .from("member_message_recipients")
+      .select("id", { count: "exact", head: true })
+      .eq("message_id", messageId)
+      .eq("email_status", "pending");
+    if (!pendingNow) {
+      return {
+        ok: true,
+        status: message.status,
+        recipientCount: message.recipient_count,
+        sentCount: message.sent_count,
+        remaining: 0,
+      };
+    }
+    // 会員向けお知らせは status='sent' のみ表示されるため（mypage/announcements）、
+    // 再送のあいだも 'sent' を維持し、お知らせが一時的に消えるのを防ぐ。
+  } else {
+    // 配信中に遷移
+    await admin.from("member_messages").update({ status: "sending" }).eq("id", messageId);
+  }
 
   // 配信先を未生成なら materialize（1会員1行・冪等）
   const { count: existing } = await admin
@@ -375,19 +481,47 @@ export async function sendMemberMessage(
   }
 
   // メール配信（時間/件数バジェット内）
+  let throttled = false;
+  let throttleReason: string | undefined;
   if (message.channel_email) {
+    const budgetMs = Math.max(1_000, Math.min(opts.budgetMs ?? SEND_TIME_BUDGET_MS, SEND_TIME_BUDGET_MS));
     const start = Date.now();
+    // クレームの締め切り（送信そのものは締め切り後も完了まで待つ）
+    const claimDeadline = start + Math.max(budgetMs - CLAIM_HEADROOM_MS, 2_000);
+
+    // Gmail 想定の日次上限を先にチェックする。取得に失敗した場合は「送れる」と
+    // 楽観視せず保留にする（cron / 再実行が後で再チェックする）。
+    const { count: recentSent, error: capError } = await countRecentBulkSends(admin);
+    let dailyRemaining = capError ? 0 : Math.max(0, NEWSLETTER_DAILY_CAP - recentSent);
+    if (capError) {
+      throttled = true;
+      throttleReason = `日次上限の確認に失敗したため保留しました: ${capError}`;
+    } else if (dailyRemaining <= 0) {
+      throttled = true;
+      throttleReason = `送信元メールアカウントの日次上限想定（${NEWSLETTER_DAILY_CAP}通/24時間）に達したため、本日はこれ以上送信せず保留しました。`;
+    }
+
     let processed = 0;
-    while (processed < MAX_PER_CALL && Date.now() - start < SEND_TIME_BUDGET_MS) {
-      const { data: batch } = await admin
+    while (!throttled && processed < MAX_PER_CALL && Date.now() < claimDeadline) {
+      const { data: batch, error: batchError } = await admin
         .from("member_message_recipients")
         .select("id, customer_id, email, token, customer:customers(full_name)")
         .eq("message_id", messageId)
         .eq("email_status", "pending")
+        .order("id", { ascending: true })
         .limit(FETCH_CHUNK_SIZE);
+      if (batchError) {
+        // DB 側の一時障害。リトライで叩き続けず今回は打ち切る（cron / 再実行で再開）。
+        throttled = true;
+        throttleReason = `db error: ${batchError.message}`;
+        break;
+      }
       if (!batch || batch.length === 0) break;
+      let claimedAny = false;
       for (const r of batch as any[]) {
-        if (processed >= MAX_PER_CALL || Date.now() - start >= SEND_TIME_BUDGET_MS) break;
+        // 送信中に関数が強制終了されると「送信済み記録だけ残って実際は未送信」に
+        // なるため、締め切り後は新しい行をクレームしない。
+        if (processed >= MAX_PER_CALL || Date.now() >= claimDeadline) break;
         const name = r.customer?.full_name ?? null;
         const html = renderEmailHtml({
           name,
@@ -409,6 +543,23 @@ export async function sendMemberMessage(
           imageUrls: message.image_urls,
           pdfUrls: message.pdf_urls,
         });
+        // 送信前に行を pending → sent へ条件付きで「先取り」する。管理画面の
+        // 自動継続・cron・失敗分再送が同時に走っても、先取りできた側だけが
+        // 送信するため同じ会員に二重送信しない（0行更新なら他プロセスが担当中）。
+        const { data: claimed, error: claimError } = await admin
+          .from("member_message_recipients")
+          .update({ email_status: "sent", sent_at: new Date().toISOString(), error: null })
+          .eq("id", r.id)
+          .eq("email_status", "pending")
+          .select("id");
+        if (claimError) {
+          // DB 障害と「他プロセスが担当中」を混同しない。障害時は打ち切って後で再開。
+          throttled = true;
+          throttleReason = `db error: ${claimError.message}`;
+          break;
+        }
+        if (!claimed || claimed.length === 0) continue;
+        claimedAny = true;
         const res = await notify({
           kind: "member_message",
           to: r.email,
@@ -418,36 +569,81 @@ export async function sendMemberMessage(
           body_html: html,
           meta: { message_id: messageId, recipient_id: r.id },
         });
+        if (res.sent) {
+          processed++;
+          dailyRemaining--;
+          if (dailyRemaining <= 0) {
+            // 送信中に日次上限想定に達した。ここで打ち切り、残りは cron / 再実行で
+            // 翌日以降に自動送信する。
+            throttled = true;
+            throttleReason = `送信元メールアカウントの日次上限想定（${NEWSLETTER_DAILY_CAP}通/24時間）に達したため、残りは翌日以降に自動送信します。`;
+            break;
+          }
+          continue;
+        }
+        if (isInfrastructureSendError(res.error)) {
+          // 認証失敗・レート制限・接続障害など基盤側の問題: この受信者を pending に
+          // 戻して（エラー文言は記録）、この呼び出しの送信を打ち切る。以降の送信も
+          // 同じ理由で失敗することがほぼ確定しており、続行するとログイン試行を
+          // 重ねて制限を悪化させるだけ。cron / 再実行が後で続きを送る。
+          await admin
+            .from("member_message_recipients")
+            .update({ email_status: "pending", sent_at: null, error: res.error ?? "transient send error" })
+            .eq("id", r.id);
+          throttled = true;
+          throttleReason = res.error ?? "transient send error";
+          break;
+        }
+        // 宛先固有の失敗（アドレス不正等）: failed とし、「失敗分を再送」で復旧可能。
         await admin
           .from("member_message_recipients")
-          .update({
-            email_status: res.sent ? "sent" : "failed",
-            sent_at: res.sent ? new Date().toISOString() : null,
-            error: res.sent ? null : res.error ?? "send failed",
-          })
+          .update({ email_status: "failed", sent_at: null, error: res.error ?? "send failed" })
           .eq("id", r.id);
         processed++;
       }
+      // バッチ内の全行を他プロセスに先取りされた場合も次のフェッチで前進するが、
+      // 相手が全件処理中なら空フェッチになるまで回さず一旦譲る。
+      if (!claimedAny && batch.length < FETCH_CHUNK_SIZE) break;
     }
   }
 
-  const counts = await recomputeCounts(admin, messageId);
+  let counts: Awaited<ReturnType<typeof recomputeCounts>>;
+  try {
+    counts = await recomputeCounts(admin, messageId);
+  } catch (e: any) {
+    // カウントが取れないときに完了判定してはならない（pending を 0 と誤認して
+    // 未送信を残したまま 'sent' 確定する事故を防ぐ）。状態は書き換えず終了し、
+    // cron / 再実行に委ねる。
+    return {
+      ok: true,
+      status: wasSent ? "sent" : "sending",
+      recipientCount: message.recipient_count,
+      sentCount: message.sent_count,
+      remaining: 1,
+      throttled: true,
+      throttleReason: e?.message ?? "recipient counts unavailable",
+    };
+  }
   const done = counts.pending === 0;
   await admin
     .from("member_messages")
     .update({
       recipient_count: counts.total,
       sent_count: counts.sent,
-      status: done ? "sent" : "sending",
+      // 一度 'sent' になったメッセージは再送中も 'sent' を維持（お知らせ表示を守る）
+      status: done || wasSent ? "sent" : "sending",
       sent_at: done ? message.sent_at ?? new Date().toISOString() : message.sent_at,
     })
     .eq("id", messageId);
 
   return {
     ok: true,
-    status: done ? "sent" : "sending",
+    status: done || wasSent ? "sent" : "sending",
     recipientCount: counts.total,
     sentCount: counts.sent,
     remaining: counts.pending,
+    failedCount: counts.failed,
+    throttled: throttled || undefined,
+    throttleReason,
   };
 }

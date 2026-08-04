@@ -173,20 +173,46 @@ function parseRecipients(to: string): string[] {
   return to.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
-let _smtp: Transporter | null = null;
-function smtpTransport(): Transporter | null {
-  if (_smtp) return _smtp;
+/** 環境変数を正の数値として読む。未設定・空文字・不正値は既定値に落とす。 */
+export function numEnv(name: string, def: number): number {
+  const raw = process.env[name];
+  if (!raw) return def;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : def;
+}
+
+function smtpBaseConfig(): { host: string; port: number; secure: boolean; auth: { user: string; pass: string } } | null {
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   if (!host || !user || !pass) return null;
-  const port = Number(process.env.SMTP_PORT ?? 465);
-  const secure = (process.env.SMTP_SECURE ?? "true").toLowerCase() !== "false";
-  _smtp = nodemailer.createTransport({
+  return {
     host,
-    port,
-    secure,
+    port: numEnv("SMTP_PORT", 465),
+    secure: (process.env.SMTP_SECURE ?? "true").toLowerCase() !== "false",
     auth: { user, pass },
+  };
+}
+
+/**
+ * トランスポートは2系統に分ける。
+ *   - 都度接続（既定）: 予約確認・パスワード再設定などの単発トランザクションメール。
+ *     サーバレスの凍結中にプールのソケットが死ぬと1通目が失われるため、
+ *     少量・即時性重視のメールは従来どおり毎回接続するのが最も確実。
+ *   - プール接続（一斉配信 kind='member_message' 専用）: 1通ごとに再ログインすると
+ *     Gmail は数十回で "454-4.7.0 Too many login attempts" を返して全滅する
+ *     （2026-08-03 の613件配信が85通で停止した実障害）。1ログイン=多数通に集約し、
+ *     送信レートも既定 1通/秒 に抑えてバースト検知を避ける。
+ */
+let _smtp: Transporter | null = null;
+let _smtpBulk: Transporter | null = null;
+
+function smtpTransport(): Transporter | null {
+  if (_smtp) return _smtp;
+  const base = smtpBaseConfig();
+  if (!base) return null;
+  _smtp = nodemailer.createTransport({
+    ...base,
     // Fail fast if the SMTP host is unreachable/blocked instead of hanging the request.
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
@@ -195,9 +221,29 @@ function smtpTransport(): Transporter | null {
   return _smtp;
 }
 
+function smtpBulkTransport(): Transporter | null {
+  if (_smtpBulk) return _smtpBulk;
+  const base = smtpBaseConfig();
+  if (!base) return null;
+  _smtpBulk = nodemailer.createTransport({
+    ...base,
+    pool: true,
+    maxConnections: numEnv("SMTP_MAX_CONNECTIONS", 1),
+    // Gmail は1セッション約100通で切られるため、余裕をみて90通で自主再接続。
+    maxMessages: numEnv("SMTP_MAX_MESSAGES", 90),
+    rateDelta: numEnv("SMTP_RATE_DELTA", 1000),
+    rateLimit: numEnv("SMTP_RATE_LIMIT", 1),
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    // レート待ちやDB往復で正当な無通信区間ができるため単発用より長めにとる。
+    socketTimeout: 30_000,
+  });
+  return _smtpBulk;
+}
+
 async function sendViaSmtp(p: NotifyPayload): Promise<{ ok: boolean; error?: string }> {
   if (!p.to) return { ok: false, error: "no recipient" };
-  const tx = smtpTransport();
+  const tx = p.kind === "member_message" ? smtpBulkTransport() : smtpTransport();
   if (!tx) return { ok: false, error: "smtp not configured" };
   try {
     const recipients = parseRecipients(p.to);
@@ -216,7 +262,11 @@ async function sendViaSmtp(p: NotifyPayload): Promise<{ ok: boolean; error?: str
     });
     return { ok: true };
   } catch (e: any) {
-    return { ok: false, error: e?.message ?? "smtp send failed" };
+    // nodemailer はソケット系の失敗を e.code（ESOCKET / ETIMEDOUT 等）で表現し、
+    // message には "Unexpected socket close" のような文言しか入らないことがある。
+    // エラー分類（isInfrastructureSendError）が判定できるよう code も含める。
+    const msg = e?.message ?? "smtp send failed";
+    return { ok: false, error: e?.code ? `${e.code}: ${msg}` : msg };
   }
 }
 

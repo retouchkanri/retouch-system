@@ -41,7 +41,13 @@ function audienceLabel(m: any): string {
   return audienceList(m).map((a) => AUDIENCE_LABEL[a] ?? "指定会員").join("、");
 }
 
-export default async function MemberMessageDetailPage({ params }: { params: { id: string } }) {
+export default async function MemberMessageDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { rstatus?: string };
+}) {
   await requireCapability("messages.manage");
   const admin = createSupabaseAdminClient();
 
@@ -54,6 +60,31 @@ export default async function MemberMessageDetailPage({ params }: { params: { id
   const m = message as any;
 
   const editable = m.status === "draft" || m.status === "scheduled";
+  const rstatus = ["pending", "sent", "failed", "skipped"].includes(searchParams?.rstatus ?? "")
+    ? (searchParams!.rstatus as string)
+    : "";
+
+  // 送信状態の内訳（全件の集計。下の一覧は表示上限があるためここで正確な数を出す）
+  const countBase = () =>
+    admin
+      .from("member_message_recipients")
+      .select("id", { count: "exact", head: true })
+      .eq("message_id", params.id);
+  const [{ count: cPending }, { count: cSent }, { count: cFailed }, { count: cSkipped }] =
+    await Promise.all([
+      countBase().eq("email_status", "pending"),
+      countBase().eq("email_status", "sent"),
+      countBase().eq("email_status", "failed"),
+      countBase().eq("email_status", "skipped"),
+    ]);
+  const statusCounts = {
+    pending: cPending ?? 0,
+    sent: cSent ?? 0,
+    failed: cFailed ?? 0,
+    skipped: cSkipped ?? 0,
+  };
+  const statusTotal =
+    statusCounts.pending + statusCounts.sent + statusCounts.failed + statusCounts.skipped;
 
   // 指定会員の場合は名前を解決してフォームへ渡す
   let initialTargets: { id: string; full_name: string | null; email: string | null }[] = [];
@@ -65,13 +96,15 @@ export default async function MemberMessageDetailPage({ params }: { params: { id
     initialTargets = (data as any[]) ?? [];
   }
 
-  // 配信先（最大300件まで表示）
-  const { data: recipients } = await admin
+  // 配信先一覧（画面表示は300件まで。送信自体に件数上限はない。絞り込みで全状態を確認できる）
+  let recipientsQuery = admin
     .from("member_message_recipients")
-    .select("id, email, email_status, opened_at, read_at, customer:customers(full_name)")
+    .select("id, email, email_status, error, opened_at, read_at, customer:customers(full_name)")
     .eq("message_id", params.id)
     .order("created_at", { ascending: true })
     .limit(300);
+  if (rstatus) recipientsQuery = recipientsQuery.eq("email_status", rstatus);
+  const { data: recipients } = await recipientsQuery;
 
   const openRate = m.sent_count > 0 ? Math.round((m.open_count / m.sent_count) * 100) : 0;
 
@@ -83,15 +116,36 @@ export default async function MemberMessageDetailPage({ params }: { params: { id
       </div>
 
       <div className="card grid sm:grid-cols-3 gap-3 text-sm">
-        <div><span className="text-ink-mute">状態</span><div className="font-semibold">{STATUS_LABEL[m.status] ?? m.status}</div></div>
+        <div>
+          <span className="text-ink-mute">状態</span>
+          <div className="font-semibold">
+            {STATUS_LABEL[m.status] ?? m.status}
+            {m.status === "sent" && statusCounts.failed > 0 && (
+              <span className="ml-1 text-red-600 font-normal">（一部失敗）</span>
+            )}
+          </div>
+        </div>
         <div><span className="text-ink-mute">チャネル</span><div>{[m.channel_inapp && "お知らせ", m.channel_email && "メール"].filter(Boolean).join(" / ") || "—"}</div></div>
         <div><span className="text-ink-mute">対象</span><div>{audienceLabel(m)}</div></div>
-        <div><span className="text-ink-mute">配信先 / 送信</span><div className="tabular-nums">{m.recipient_count} / {m.sent_count}</div></div>
+        <div>
+          <span className="text-ink-mute">配信先 / 送信</span>
+          <div className="tabular-nums">
+            {m.recipient_count} / {m.sent_count}
+            {statusCounts.failed > 0 && <span className="ml-2 text-red-600">失敗 {statusCounts.failed}</span>}
+            {statusCounts.pending > 0 && <span className="ml-2 text-amber-600">未送信 {statusCounts.pending}</span>}
+            {statusCounts.skipped > 0 && <span className="ml-2 text-ink-mute">対象外 {statusCounts.skipped}</span>}
+          </div>
+        </div>
         <div><span className="text-ink-mute">開封（ユニーク）</span><div className="tabular-nums">{m.open_count}（開封率 {openRate}%）</div></div>
         <div><span className="text-ink-mute">{m.status === "scheduled" ? "予約日時" : "配信日時"}</span><div>{formatDate(m.status === "scheduled" ? m.scheduled_at : m.sent_at, true)}</div></div>
       </div>
 
-      <MessageActions id={m.id} status={m.status} />
+      <MessageActions
+        id={m.id}
+        status={m.status}
+        failedCount={statusCounts.failed}
+        pendingCount={statusCounts.pending}
+      />
 
       {editable ? (
         <section className="space-y-2">
@@ -122,9 +176,29 @@ export default async function MemberMessageDetailPage({ params }: { params: { id
         </section>
       )}
 
-      {m.channel_email && (recipients ?? []).length > 0 && (
+      {m.channel_email && statusTotal > 0 && (
         <section className="space-y-2">
-          <h2 className="font-bold">配信先（最大300件）</h2>
+          <h2 className="font-bold">配信先一覧</h2>
+          <p className="text-xs text-ink-mute">
+            画面に表示されるのは最大300件です（送信自体に件数の上限はありません）。状態で絞り込むと該当分を確認できます。
+          </p>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {[
+              { key: "", label: `すべて（${statusTotal}）` },
+              { key: "sent", label: `送信済（${statusCounts.sent}）` },
+              { key: "failed", label: `失敗（${statusCounts.failed}）` },
+              { key: "pending", label: `未送信（${statusCounts.pending}）` },
+              { key: "skipped", label: `対象外（${statusCounts.skipped}）` },
+            ].map((f) => (
+              <Link
+                key={f.key || "all"}
+                href={f.key ? `/admin/member-messages/${m.id}?rstatus=${f.key}` : `/admin/member-messages/${m.id}`}
+                className={`px-2 py-1 rounded-lg border ${rstatus === f.key ? "bg-brand text-white border-brand" : "border-surface-line"}`}
+              >
+                {f.label}
+              </Link>
+            ))}
+          </div>
           <div className="card p-0 overflow-auto">
             <table className="table">
               <thead>
@@ -132,6 +206,7 @@ export default async function MemberMessageDetailPage({ params }: { params: { id
                   <th>会員</th>
                   <th>メール</th>
                   <th>送信状態</th>
+                  <th>エラー</th>
                   <th>開封</th>
                   <th>既読</th>
                 </tr>
@@ -141,11 +216,19 @@ export default async function MemberMessageDetailPage({ params }: { params: { id
                   <tr key={r.id}>
                     <td>{r.customer?.full_name ?? "—"}</td>
                     <td className="text-xs">{r.email ?? "—"}</td>
-                    <td className="text-xs">{EMAIL_STATUS_LABEL[r.email_status] ?? r.email_status}</td>
+                    <td className={`text-xs ${r.email_status === "failed" ? "text-red-600" : ""}`}>
+                      {EMAIL_STATUS_LABEL[r.email_status] ?? r.email_status}
+                    </td>
+                    <td className="text-xs max-w-[240px] truncate" title={r.error ?? ""}>{r.error ?? "—"}</td>
                     <td className="text-xs">{r.opened_at ? formatDate(r.opened_at, true) : "—"}</td>
                     <td className="text-xs">{r.read_at ? formatDate(r.read_at, true) : "—"}</td>
                   </tr>
                 ))}
+                {(recipients ?? []).length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-4 text-ink-mute">該当する配信先がありません。</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

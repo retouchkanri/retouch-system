@@ -23,9 +23,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!existing) {
     return NextResponse.json({ error: "配信が見つかりません" }, { status: 404 });
   }
-  if ((existing as any).status === "sent") {
-    return NextResponse.json({ error: "すでに配信済みです" }, { status: 409 });
-  }
+  // 「配信済」でも未送信（pending）が残っていれば sendMemberMessage が続きを送る
+  // （失敗分再送の途中経過など）。残っていなければ何も送らず現状を返すだけなので、
+  // ここでは 409 にしない。
 
   const result = await sendMemberMessage(admin, params.id, { baseUrl: getBaseUrl(req) });
 

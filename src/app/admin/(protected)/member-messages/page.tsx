@@ -39,6 +39,30 @@ export default async function MemberMessagesPage() {
     .select("*")
     .order("created_at", { ascending: false });
 
+  // メール配信で送信数が配信先に達していないものは、失敗／未送信の正確な内訳を出す
+  // （recipient_count - sent_count には配信対象外(skipped)も含まれ、誤解を招くため）。
+  const incomplete = (items ?? []).filter(
+    (m: any) =>
+      m.channel_email &&
+      (m.status === "sent" || m.status === "sending") &&
+      (m.recipient_count ?? 0) > (m.sent_count ?? 0),
+  );
+  const problemCounts = new Map<string, { failed: number; pending: number }>();
+  await Promise.all(
+    incomplete.slice(0, 20).map(async (m: any) => {
+      const base = () =>
+        admin
+          .from("member_message_recipients")
+          .select("id", { count: "exact", head: true })
+          .eq("message_id", m.id);
+      const [{ count: failed }, { count: pending }] = await Promise.all([
+        base().eq("email_status", "failed"),
+        base().eq("email_status", "pending"),
+      ]);
+      problemCounts.set(m.id, { failed: failed ?? 0, pending: pending ?? 0 });
+    }),
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -73,10 +97,19 @@ export default async function MemberMessagesPage() {
                 const openRate =
                   m.sent_count > 0 ? Math.round((m.open_count / m.sent_count) * 100) : 0;
                 const when = m.status === "scheduled" ? m.scheduled_at : m.sent_at ?? m.created_at;
+                const pc = problemCounts.get(m.id);
                 return (
                   <tr key={m.id}>
                     <td className="font-semibold max-w-xs truncate">{m.title}</td>
-                    <td>{STATUS_LABEL[m.status] ?? m.status}</td>
+                    <td>
+                      {STATUS_LABEL[m.status] ?? m.status}
+                      {pc && pc.failed > 0 && (
+                        <span className="block text-xs text-red-600">失敗 {pc.failed} 件</span>
+                      )}
+                      {pc && pc.pending > 0 && (
+                        <span className="block text-xs text-amber-600">未送信 {pc.pending} 件</span>
+                      )}
+                    </td>
                     <td className="text-xs">
                       {m.channel_inapp ? "お知らせ" : ""}
                       {m.channel_inapp && m.channel_email ? " / " : ""}
