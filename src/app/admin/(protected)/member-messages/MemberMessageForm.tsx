@@ -2,7 +2,8 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { sendMemberMessageUntilDone } from "@/lib/memberMessagesClient";
+import { sendMemberMessageUntilDone, type SendProgress } from "@/lib/memberMessagesClient";
+import SendProgressBar from "./SendProgressBar";
 
 const RichTextEditor = dynamic(() => import("@/components/admin/RichTextEditor"), { ssr: false });
 
@@ -119,6 +120,9 @@ export default function MemberMessageForm({
 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // 一斉配信の進捗（送信済み / 全体）。null のあいだはバーを出さない。
+  const [progress, setProgress] = useState<SendProgress | null>(null);
+  const [sendDone, setSendDone] = useState(false);
 
   const set = (k: string) => (e: any) =>
     setForm((p: any) => ({ ...p, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
@@ -193,6 +197,8 @@ export default function MemberMessageForm({
     }
     setBusy(true);
     setMsg(null);
+    setProgress(null);
+    setSendDone(false);
     const payload: any = {
       title: form.title,
       body: form.body,
@@ -225,8 +231,8 @@ export default function MemberMessageForm({
         body: JSON.stringify(payload),
       });
     }
-    setBusy(false);
     if (!res.ok) {
+      setBusy(false);
       const j = await res.json().catch(() => ({}));
       setMsg(j.error ?? "保存できませんでした。");
       return;
@@ -235,41 +241,59 @@ export default function MemberMessageForm({
     if (!id) {
       const created = j.id as string | undefined;
       if (action === "send") {
-        let remaining = j.result?.remaining ?? 0;
-        let sentCount = j.result?.sentCount ?? 0;
-        setMsg(`配信中… ${sentCount} 件送信済み`);
-        // 件数の上限なく配信するため、残数が0になるまで自動的に続きを送信する
-        // （管理者が「配信を続ける」を手動で押し直す必要はない）。
-        if (created && remaining > 0) {
-          setBusy(true);
-          const result = await sendMemberMessageUntilDone(created, (p) => {
-            sentCount = p.sentCount;
-            remaining = p.remaining;
-            setMsg(
-              p.recipientCount > 0
-                ? `配信中… ${p.sentCount} / ${p.recipientCount} 件送信済み`
-                : `配信中… ${p.sentCount} 件送信済み`,
-            );
-          });
+        // サーバは最初の1バッチだけを短時間で送って返す（配信対象の materialize と
+        // status='sending' への遷移はサーバ側で確定するため、この後ブラウザを閉じても
+        // cron が続きを送る）。全体件数がここで判明するので進捗バーを出せる。
+        const first: SendProgress = {
+          sentCount: j.result?.sentCount ?? 0,
+          remaining: j.result?.remaining ?? 0,
+          recipientCount: j.result?.recipientCount ?? 0,
+          status: j.result?.status ?? "sending",
+          round: 0,
+        };
+        setProgress(first);
+
+        // 残りは送信APIを繰り返し呼び出しながら、1バッチごとに進捗を更新する。
+        if (created && first.remaining > 0) {
+          const result = await sendMemberMessageUntilDone(created, setProgress);
+          setProgress(result.progress);
           setBusy(false);
+          setSendDone(result.finished);
+
           if (result.finished) {
-            setMsg(`配信が完了しました（送信 ${result.progress.sentCount} 件）。`);
-          } else if (!result.ok) {
-            setMsg(`${result.error ?? "配信中にエラーが発生しました。"}（送信済み ${result.progress.sentCount} 件。続きは配信詳細ページから再開できます）`);
-          } else {
-            setMsg(`送信 ${result.progress.sentCount} 件まで完了しました。残り ${result.progress.remaining} 件は配信詳細ページから続けられます（しばらくすると自動配信でも送信されます）。`);
+            setMsg(`配信が完了しました（送信 ${result.progress.sentCount.toLocaleString("ja-JP")} 件）。`);
+            // 100%（送信完了）の状態を見せてから詳細ページへ移動する。
+            setTimeout(() => router.push(`/admin/member-messages/${created}`), 1200);
+            return;
           }
-        } else {
-          setMsg(`配信が完了しました（送信 ${sentCount} 件）。`);
+          // 中断時は理由を読めるようこのページに留まる（自動遷移でメッセージを消さない）。
+          setMsg(
+            result.throttled
+              ? `送信 ${result.progress.sentCount.toLocaleString("ja-JP")} 件で一時停止しました。残り ${result.progress.remaining.toLocaleString("ja-JP")} 件は未送信のまま保持されています。時間をおくと自動配信（cron）が続きを送信します。` +
+                  (result.throttleReason ? `\n検知した内容: ${result.throttleReason}` : "")
+              : !result.ok
+                ? `${result.error ?? "配信中にエラーが発生しました。"}（送信済み ${result.progress.sentCount.toLocaleString("ja-JP")} 件。続きは配信詳細ページから再開できます）`
+                : `送信 ${result.progress.sentCount.toLocaleString("ja-JP")} 件まで完了しました。残り ${result.progress.remaining.toLocaleString("ja-JP")} 件は配信詳細ページから続けられます（しばらくすると自動配信でも送信されます）。`,
+          );
+          return;
         }
-      } else {
-        setMsg(action === "schedule" ? "予約しました。" : "下書きを保存しました。");
+
+        // 1バッチで送り切れた場合。
+        setBusy(false);
+        setSendDone(true);
+        setMsg(`配信が完了しました（送信 ${first.sentCount.toLocaleString("ja-JP")} 件）。`);
+        if (created) setTimeout(() => router.push(`/admin/member-messages/${created}`), 1200);
+        return;
       }
+
+      setBusy(false);
+      setMsg(action === "schedule" ? "予約しました。" : "下書きを保存しました。");
       if (created) {
         router.push(`/admin/member-messages/${created}`);
         return;
       }
     } else {
+      setBusy(false);
       setMsg("保存しました。");
     }
     router.refresh();
@@ -504,18 +528,23 @@ export default function MemberMessageForm({
         />
       </div>
 
-      {msg && <p className="text-sm">{msg}</p>}
+      {(progress || msg) && (
+        <div className="space-y-2">
+          <SendProgressBar progress={progress} done={sendDone} />
+          {msg && <p className="text-sm whitespace-pre-line">{msg}</p>}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn-secondary" disabled={busy} onClick={() => submit("draft")}>
-          {busy ? "保存中..." : "下書き保存"}
+          {busy && !progress ? "保存中..." : "下書き保存"}
         </button>
         <button type="button" className="btn-secondary" disabled={busy || !schedule} onClick={() => submit("schedule")}>
           予約{id ? "保存" : "する"}
         </button>
         {!id && (
           <button type="button" className="btn-primary" disabled={busy} onClick={() => submit("send")}>
-            今すぐ配信
+            {progress ? (sendDone ? "配信完了" : "配信中…") : "今すぐ配信"}
           </button>
         )}
       </div>

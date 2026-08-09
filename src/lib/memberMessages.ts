@@ -360,10 +360,31 @@ export async function recomputeCounts(admin: SupabaseClient, messageId: string) 
  */
 export function isInfrastructureSendError(error: string | null | undefined): boolean {
   if (!error) return false;
-  // 宛先メールボックス側の容量超過（552 5.2.2 / over quota / mailbox full）は
-  // その受信者だけの問題。基盤エラー扱いにすると order-by-id で毎回同じ行が先頭に
-  // 来て配信全体が永久に止まる「毒薬行」になるため、必ず failed（個別再送）に落とす。
+  // --- 宛先固有の失敗（その受信者だけの問題）を先に確定させる ---------------
+  // 基盤エラー扱いにすると order-by-id で毎回同じ行が先頭に来て配信全体が
+  // 永久に止まる「毒薬行」になるため、必ず failed（個別再送）に落とす。
+  // 受信者ごとの拒否は 554/5.7.1 など基盤エラーと同じコードを返すことがあるため、
+  // 下の基盤エラー判定より前に評価する。
   if (/5\.2\.2|over quota|quota exceeded|mailbox (is )?full/i.test(error)) return false;
+  if (
+    /recipient address rejected|user unknown|no such (user|recipient)|unknown user|5\.1\.1|address not found|does not exist/i.test(
+      error,
+    )
+  ) {
+    return false;
+  }
+  // --- 基盤側の障害（続行しても以降の全受信者が同じ理由で失敗する） ---------
+  // 送信元ホスト自体の拒否（例: Xserver の国外IPアクセス制限が Vercel の
+  // AWS us-east-1 を弾く「554 5.7.1 ...: Client host rejected: Access denied」）は
+  // 受信者に依存しない。宛先固有の失敗として焼き払うと、設定を直しても
+  // 復旧に「失敗分を再送」が必要になり、1回の配信で全会員を失う。
+  if (
+    /client host rejected|relay(ing)? (access )?denied|sender address rejected|not authori[sz]ed to (send|relay)|blocked using|listed (in|by)|spamhaus|blacklist/i.test(
+      error,
+    )
+  ) {
+    return true;
+  }
   return (
     /invalid login|too many login|username and password not accepted|authentication|try again later|rate ?limit|too many (connections|messages)|daily user sending limit|5\.4\.5|sending quota|timeout|timed ?out|ETIMEDOUT|ESOCKET|ECONN|EPIPE|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ENETUNREACH|greeting never received|socket (close|hang ?up)|connection (closed|refused|reset|lost)|not configured|no transport/i.test(
       error,

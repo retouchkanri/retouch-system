@@ -7,6 +7,15 @@ import { getBaseUrl } from "@/lib/site";
 import { sendMemberMessage, AUDIENCE_VALUES } from "@/lib/memberMessages";
 
 export const maxDuration = 60;
+// 送信元IPを日本国内に固定する（Xserver の国外IPアクセス制限対策）。vercel.json と揃えること。
+export const preferredRegion = "hnd1";
+
+/**
+ * 「作成＋今すぐ配信」の初回応答で使う送信時間バジェット（ms）。
+ * 短く返すことで管理画面が全体件数を受け取り、進捗バーを早く表示できる。
+ * 残件はクライアントが /send を繰り返し呼んで送り切る。
+ */
+const INITIAL_SEND_BUDGET_MS = 5_000;
 
 const schema = z
   .object({
@@ -95,9 +104,17 @@ export async function POST(req: Request) {
     meta: { title: d.title, audiences: d.audiences, channel_email: d.channel_email, action: d.action },
   });
 
-  // 即時配信
+  // 即時配信。
+  // ここでは最初の1バッチだけを短時間で送って返す。目的は2つ:
+  //   1. 配信対象の materialize と status='sending' への遷移をサーバ側で確定させる
+  //      （この直後にブラウザが閉じられても cron が続きを送れる）。
+  //   2. 全体件数（recipient_count）を早くクライアントへ返し、進捗バーを表示させる。
+  // 残りはクライアントが /send を繰り返し呼び出して送り切る（進捗バーを更新しながら）。
   if (d.action === "send") {
-    const result = await sendMemberMessage(admin, inserted.id, { baseUrl: getBaseUrl(req) });
+    const result = await sendMemberMessage(admin, inserted.id, {
+      baseUrl: getBaseUrl(req),
+      budgetMs: INITIAL_SEND_BUDGET_MS,
+    });
     return NextResponse.json({ ok: true, id: inserted.id, result });
   }
 

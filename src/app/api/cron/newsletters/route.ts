@@ -7,6 +7,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // 大量送信に備え関数の実行時間を延長（Vercel Pro 以上で有効。Hobby は上限で頭打ち）。
 export const maxDuration = 60;
+// 送信元IPを日本国内に固定する。Xserver の国外IPアクセス制限は、SMTP 認証に
+// 成功していても国外IPからの RCPT TO を "554 5.7.1 Client host rejected" で拒否する
+// （2026-08-09 の全件配信失敗の原因）。vercel.json の regions と必ず揃えること。
+export const preferredRegion = "hnd1";
 
 /**
  * スケジュール配信のドレイン。Vercel Cron（x-vercel-cron ヘッダ）または

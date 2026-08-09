@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendMemberMessageUntilDone, type SendProgress } from "@/lib/memberMessagesClient";
+import SendProgressBar from "../SendProgressBar";
 
 export default function MessageActions({
   id,
@@ -134,14 +135,8 @@ export default function MessageActions({
           削除
         </button>
       </div>
-      {busy && progress && progress.recipientCount > 0 && (
-        <div className="w-full max-w-md h-2 rounded-full bg-surface-soft overflow-hidden">
-          <div
-            className="h-full bg-brand transition-all"
-            style={{ width: `${Math.min(100, Math.round((progress.sentCount / progress.recipientCount) * 100))}%` }}
-          />
-        </div>
-      )}
+      {/* 送信完了後もバーを残し、最終的な到達件数が確認できるようにする。 */}
+      {progress && <SendProgressBar progress={progress} done={!busy} />}
       {msg && <p className="text-sm">{msg}</p>}
     </div>
   );
