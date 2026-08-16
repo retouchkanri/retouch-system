@@ -143,7 +143,7 @@ export default async function CustomersListPage({
           <option value="C">リェリーフ会員</option>
           <option value="OWNER">オーナーズ会員</option>
           <option value="SUPPORT">ヘルパーズ会員</option>
-          <option value="NONE">（空白・未設定）</option>
+          <option value="NONE">無料会員（空白・未設定）</option>
         </select>
         <select name="special" defaultValue={special} className="input">
           <option value="">特別参加：すべて</option>
