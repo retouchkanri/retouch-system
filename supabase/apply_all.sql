@@ -872,6 +872,7 @@ create view public.v_customer_summary as
 select
   c.id as customer_id,
   c.full_name,
+  c.full_name_kana,
   c.email,
   c.status,
   c.avatar_url,
@@ -1240,3 +1241,44 @@ alter table public.member_messages
 update public.member_messages
 set audiences = array[audience]
 where audiences = '{}';
+
+-- =====================================================================
+-- 20260816_news_members_only_exclude_free.sql
+-- 「会員限定」ニュースを、プラン未加入の会員（空白・無料会員）には表示しない。
+-- 「空白」の定義は no_class フィルタと同一
+-- （member_class_code is null かつ rpt_active = false かつ special_team_count = 0）。
+-- v_customer_summary 作成後に実行する必要があるため、ここ（ファイル末尾）に配置。
+-- =====================================================================
+create or replace function public.current_customer_is_blank_member()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (
+      select s.member_class_code is null
+        and s.rpt_active = false
+        and s.special_team_count = 0
+      from public.v_customer_summary s
+      where s.customer_id = public.current_customer_id()
+    ),
+    false
+  );
+$$;
+
+drop policy if exists "news_public_read" on public.news;
+
+create policy "news_public_read" on public.news
+  for select using (
+    is_published = true
+    and (
+      public_access = 'public'
+      or (
+        public.current_customer_id() is not null
+        and not public.current_customer_is_blank_member()
+      )
+      or public.is_admin()
+    )
+  );

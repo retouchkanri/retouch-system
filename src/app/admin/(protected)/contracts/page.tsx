@@ -7,10 +7,22 @@ import ContractRow from "./ContractRow";
 
 const PAGE_SIZE = 50;
 
+type SortKey = "customer" | "plan" | "monthly" | "status" | "started" | "period_end";
+
+// 並び替え可能な列: URL の sort= 値 → 実列名（joinされたテーブルの列は foreignTable で指定）。
+const SORT_COLUMNS: Record<SortKey, { column: string; foreignTable?: string }> = {
+  customer: { column: "full_name", foreignTable: "customer" },
+  plan: { column: "name", foreignTable: "plan" },
+  monthly: { column: "monthly_amount", foreignTable: "plan" },
+  status: { column: "status" },
+  started: { column: "started_at" },
+  period_end: { column: "current_period_end" },
+};
+
 export default async function AdminContractsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; q?: string; page?: string };
+  searchParams?: { status?: string; q?: string; page?: string; sort?: string; dir?: string };
 }) {
   await requireCapability("contracts.manage");
   const supabase = createSupabaseServerClient();
@@ -18,11 +30,20 @@ export default async function AdminContractsPage({
   const q = (searchParams?.q ?? "").trim();
   const page = Math.max(1, Number(searchParams?.page ?? "1") || 1);
   const from = (page - 1) * PAGE_SIZE;
+  const activeSort: SortKey | null =
+    searchParams?.sort && searchParams.sort in SORT_COLUMNS ? (searchParams.sort as SortKey) : null;
+  const activeDir: "asc" | "desc" = searchParams?.dir === "desc" ? "desc" : "asc";
 
   let query = supabase
     .from("contracts")
-    .select("*, plan:membership_plans(name, code, monthly_amount), customer:customers(full_name, email)", { count: "exact" })
-    .order("started_at", { ascending: false });
+    .select("*, plan:membership_plans(name, code, monthly_amount), customer:customers(full_name, email)", { count: "exact" });
+  // 並び替え指定が無い場合は従来どおり契約開始日の新しい順。
+  if (activeSort) {
+    const { column, foreignTable } = SORT_COLUMNS[activeSort];
+    query = query.order(column, { ascending: activeDir === "asc", foreignTable, nullsFirst: false });
+  } else {
+    query = query.order("started_at", { ascending: false });
+  }
   if (status) query = query.eq("status", status);
 
   // Search across the whole table (customer name/email + plan name), not just
@@ -42,6 +63,17 @@ export default async function AdminContractsPage({
   const rows = (data as any[]) ?? [];
 
   const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
+
+  // 列見出しクリック用のリンク。同じ列を再クリックすると昇順⇄降順を切り替える。
+  const sortHref = (key: SortKey) => {
+    const qs = new URLSearchParams();
+    if (q) qs.set("q", q);
+    if (status) qs.set("status", status);
+    qs.set("sort", key);
+    qs.set("dir", activeSort === key && activeDir === "asc" ? "desc" : "asc");
+    return `/admin/contracts?${qs.toString()}`;
+  };
+  const sortIndicator = (key: SortKey) => (activeSort === key ? (activeDir === "asc" ? " ▲" : " ▼") : "");
 
   return (
     <div className="space-y-4">
@@ -79,12 +111,12 @@ export default async function AdminContractsPage({
           <thead>
             <tr>
               <th className="w-12 text-right">No.</th>
-              <th>顧客</th>
-              <th>プラン</th>
-              <th>月額</th>
-              <th>状態</th>
-              <th>開始</th>
-              <th>次回決済</th>
+              <th><Link href={sortHref("customer")} className="hover:underline whitespace-nowrap">顧客{sortIndicator("customer")}</Link></th>
+              <th><Link href={sortHref("plan")} className="hover:underline whitespace-nowrap">プラン{sortIndicator("plan")}</Link></th>
+              <th><Link href={sortHref("monthly")} className="hover:underline whitespace-nowrap">月額{sortIndicator("monthly")}</Link></th>
+              <th><Link href={sortHref("status")} className="hover:underline whitespace-nowrap">状態{sortIndicator("status")}</Link></th>
+              <th><Link href={sortHref("started")} className="hover:underline whitespace-nowrap">開始{sortIndicator("started")}</Link></th>
+              <th><Link href={sortHref("period_end")} className="hover:underline whitespace-nowrap">次回決済{sortIndicator("period_end")}</Link></th>
               <th>停止</th>
               <th>Stripe</th>
               <th className="col-actions">操作</th>
@@ -128,7 +160,7 @@ export default async function AdminContractsPage({
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
             <Link
               key={p}
-              href={`/admin/contracts?page=${p}${status ? `&status=${status}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              href={`/admin/contracts?page=${p}${status ? `&status=${status}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}${activeSort ? `&sort=${activeSort}&dir=${activeDir}` : ""}`}
               className={`px-3 py-1 rounded-lg border ${p === page ? "bg-brand text-white border-brand" : "border-surface-line"}`}
             >
               {p}

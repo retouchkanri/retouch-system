@@ -2,14 +2,33 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatYen, formatUnits, memberClassLabel, statusLabel } from "@/lib/format";
 import { HIDDEN_ACCOUNT_EMAILS, isHiddenAccountEmail } from "@/lib/hiddenAccounts";
-import CustomerDeleteButton from "./CustomerDeleteButton";
+import CustomerRows, { type CustomerRow, type SortableKey } from "./CustomerRows";
 
 const PAGE_SIZE = 50;
+
+// 並び替え可能な列: URL の sort= 値 → v_customer_summary の実列名。
+const SORT_COLUMNS: Record<SortableKey, string> = {
+  kana: "full_name_kana",
+  email: "email",
+  class: "member_class_code",
+  monthly: "monthly_total",
+  pay: "contract_status",
+  status: "status",
+};
 
 export default async function CustomersListPage({
   searchParams,
 }: {
-  searchParams: { q?: string; cls?: string; special?: string; status?: string; pay?: string; page?: string };
+  searchParams: {
+    q?: string;
+    cls?: string;
+    special?: string;
+    status?: string;
+    pay?: string;
+    page?: string;
+    sort?: string;
+    dir?: string;
+  };
 }) {
   const q = (searchParams.q ?? "").trim();
   const cls = searchParams.cls ?? "";
@@ -18,12 +37,19 @@ export default async function CustomersListPage({
   const pay = searchParams.pay ?? "";
   const page = Math.max(1, Number(searchParams.page ?? "1") || 1);
   const from = (page - 1) * PAGE_SIZE;
+  const activeSort: SortableKey | null =
+    searchParams.sort && searchParams.sort in SORT_COLUMNS ? (searchParams.sort as SortableKey) : null;
+  const activeDir: "asc" | "desc" = searchParams.dir === "desc" ? "desc" : "asc";
 
   const supabase = createSupabaseServerClient();
   // Base: view for aggregated info.
   // 件数は count:"exact"（サーバ側の実数）を使う。取得ページの配列長を件数として
   // 表示すると、該当者が 1 ページ分を超えた時点で表示が頭打ちになるため。
-  let query = supabase.from("v_customer_summary").select("*", { count: "exact" }).order("full_name");
+  let query = supabase.from("v_customer_summary").select("*", { count: "exact" });
+  // 並び替え指定が無い場合は従来どおり氏名（漢字）昇順。
+  query = activeSort
+    ? query.order(SORT_COLUMNS[activeSort], { ascending: activeDir === "asc", nullsFirst: false })
+    : query.order("full_name");
 
   if (q) {
     const like = `%${q}%`;
@@ -56,6 +82,46 @@ export default async function CustomersListPage({
   const rows = ((data as any[]) ?? []).filter((r) => !isHiddenAccountEmail(r.email));
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // 列見出しクリック用のリンク。同じ列を再クリックすると昇順⇄降順を切り替える。
+  // 並び替えを変えたら 1 ページ目に戻す。
+  const sortLinks = Object.keys(SORT_COLUMNS).reduce((acc, key) => {
+    const qs = new URLSearchParams();
+    if (q) qs.set("q", q);
+    if (cls) qs.set("cls", cls);
+    if (special) qs.set("special", special);
+    if (status) qs.set("status", status);
+    if (pay) qs.set("pay", pay);
+    qs.set("sort", key);
+    qs.set("dir", activeSort === key && activeDir === "asc" ? "desc" : "asc");
+    acc[key as SortableKey] = `/admin/customers?${qs.toString()}`;
+    return acc;
+  }, {} as Record<SortableKey, string>);
+
+  const customerRows: CustomerRow[] = rows.map((r, i) => {
+    const teamNames: string[] = Array.isArray(r.special_team_names) ? r.special_team_names : [];
+    const hasSpecial = (r.special_team_count ?? 0) > 0 || r.rpt_active;
+    return {
+      customer_id: r.customer_id,
+      index: from + i + 1,
+      full_name: r.full_name,
+      email: r.email ?? null,
+      classLabel: r.primary_plan_name ?? memberClassLabel(r.member_class_code),
+      supportLabel:
+        (r.total_support_horses ?? 0) > 0
+          ? `${r.total_support_horses}頭 / ${formatUnits(r.total_support_units ?? 0)}`
+          : "—",
+      hasSpecial,
+      rptActive: Boolean(r.rpt_active),
+      teamNames,
+      monthlyLabel: formatYen(r.monthly_total ?? 0),
+      contractStatusLabel: statusLabel(r.contract_status ?? "—"),
+      contractStatusChipClass:
+        r.contract_status === "past_due" ? "chip-error" : r.contract_status === "active" ? "chip-ok" : "chip-mute",
+      memberStatusLabel: statusLabel(r.status ?? "active"),
+      eligibleFree: r.member_class_code == null && r.rpt_active === false && (r.special_team_count ?? 0) === 0,
+    };
+  });
 
   return (
     <div className="space-y-4">
@@ -105,74 +171,7 @@ export default async function CustomersListPage({
 
       {error && <div className="card text-danger">{error.message}</div>}
 
-      <div className="card p-0 overflow-auto">
-        <table className="table">
-          <thead>
-            <tr>
-              <th className="w-12 text-right">No.</th>
-              <th>氏名</th>
-              <th>メール</th>
-              <th>会員種別</th>
-              <th>支援数</th>
-              <th>特別参加</th>
-              <th>月額</th>
-              <th>決済状態</th>
-              <th>状態</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const teamNames: string[] = Array.isArray(r.special_team_names) ? r.special_team_names : [];
-              const hasSpecial = (r.special_team_count ?? 0) > 0 || r.rpt_active;
-              return (
-                <tr key={r.customer_id} className="hover:bg-surface-soft">
-                  <td className="text-right text-ink-mute tabular-nums">{from + i + 1}</td>
-                  <td className="font-semibold">{r.full_name}</td>
-                  <td>{r.email ?? "—"}</td>
-                  <td>{r.primary_plan_name ?? memberClassLabel(r.member_class_code)}</td>
-                  <td className="whitespace-nowrap">
-                    {(r.total_support_horses ?? 0) > 0
-                      ? `${r.total_support_horses}頭 / ${formatUnits(r.total_support_units ?? 0)}`
-                      : "—"}
-                  </td>
-                  <td>
-                    {hasSpecial ? (
-                      <span className="flex flex-wrap gap-1">
-                        {r.rpt_active && <span className="chip-mute">リタポ</span>}
-                        {teamNames.map((name) => (
-                          <span key={name} className="chip-mute">{name}</span>
-                        ))}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td>{formatYen(r.monthly_total ?? 0)}</td>
-                  <td>
-                    <span className={
-                      r.contract_status === "past_due" ? "chip-error" :
-                      r.contract_status === "active" ? "chip-ok" :
-                      r.contract_status ? "chip-mute" : "chip-mute"
-                    }>
-                      {statusLabel(r.contract_status ?? "—")}
-                    </span>
-                  </td>
-                  <td>{statusLabel(r.status ?? "active")}</td>
-                  <td className="text-right whitespace-nowrap">
-                    <Link href={`/admin/customers/${r.customer_id}`} className="text-brand underline">詳細</Link>
-                    <span className="mx-1 text-ink-mute">|</span>
-                    <CustomerDeleteButton id={r.customer_id} name={r.full_name ?? "この顧客"} />
-                  </td>
-                </tr>
-              );
-            })}
-            {rows.length === 0 && (
-              <tr><td colSpan={10} className="text-center text-ink-mute py-6">該当する顧客がいません。</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <CustomerRows rows={customerRows} sortLinks={sortLinks} activeSort={activeSort} activeDir={activeDir} />
 
       {totalPages > 1 && (
         <div className="flex justify-center gap-2">
@@ -183,6 +182,8 @@ export default async function CustomersListPage({
             if (special) qs.set("special", special);
             if (status) qs.set("status", status);
             if (pay) qs.set("pay", pay);
+            if (activeSort) qs.set("sort", activeSort);
+            if (activeSort) qs.set("dir", activeDir);
             qs.set("page", String(n));
             return (
               <Link

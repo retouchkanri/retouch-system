@@ -355,7 +355,7 @@ export default function NewsForm({ initial, id }: { initial?: any; id?: string }
             <span>会員限定</span>
           </label>
         </div>
-        <p className="text-xs text-ink-mute mt-1">「会員限定」を選択すると、ログイン中の会員のみ閲覧できます。</p>
+        <p className="text-xs text-ink-mute mt-1">「会員限定」を選択すると、ログイン中の会員のうち、プラン未加入（空白）の会員を除いて閲覧できます。</p>
       </div>
 
       {msg && <p className={`text-sm ${msg === "保存しました。" ? "text-ok" : "text-danger"}`}>{msg}</p>}
