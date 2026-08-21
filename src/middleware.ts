@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient, type SetAllCookies } from "@supabase/ssr";
 import { safeGetUser } from "@/lib/supabase/safe-auth";
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -35,19 +35,22 @@ export async function middleware(request: NextRequest) {
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     global: { fetch: fetchWithTimeout },
     cookies: {
-      get(name: string) {
-        return request.cookies.get(name)?.value;
+      getAll() {
+        return request.cookies.getAll();
       },
-      set(name: string, value: string, options: CookieOptions) {
-        request.cookies.set({ name, value, ...options });
+      // Supabase sessions are often split across several chunked cookies
+      // (sb-xxx-auth-token.0, .1, ...). setAll() receives them as one batch —
+      // `response` must only be recreated ONCE per batch, otherwise each
+      // reassignment discards the Set-Cookie headers written for earlier
+      // chunks in the same batch, corrupting the session and causing
+      // "Invalid Refresh Token" errors on the next request.
+      setAll: ((cookiesToSet) => {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request: { headers: request.headers } });
-        response.cookies.set({ name, value, ...options });
-      },
-      remove(name: string, options: CookieOptions) {
-        request.cookies.set({ name, value: "", ...options });
-        response = NextResponse.next({ request: { headers: request.headers } });
-        response.cookies.set({ name, value: "", ...options });
-      },
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options),
+        );
+      }) satisfies SetAllCookies,
     },
   });
 

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "./supabase/server";
 import { createSupabaseAdminClient } from "./supabase/admin";
@@ -13,7 +14,10 @@ export type SessionInfo = {
   hasActiveRpt: boolean;
 };
 
-export async function getSession(): Promise<SessionInfo | null> {
+// Wrapped in React's cache() so the many Server Components rendered for a
+// single request (header, page, HorsesSupportSection, ...) share one
+// Supabase auth call instead of each racing to refresh the session cookie.
+export const getSession = cache(async (): Promise<SessionInfo | null> => {
   try {
     const supabase = createSupabaseServerClient();
     const { user } = await safeGetUser(supabase);
@@ -83,7 +87,7 @@ export async function getSession(): Promise<SessionInfo | null> {
     }
     return null;
   }
-}
+});
 
 export async function requireMember(): Promise<SessionInfo> {
   const session = await getSession();

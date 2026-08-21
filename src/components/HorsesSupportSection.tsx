@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSession } from "@/lib/auth";
 import { formatUnits } from "@/lib/format";
 import { compareHorsesForDisplay, isEmergencyRecruitmentHorse } from "@/lib/horses";
 import { fetchAllRows } from "@/lib/fetchAll";
@@ -42,15 +42,10 @@ export default async function HorsesSupportSection({
 }: Props = {}) {
   const admin = createSupabaseAdminClient();
 
-  // ユーザーのログイン状態を確認（エラーは無視してゲスト扱い）
-  let isLoggedIn = false;
-  try {
-    const supabase = createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    isLoggedIn = !!session;
-  } catch {
-    // セッション取得失敗 → ゲスト扱い
-  }
+  // ユーザーのログイン状態を確認（getSession() は React cache() でリクエスト単位に
+  // 共有されるため、ヘッダー等と合わせて重複した Supabase 認証呼び出しを避けられる）
+  const session = await getSession();
+  const isLoggedIn = !!session;
 
   // 支援口数・支援者数は全件を合計する必要がある。素のクエリは PostgREST の
   // 1000 行上限で黙って打ち切られ、公開ページの口数が過少表示になるためページングする。
@@ -130,7 +125,11 @@ export default async function HorsesSupportSection({
                 {/* Top: image + name row */}
                 <div className="flex items-center gap-3 p-3">
                   {emergency ? (
-                    <EmergencyHorseImage name={horse.name} sizeClass="w-14 h-14" />
+                    <EmergencyHorseImage
+                      name={horse.name}
+                      sizeClass="w-14 h-14"
+                      imageUrl={horse.image_url}
+                    />
                   ) : (
                     <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-brand-50">
                       {horse.image_url ? (

@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient, type SetAllCookies } from "@supabase/ssr";
 
 const fetchWithTimeout = async (input: RequestInfo | URL, init?: RequestInit) => {
   const timeoutPromise = new Promise<Response>((resolve) => {
@@ -30,24 +30,22 @@ export function createSupabaseServerClient() {
     {
       global: { fetch: fetchWithTimeout },
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
+        getAll() {
+          return cookieStore.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
+        // Chunked session cookies must be written as a single batch (see
+        // middleware.ts for why) — Route Handlers/Server Actions can write
+        // cookies, Server Components cannot, hence the blanket try/catch.
+        setAll: ((cookiesToSet) => {
           try {
-            cookieStore.set({ name, value, ...options });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options),
+            );
           } catch {
             // Called from a Server Component where cookies cannot be set.
             // Middleware handles token refresh so this is safe to ignore.
           }
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value: "", ...options });
-          } catch {
-            /* ignored: readonly context */
-          }
-        },
+        }) satisfies SetAllCookies,
       },
     },
   );

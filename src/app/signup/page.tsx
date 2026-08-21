@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import AuthPageLayout from "@/components/AuthPageLayout";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSession } from "@/lib/auth";
 import SignupForm from "./SignupForm";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function SignupPage() {
-  const supabase = createSupabaseServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const session = await getSession();
   if (session) redirect("/mypage");
 
   return (

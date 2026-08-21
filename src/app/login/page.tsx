@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import AuthPageLayout from "@/components/AuthPageLayout";
 import AuthModalHeader from "@/components/AuthModalHeader";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSession } from "@/lib/auth";
 import LoginForm from "./LoginForm";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +18,7 @@ export default async function LoginPage({
 }: {
   searchParams: { next?: string; error?: string };
 }) {
-  const supabase = createSupabaseServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const session = await getSession();
   if (session) redirect(searchParams.next ?? "/mypage");
 
   return (

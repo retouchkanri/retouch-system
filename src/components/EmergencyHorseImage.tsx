@@ -2,11 +2,14 @@ type Props = {
   name: string;
   /** Tailwind size class for width/height, e.g. w-14 h-14 */
   sizeClass?: string;
+  /** Photo URL once available; falls back to the "準備中" placeholder when absent. */
+  imageUrl?: string | null;
 };
 
 export default function EmergencyHorseImage({
   name,
   sizeClass = "w-14 h-14",
+  imageUrl,
 }: Props) {
   return (
     <div className={`emergency-horse-thumb shrink-0 ${sizeClass}`}>
@@ -22,13 +25,18 @@ export default function EmergencyHorseImage({
         }}
         aria-hidden
       />
-      <div
-        className="emergency-horse-thumb__inner flex items-center justify-center bg-gray-200"
-        aria-label={name}
-      >
-        <span className="text-[10px] sm:text-xs font-bold text-gray-500 leading-tight text-center px-1">
-          準備中
-        </span>
+      <div className="emergency-horse-thumb__inner flex items-center justify-center bg-gray-200">
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+        ) : (
+          <span
+            aria-label={name}
+            className="text-[10px] sm:text-xs font-bold text-gray-500 leading-tight text-center px-1"
+          >
+            準備中
+          </span>
+        )}
       </div>
     </div>
   );
