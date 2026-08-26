@@ -47,18 +47,29 @@ export async function POST(req: Request) {
             .eq("id", donationId);
           const { data: donation } = await admin.from("donations").select("*").eq("id", donationId).maybeSingle();
           if (donation) {
-            await admin.from("payments").insert({
-              customer_id: (donation as any).customer_id,
-              donation_id: (donation as any).id,
-              kind: "donation",
-              amount: (donation as any).amount,
-              currency: "jpy",
-              status: "succeeded",
-              stripe_event_id: event.id,
-              stripe_payment_intent_id: (session.payment_intent as string) ?? null,
-              occurred_at: new Date(session.created * 1000).toISOString(),
-              raw: session as any,
-            });
+            // Stripe may redeliver the same event (retry on timeout/non-2xx),
+            // so guard the insert against creating a second payments row for
+            // the same donation — otherwise the donor's history shows the
+            // same transaction twice.
+            const { data: existingPayment } = await admin
+              .from("payments")
+              .select("id")
+              .eq("donation_id", (donation as any).id)
+              .maybeSingle();
+            if (!existingPayment) {
+              await admin.from("payments").insert({
+                customer_id: (donation as any).customer_id,
+                donation_id: (donation as any).id,
+                kind: "donation",
+                amount: (donation as any).amount,
+                currency: "jpy",
+                status: "succeeded",
+                stripe_event_id: event.id,
+                stripe_payment_intent_id: (session.payment_intent as string) ?? null,
+                occurred_at: new Date(session.created * 1000).toISOString(),
+                raw: session as any,
+              });
+            }
 
             // Send thank-you email
             const donorEmail = (donation as any).donor_email
@@ -234,6 +245,38 @@ export async function POST(req: Request) {
           .eq("stripe_customer_id", stripeCustomerId)
           .maybeSingle();
 
+        // Stripe can deliver the SAME webhook event more than once (retry on
+        // timeout/slow response), and our previous code unconditionally
+        // inserted a `payments` row every time — causing the same real
+        // charge to show up 2-3 times in a supporter's history (reported
+        // 2026-08: same invoice/timestamp, 2 succeeded + 1 failed rows for a
+        // single real charge). `event.id` is stable across redeliveries of
+        // the same event, so skip if we've already recorded it.
+        const { data: alreadyRecorded } = await admin
+          .from("payments")
+          .select("id")
+          .eq("stripe_event_id", event.id)
+          .maybeSingle();
+        if (alreadyRecorded) break;
+
+        // Smart Retries can resolve a failed charge moments later with a
+        // separate "invoice.payment_succeeded" event, but by the time we
+        // process a stale "invoice.payment_failed" event the invoice may
+        // already be paid — re-check its live status so we don't send a
+        // false "payment failed" email / demote the contract to past_due
+        // for a payment that actually succeeded (reported 2026-08: card was
+        // charged once successfully but a payment_failed email still arrived).
+        let effectiveType: typeof event.type = event.type;
+        if (event.type === "invoice.payment_failed") {
+          try {
+            const fresh = await stripe.invoices.retrieve(invoice.id);
+            if (fresh.status === "paid") effectiveType = "invoice.payment_succeeded";
+          } catch {
+            // Keep treating as failed if we can't verify the live status.
+          }
+        }
+        const isSucceeded = effectiveType === "invoice.payment_succeeded";
+
         // --- 特別チーム会員の専用サブスク請求は専用テーブルを更新 ---
         if (invoice.subscription) {
           const { data: stRows } = await admin
@@ -247,20 +290,20 @@ export async function POST(req: Request) {
               kind: "subscription",
               amount: invoice.amount_paid || invoice.amount_due || 0,
               currency: invoice.currency,
-              status: event.type === "invoice.payment_succeeded" ? "succeeded" : "failed",
+              status: isSucceeded ? "succeeded" : "failed",
               stripe_event_id: event.id,
               stripe_invoice_id: invoice.id,
-              failure_reason: event.type === "invoice.payment_failed" ? (invoice.last_finalization_error?.message ?? null) : null,
+              failure_reason: !isSucceeded ? (invoice.last_finalization_error?.message ?? null) : null,
               occurred_at: new Date((invoice.status_transitions.paid_at ?? invoice.created) * 1000).toISOString(),
               raw: invoice as any,
             });
-            const newStatus = event.type === "invoice.payment_succeeded" ? "active" : "past_due";
+            const newStatus = isSucceeded ? "active" : "past_due";
             await admin
               .from("special_team_memberships")
               .update({ status: newStatus })
               .eq("stripe_subscription_id", invoice.subscription as string)
               .in("status", ["active", "past_due", "incomplete"]);
-            if (event.type === "invoice.payment_failed") {
+            if (!isSucceeded) {
               const { data: fullCust } = await admin
                 .from("customers")
                 .select("full_name, email")
@@ -296,16 +339,16 @@ export async function POST(req: Request) {
           kind: "subscription",
           amount: invoice.amount_paid || invoice.amount_due || 0,
           currency: invoice.currency,
-          status: event.type === "invoice.payment_succeeded" ? "succeeded" : "failed",
+          status: isSucceeded ? "succeeded" : "failed",
           stripe_event_id: event.id,
           stripe_invoice_id: invoice.id,
-          failure_reason: event.type === "invoice.payment_failed" ? (invoice.last_finalization_error?.message ?? null) : null,
+          failure_reason: !isSucceeded ? (invoice.last_finalization_error?.message ?? null) : null,
           occurred_at: new Date((invoice.status_transitions.paid_at ?? invoice.created) * 1000).toISOString(),
           raw: invoice as any,
         });
 
         // --- 決済失敗 → past_due 化 + メール通知 ---
-        if (event.type === "invoice.payment_failed" && contract) {
+        if (!isSucceeded && contract) {
           await admin.from("contracts").update({ status: "past_due" }).eq("id", (contract as any).id);
           await admin
             .from("support_subscriptions")
@@ -336,7 +379,7 @@ export async function POST(req: Request) {
         }
 
         // --- 決済成功 → past_due から復帰 + next_period_end 更新 ---
-        if (event.type === "invoice.payment_succeeded" && contract) {
+        if (isSucceeded && contract) {
           const nextPeriodEnd = invoice.lines?.data?.[0]?.period?.end;
           await admin
             .from("contracts")

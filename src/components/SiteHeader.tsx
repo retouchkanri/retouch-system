@@ -38,8 +38,18 @@ export default async function SiteHeader() {
 
   return (
     <>
-      <header className="site-header sticky top-0 z-[100] w-full shrink-0 bg-white/95 backdrop-blur border-b border-surface-line overflow-visible">
-        <div className="w-full max-w-[100vw] flex items-center justify-between gap-3 py-3 px-[5vw] overflow-x-clip overflow-y-visible">
+      <header className="site-header sticky top-0 z-[100] w-full shrink-0 border-b border-surface-line overflow-visible">
+        {/*
+          iOS Safari has a known WebKit bug where `backdrop-filter` applied
+          directly to a `position: sticky` element can break touch
+          hit-testing for its interactive descendants — taps land but never
+          reach the button/link underneath (reported 2026-08: tapping the
+          header user menu on iPhone did nothing). Moving the blur onto its
+          own background layer, kept behind the real (unfiltered) content via
+          DOM order, keeps the same frosted-glass look without breaking taps.
+        */}
+        <div aria-hidden className="absolute inset-0 bg-white/95 backdrop-blur" />
+        <div className="relative w-full max-w-[100vw] flex items-center justify-between gap-3 py-3 px-[5vw] overflow-x-clip overflow-y-visible">
           <Link
             href="/"
             className="flex items-center min-w-0 gap-3 shrink transition-transform duration-200 hover:scale-105"

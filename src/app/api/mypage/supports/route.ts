@@ -56,15 +56,30 @@ export async function POST(req: Request) {
   }
 
   // 併用制約チェック（基本会員区分 A/B/C/OWNER と支援会員は併用不可）
-  const { data: activeContract } = await supabase
+  //
+  // RPT 等は支援会員と併用できるため、顧客が active/past_due の契約を複数
+  // 持っているケースは正常にあり得る。以前は .maybeSingle() で1件のみ取得
+  // していたため、複数件ヒットすると（エラーになり）null 扱いとなり、
+  // 既存の支援契約を見つけられず毎回新しい契約＋Stripeサブスクリプションを
+  // 作成してしまうバグがあった（1顧客が馬を追加するたびに別々のサブスク
+  // リプションが増殖し、"item already using that Price" 等の同期エラーを
+  // 誘発していた）。全件取得してプランコードで目的別に判定する。
+  const { data: activeContracts } = await supabase
     .from("contracts")
     .select("*, plan:membership_plans(code, name)")
     .eq("customer_id", session.customerId)
-    .in("status", ["active", "past_due"])
-    .maybeSingle();
-  const basicCode = (activeContract as any)?.plan?.code as string | undefined;
+    .in("status", ["active", "past_due"]);
+  const basicContract = (activeContracts ?? []).find((c: any) =>
+    isBasicMemberPlanCode(c.plan?.code),
+  );
+  // 既存の支援会員契約を再利用する。Stripeサブスクリプション済みのものを
+  // 優先し、複数の支援契約が残っている場合でも新規契約を作らず1つに集約する。
+  const supportContracts = (activeContracts ?? []).filter((c: any) => c.plan?.code === "SUPPORT");
+  const activeContract =
+    supportContracts.find((c: any) => c.stripe_subscription_id) ?? supportContracts[0] ?? null;
+  const basicCode = (basicContract as any)?.plan?.code as string | undefined;
   if (basicCode && isBasicMemberPlanCode(basicCode)) {
-    const conflictId = (activeContract as any)?.id as string;
+    const conflictId = (basicContract as any)?.id as string;
     // クライアントから cancel_contract_id が送られてきた場合は自動解約して続行する。
     // ID が一致していることを確認してから処理（なりすまし防止）。
     if (!cancel_contract_id || cancel_contract_id !== conflictId) {
@@ -75,7 +90,7 @@ export async function POST(req: Request) {
     }
 
     // Stripe サブスクリプションのキャンセル（存在する場合）
-    const stripeSubId = (activeContract as any)?.stripe_subscription_id as string | null;
+    const stripeSubId = (basicContract as any)?.stripe_subscription_id as string | null;
     if (stripeSubId) {
       const stripe = getStripe();
       if (stripe) {

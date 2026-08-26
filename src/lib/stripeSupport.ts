@@ -196,6 +196,44 @@ function toQuantity(monthlyAmount: number, baseUnitAmount: number): number {
 }
 
 /**
+ * Stripe rejects `subscriptionItems.create` with "A new item with Price ...
+ * can't be added to this Subscription because an existing Subscription Item
+ * ... is already using that Price" whenever a SECOND item on the SAME
+ * subscription would reuse an already-used Price id. Since every support
+ * item shares one global quantum price (see SUPPORT_STRIPE_QUANTUM), this
+ * fires reliably the moment a supporter who already supports one horse adds
+ * support for a second horse — the existing item on their subscription is
+ * already using that price. (Reproduced from the 2026-08 report: repeated
+ * "support.create.sync_failed" for a supporter's 2nd horse.)
+ *
+ * Fix: only reuse the shared base price when it is NOT already attached to
+ * an item on this subscription; otherwise mint a same-amount price scoped to
+ * this one new item. Future quantity changes are made via the item's own id
+ * (see syncSupportUpdate), so this ad-hoc price never needs to be looked up
+ * again — it's fine for each additional horse to end up with its own price.
+ */
+async function resolvePriceForNewItem(
+  stripe: Stripe,
+  subscriptionId: string,
+  base: { unit_amount: number; stripe_price_id: string },
+): Promise<string> {
+  const items = await stripe.subscriptionItems.list({ subscription: subscriptionId, limit: 100 });
+  const inUse = items.data.some((it) => {
+    const priceId = typeof it.price === "string" ? it.price : it.price?.id;
+    return priceId === base.stripe_price_id;
+  });
+  if (!inUse) return base.stripe_price_id;
+
+  const price = await stripe.prices.create({
+    currency: "jpy",
+    unit_amount: base.unit_amount,
+    recurring: { interval: "month" },
+    product_data: { name: "Retouchメンバーズ 支援（半口単位）" },
+  });
+  return price.id;
+}
+
+/**
  * Create or update the Stripe subscription item for a given support row.
  * Safe to call with or without Stripe configured; returns synced=false
  * when Stripe is disabled so the caller can continue DB-only work.
@@ -273,9 +311,14 @@ export async function syncSupportCreate(params: {
   }
 
   // Subscription exists but no item yet: add a new item.
+  const priceForNewItem = await resolvePriceForNewItem(
+    stripe,
+    params.contract.stripe_subscription_id,
+    base,
+  );
   const item = await stripe.subscriptionItems.create({
     subscription: params.contract.stripe_subscription_id,
-    price: base.stripe_price_id,
+    price: priceForNewItem,
     quantity: qty,
     metadata,
     proration_behavior: "create_prorations",
