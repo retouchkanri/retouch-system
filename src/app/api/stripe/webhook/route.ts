@@ -158,15 +158,41 @@ export async function POST(req: Request) {
           const currentPeriodEndIso = sub.current_period_end
             ? new Date(sub.current_period_end * 1000).toISOString()
             : null;
-          await admin.from("contracts").upsert(
-            {
-              customer_id: (customer as any).id,
-              stripe_subscription_id: sub.id,
-              status: mappedStatus,
-              current_period_end: currentPeriodEndIso,
-            },
-            { onConflict: "stripe_subscription_id" },
-          );
+
+          // For a brand-new subscription, this "created" webhook can arrive
+          // BEFORE our own API request (which created the subscription) has
+          // finished writing stripe_subscription_id onto the contract it
+          // just made. Upserting on conflict=stripe_subscription_id then
+          // finds no match and INSERTS a stray duplicate contract row (with
+          // plan_id null) instead of updating the real one — reported
+          // 2026-08-27: a customer ended up with two contracts, one orphaned
+          // with plan_id=null. Every subscription-creating flow
+          // (stripeSupport.ts / plan.ts) stamps `metadata.contract_id`, so
+          // prefer that exact match first.
+          const metaContractId = (sub.metadata as any)?.contract_id as string | undefined;
+          const { data: byMeta } = metaContractId
+            ? await admin.from("contracts").select("id").eq("id", metaContractId).maybeSingle()
+            : { data: null };
+          if (byMeta) {
+            await admin
+              .from("contracts")
+              .update({
+                stripe_subscription_id: sub.id,
+                status: mappedStatus,
+                current_period_end: currentPeriodEndIso,
+              })
+              .eq("id", (byMeta as any).id);
+          } else {
+            await admin.from("contracts").upsert(
+              {
+                customer_id: (customer as any).id,
+                stripe_subscription_id: sub.id,
+                status: mappedStatus,
+                current_period_end: currentPeriodEndIso,
+              },
+              { onConflict: "stripe_subscription_id" },
+            );
+          }
 
           // 紐づく contract の支援行にも同じステータスを反映。
           //  - active   : 会員画面で「正常」表示

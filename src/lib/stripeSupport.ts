@@ -109,6 +109,62 @@ async function ensureSupportBasePrice(): Promise<{
   return { unit_amount: quantum, stripe_price_id: price.id };
 }
 
+/**
+ * Stripe Link payment methods (`type: "link"`) cannot be charged off-session
+ * until the customer has completed one on-session confirmation — Stripe
+ * rejects `off_session: true` confirmation with "The customer needs to be
+ * on-session ... setup_future_usage is also set". Since every new
+ * subscription we create here bills automatically with no user present,
+ * defaulting to a customer whose `invoice_settings.default_payment_method`
+ * is a Link method leaves the subscription stuck `incomplete` and it
+ * auto-expires ~23h later with nobody able to fix it (reported 2026-08:
+ * a legacy contract's subscription silently died this way, permanently
+ * breaking every future edit to the 4 horses under it with raw Stripe
+ * errors like "No such subscription" / "cannot update ... incomplete_expired").
+ *
+ * If the customer's default is a Link method but they also have a regular
+ * reusable card on file (common — Link is often just the LAST method they
+ * happened to save), prefer that card explicitly so the first charge can
+ * succeed immediately without requiring any interactive step.
+ */
+async function resolveOffSessionPaymentMethod(
+  stripe: Stripe,
+  stripeCustomerId: string,
+): Promise<string | undefined> {
+  try {
+    const customer = await stripe.customers.retrieve(stripeCustomerId);
+    if ((customer as any).deleted) return undefined;
+    const defaultPmId = (customer as Stripe.Customer).invoice_settings?.default_payment_method;
+    if (!defaultPmId) return undefined;
+    const defaultPmIdStr = typeof defaultPmId === "string" ? defaultPmId : defaultPmId.id;
+    const defaultPm = await stripe.paymentMethods.retrieve(defaultPmIdStr);
+    if (defaultPm.type !== "link") return undefined; // already off-session-safe
+
+    const cards = await stripe.paymentMethods.list({ customer: stripeCustomerId, type: "card" });
+    return cards.data[0]?.id;
+  } catch {
+    return undefined; // best-effort; fall back to the account default
+  }
+}
+
+/**
+ * A contract's `stripe_subscription_id` can point to a subscription that
+ * has since died — canceled, or auto-expired from `incomplete` after the
+ * customer never completed an initial 3DS/Link confirmation — without our
+ * DB ever finding out (reported 2026-08). Treat those the same as "no
+ * subscription yet" so callers can self-heal by creating a fresh one
+ * instead of crashing on a raw Stripe error.
+ */
+async function isSubscriptionLive(stripe: Stripe, subscriptionId: string): Promise<boolean> {
+  try {
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    return sub.status !== "canceled" && sub.status !== "incomplete_expired";
+  } catch (e: any) {
+    if (e?.code === "resource_missing") return false;
+    throw e;
+  }
+}
+
 export async function ensureStripeCustomer(customer: CustomerRow): Promise<string | null> {
   if (customer.stripe_customer_id) return customer.stripe_customer_id;
   const stripe = getStripe();
@@ -153,15 +209,49 @@ async function ensureContractSubscription(
       requiresPayment: false,
     };
   }
-  const sub = await stripe.subscriptions.create({
+  const defaultPaymentMethod = await resolveOffSessionPaymentMethod(stripe, stripeCustomerId);
+  let sub = await stripe.subscriptions.create({
     customer: stripeCustomerId,
+    ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
     items: [{ price: basePriceId, quantity: initialQuantity, metadata }],
     collection_method: "charge_automatically",
     payment_behavior: "default_incomplete",
     proration_behavior: "create_prorations",
     metadata: { contract_id: contract.id },
-    expand: ["latest_invoice"],
+    expand: ["latest_invoice.payment_intent"],
   });
+
+  // `payment_behavior: "default_incomplete"` intentionally leaves the first
+  // invoice's PaymentIntent sitting at `requires_confirmation` — Stripe
+  // never auto-confirms it for us. Left as-is, the customer would have to
+  // find and complete the hosted invoice link before the subscription ever
+  // becomes billable (and if they don't within ~23h, it auto-expires into a
+  // permanently dead subscription — see isSubscriptionLive() above, added
+  // after exactly that happened in a 2026-08 report). Try to confirm it
+  // ourselves right away: this succeeds immediately for the vast majority
+  // of saved cards (no interactive step needed), and safely falls back to
+  // the existing checkout_url flow below for the minority that genuinely
+  // need 3DS or an interactive Link confirmation.
+  {
+    const invoice0 = typeof sub.latest_invoice === "string" ? null : sub.latest_invoice;
+    const pi0 =
+      invoice0 && invoice0.payment_intent && typeof invoice0.payment_intent !== "string"
+        ? invoice0.payment_intent
+        : null;
+    if (pi0 && pi0.status === "requires_confirmation") {
+      try {
+        await stripe.paymentIntents.confirm(
+          pi0.id,
+          defaultPaymentMethod ? { payment_method: defaultPaymentMethod } : undefined,
+        );
+        sub = await stripe.subscriptions.retrieve(sub.id, { expand: ["latest_invoice"] });
+      } catch {
+        // Declined, requires 3DS, etc. — leave the subscription incomplete;
+        // the checkout_url fallback below lets the customer complete it.
+      }
+    }
+  }
+
   const admin = createSupabaseAdminClient();
   await admin
     .from("contracts")
@@ -284,10 +374,21 @@ export async function syncSupportCreate(params: {
     };
   }
 
-  // No subscription yet: create it with this item.
-  if (!params.contract.stripe_subscription_id) {
+  // A previously-linked subscription can have died since (canceled, or
+  // auto-expired from `incomplete` because the customer never completed an
+  // initial 3DS/Link confirmation) without our DB ever finding out. Treat
+  // that the same as "no subscription yet" instead of crashing with a raw
+  // "No such subscription" / "cannot update ... incomplete_expired" error
+  // (reported 2026-08: this permanently broke every future edit for a
+  // contract's horses once its subscription died).
+  const hasLiveSubscription =
+    !!params.contract.stripe_subscription_id &&
+    (await isSubscriptionLive(stripe, params.contract.stripe_subscription_id));
+
+  // No (live) subscription yet: create one with this item.
+  if (!hasLiveSubscription) {
     const ensured = await ensureContractSubscription(
-      params.contract,
+      { ...params.contract, stripe_subscription_id: null },
       stripeCustomerId,
       base.stripe_price_id,
       qty,
@@ -295,9 +396,18 @@ export async function syncSupportCreate(params: {
     );
     const admin = createSupabaseAdminClient();
     if (ensured.initialItemId) {
+      // A row healed back onto a fresh subscription is live again — clear
+      // any stale "canceled" status left over from the dead subscription
+      // (the webhook's contract-wide cascade only re-activates rows already
+      // in active/past_due/incomplete, so a canceled row would otherwise
+      // stay stuck displaying "canceled" forever despite billing fine).
       await admin
         .from("support_subscriptions")
-        .update({ stripe_subscription_item_id: ensured.initialItemId })
+        .update({
+          stripe_subscription_item_id: ensured.initialItemId,
+          status: ensured.requiresPayment ? "incomplete" : "active",
+          canceled_at: null,
+        })
         .eq("id", params.support.id);
     }
     return {
@@ -313,11 +423,11 @@ export async function syncSupportCreate(params: {
   // Subscription exists but no item yet: add a new item.
   const priceForNewItem = await resolvePriceForNewItem(
     stripe,
-    params.contract.stripe_subscription_id,
+    params.contract.stripe_subscription_id!,
     base,
   );
   const item = await stripe.subscriptionItems.create({
-    subscription: params.contract.stripe_subscription_id,
+    subscription: params.contract.stripe_subscription_id!,
     price: priceForNewItem,
     quantity: qty,
     metadata,
@@ -326,7 +436,7 @@ export async function syncSupportCreate(params: {
   const admin = createSupabaseAdminClient();
   await admin
     .from("support_subscriptions")
-    .update({ stripe_subscription_item_id: item.id })
+    .update({ stripe_subscription_item_id: item.id, status: "active", canceled_at: null })
     .eq("id", params.support.id);
   return {
     synced: true,
@@ -383,7 +493,18 @@ export async function syncSupportCancel(params: {
   if (!params.stripe_subscription_item_id) return { synced: false, reason: "item_missing" };
 
   if (params.stripe_subscription_id) {
-    const sub = await stripe.subscriptions.retrieve(params.stripe_subscription_id);
+    // The subscription may already be dead (canceled, or expired from
+    // `incomplete`) — that's already the end state a "stop" is asking for,
+    // so treat it as already-canceled instead of erroring out.
+    let sub: Stripe.Subscription | null = null;
+    try {
+      sub = await stripe.subscriptions.retrieve(params.stripe_subscription_id);
+    } catch (e: any) {
+      if (e?.code !== "resource_missing") throw e;
+    }
+    if (!sub || sub.status === "canceled" || sub.status === "incomplete_expired") {
+      return { synced: true, stripe_subscription_id: params.stripe_subscription_id, scheduled_cancel_at: null };
+    }
     const isLastItem = sub.items.data.length <= 1;
 
     if (isLastItem) {
