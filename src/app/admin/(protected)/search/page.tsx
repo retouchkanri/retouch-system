@@ -70,7 +70,7 @@ export default async function AdminSearchPage({
         supabase
           .from("customers")
           .select(
-            "id, full_name, full_name_kana, email, phone, status, avatar_url, joined_at",
+            "id, full_name, full_name_kana, email, phone, username, status, avatar_url, joined_at",
             { count: "exact" },
           )
           .or(
@@ -79,6 +79,7 @@ export default async function AdminSearchPage({
               `full_name_kana.ilike.${like}`,
               `email.ilike.${like}`,
               `phone.ilike.${like}`,
+              `username.ilike.${like}`,
               `postal_code.ilike.${like}`,
               `address1.ilike.${like}`,
               `address2.ilike.${like}`,
@@ -130,7 +131,7 @@ export default async function AdminSearchPage({
         const { data, count } = await supabase
           .from("customers")
           .select(
-            "id, full_name, full_name_kana, email, phone, status, avatar_url, joined_at",
+            "id, full_name, full_name_kana, email, phone, username, status, avatar_url, joined_at",
             { count: "exact" },
           )
           .in("id", customerIds)
@@ -277,7 +278,7 @@ export default async function AdminSearchPage({
         <input
           name="q"
           defaultValue={q}
-          placeholder="氏名 / メール / 電話 / 馬名 / 社内メモ / Stripe ID など"
+          placeholder="氏名 / メール / 電話 / ユーザー名 / 馬名 / 社内メモ / Stripe ID など"
           className="input flex-1 min-w-[260px]"
           autoFocus
         />
@@ -321,6 +322,7 @@ export default async function AdminSearchPage({
                 <th className="w-12 text-right">No.</th>
                 <th></th>
                 <th>氏名</th>
+                <th>ユーザー名</th>
                 <th>メール</th>
                 <th>電話</th>
                 <th>状態</th>
@@ -344,6 +346,7 @@ export default async function AdminSearchPage({
                     )}
                   </td>
                   <td className="font-semibold">{c.full_name}</td>
+                  <td>{c.username ?? "—"}</td>
                   <td>{c.email ?? "—"}</td>
                   <td>{c.phone ?? "—"}</td>
                   <td>{statusLabel(c.status)}</td>
