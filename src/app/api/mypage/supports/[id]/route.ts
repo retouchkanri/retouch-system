@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { memberMutationGuard } from "@/lib/memberGuard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { syncSupportCreate, syncSupportUpdate } from "@/lib/stripeSupport";
+import { syncSupportUnitsById } from "@/lib/stripeSupport";
 import { SUPPORT_UNIT_PRICE } from "@/lib/constraints";
 import { notify, staffRecipients, supportChangedTemplate } from "@/lib/notify";
 
@@ -55,68 +55,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const stripeEnabled = Boolean(process.env.STRIPE_SECRET_KEY);
 
-  // Legacy/orphaned support row with no Stripe item linked yet (e.g.
-  // imported before Stripe billing was connected for this contract), OR a
-  // row whose linked item/subscription has since died — self-heal by
-  // creating a fresh item/subscription instead of failing outright.
-  async function selfHeal() {
-    const [{ data: customer }, { data: contract }] = await Promise.all([
-      admin
-        .from("customers")
-        .select("id, email, full_name, stripe_customer_id")
-        .eq("id", (existing as any).customer_id)
-        .maybeSingle(),
-      admin
-        .from("contracts")
-        .select("id, stripe_subscription_id, status")
-        .eq("id", (existing as any).contract_id)
-        .maybeSingle(),
-    ]);
-    if (!customer || !contract) {
-      throw new Error("会員情報または契約情報が見つかりません");
-    }
-    return syncSupportCreate({
-      customer: customer as any,
-      contract: contract as any,
-      support: {
-        id: params.id,
-        horse_id: (existing as any).horse_id,
-        horse_name: horseName,
-        monthly_amount: monthly,
-      },
-      existing_item_id: null,
-    });
-  }
-
+  // `syncSupportUnitsById` is the single Stripe-side entry point for a 口数
+  // change (see stripeSupport.ts). It updates the linked item when that item is
+  // still billable and self-heals — mints a fresh item/subscription — when it
+  // is not: a legacy row imported before Stripe billing was connected, or a row
+  // whose item/subscription has since died. `allow_create: true` because a
+  // member editing their own support is asking for it to be billed.
   let sync;
   let syncError: string | null = null;
   try {
-    const existingItemId = (existing as any).stripe_subscription_item_id ?? null;
-    if (existingItemId) {
-      try {
-        sync = await syncSupportUpdate({
-          support_id: params.id,
-          stripe_subscription_item_id: existingItemId,
-          monthly_amount: monthly,
-          horse_name: horseName,
-        });
-      } catch (e: any) {
-        // The item's subscription can die between signup and this edit
-        // (canceled, or auto-expired from `incomplete` after the customer
-        // never completed a 3DS/Link confirmation) without our DB knowing —
-        // reported 2026-08: this surfaced as a raw "No such subscription" /
-        // "cannot update ... incomplete_expired" error on every future edit.
-        // Detect that class of failure and self-heal instead of failing.
-        const msg = String(e?.message ?? "");
-        const isDeadSubscription =
-          e?.code === "resource_missing" ||
-          /incomplete_expired/i.test(msg) ||
-          /no such subscription/i.test(msg);
-        if (!isDeadSubscription) throw e;
-        sync = await selfHeal();
-      }
-    } else {
-      sync = await selfHeal();
+    sync = await syncSupportUnitsById({
+      support_id: params.id,
+      monthly_amount: monthly,
+      allow_create: true,
+    });
+    if (!sync.synced && sync.reason && sync.reason !== "stripe_disabled") {
+      syncError = "決済の同期に失敗しました";
     }
   } catch (e: any) {
     sync = { synced: false, reason: e?.message ?? "stripe_error" };

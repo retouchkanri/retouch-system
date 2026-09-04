@@ -31,6 +31,39 @@ export type SupportSyncResult = {
   requires_payment?: boolean;
 };
 
+/**
+ * What actually happened on the Stripe side of a cancel.
+ *
+ *   - "scheduled"    : still billable until `scheduled_cancel_at`; the DB row
+ *                      must stay `active` with `canceled_at` = that date.
+ *   - "immediate"    : the item (or the whole subscription) is gone NOW; the
+ *                      DB row must become `canceled` and drop its item id.
+ *   - "already_gone" : nothing live was found — same DB handling as immediate.
+ *   - "noop"         : Stripe disabled / row was never Stripe-billed.
+ *
+ * Callers MUST branch on this instead of inspecting `scheduled_cancel_at`.
+ * The previous code did `sync.scheduled_cancel_at ?? contract.current_period_end`,
+ * which silently turned an IMMEDIATE item deletion into a "stops at period end"
+ * result: the DB row stayed `active` and kept pointing at an item Stripe had
+ * already deleted. That stale-but-active row is what made a later re-signup take
+ * the "add 口数 to the existing row" branch and double the member's quantity
+ * (reported 2026-09).
+ */
+export type SupportCancelMode = "scheduled" | "immediate" | "already_gone" | "noop";
+
+export type SupportCancelResult = SupportSyncResult & {
+  mode: SupportCancelMode;
+  scheduled_cancel_at?: string | null;
+};
+
+/**
+ * Stripe quantity for a support row. `monthly_amount` is always a multiple of
+ * the half-口 quantum, so this is exact: 半口 → 1, 1口 → 2, 1.5口 → 3, …
+ */
+export function supportQuantityFor(monthlyAmount: number): number {
+  return Math.max(1, Math.round(monthlyAmount / SUPPORT_STRIPE_QUANTUM));
+}
+
 type CustomerRow = {
   id: string;
   email: string | null;
@@ -165,16 +198,162 @@ async function isSubscriptionLive(stripe: Stripe, subscriptionId: string): Promi
   }
 }
 
+/**
+ * Retrieve a subscription item only if it is STILL BILLABLE — the item itself
+ * exists AND the subscription it hangs off is alive.
+ *
+ * Every caller that used to blindly `subscriptionItems.update(...)` on the id
+ * stored in `support_subscriptions.stripe_subscription_item_id` could be acting
+ * on an id that Stripe deleted long ago (staff removed the item in the Stripe
+ * dashboard, a "stop" deleted it, the subscription expired). Checking first
+ * turns "throws a raw Stripe error" / "silently updates nothing" into a clean
+ * `null` the caller can self-heal from.
+ */
+async function getLiveSubscriptionItem(
+  stripe: Stripe,
+  itemId: string,
+): Promise<Stripe.SubscriptionItem | null> {
+  let item: Stripe.SubscriptionItem;
+  try {
+    item = await stripe.subscriptionItems.retrieve(itemId);
+  } catch (e: any) {
+    if (e?.code === "resource_missing") return null;
+    throw e;
+  }
+  const subId =
+    typeof item.subscription === "string" ? item.subscription : (item.subscription as any)?.id;
+  if (!subId) return null;
+  return (await isSubscriptionLive(stripe, subId)) ? item : null;
+}
+
+/**
+ * Public probe: is this support row still attached to a billable Stripe item?
+ *
+ * Deliberately TRI-state. Callers decide between "add 口数 to the existing
+ * support" and "replace it" based on this answer, and both wrong answers cost
+ * the member money — guessing "dead" on a transient API error would silently
+ * wipe out units they are paying for, guessing "live" would double their bill.
+ * `"unknown"` means Stripe could not be reached and the caller must abort
+ * rather than pick.
+ */
+export async function probeSupportItem(
+  itemId: string | null | undefined,
+): Promise<"live" | "dead" | "unknown"> {
+  const stripe = getStripe();
+  if (!stripe) return "unknown";
+  if (!itemId) return "dead";
+  try {
+    return (await getLiveSubscriptionItem(stripe, itemId)) ? "live" : "dead";
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
+ * Undo a pending "stops at period end" on a subscription. Called when a member
+ * re-subscribes to a horse whose row was scheduled to stop — otherwise we would
+ * happily take their money for the new units and then cancel the subscription
+ * out from under them on the old schedule.
+ */
+async function clearScheduledCancel(stripe: Stripe, subscriptionId: string): Promise<void> {
+  try {
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    if (sub.cancel_at_period_end) {
+      await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false });
+    }
+  } catch {
+    // best-effort; a dead subscription is healed elsewhere
+  }
+}
+
+/**
+ * Resolve (or create) the Stripe customer for a member.
+ *
+ * The lookup by email matters more than it looks. Members who joined before
+ * this system existed — or who were re-registered by staff — already have a
+ * Stripe customer holding their card and their running subscriptions. Creating
+ * a *second* Stripe customer for them means the site bills a second card in
+ * parallel with the legacy one, and the admin UI, which only ever follows
+ * `customers.stripe_customer_id`, cannot see the other half of the charges.
+ * That is precisely how a member ended up paying for the same horses twice —
+ * once on a Mastercard the system never knew about and once on the VISA it
+ * had just registered (reported 2026-09).
+ *
+ * When several Stripe customers share the email we do NOT guess: guessing
+ * wrong bills a stranger's card. We create a fresh one and write an audit
+ * warning so staff can merge them in the Stripe dashboard. Run
+ * `scripts/audit-support-billing.mjs` to list every member in that state.
+ */
+async function findStripeCustomerByEmail(
+  stripe: Stripe,
+  email: string,
+): Promise<{ id: string | null; ambiguous: boolean; matches: number }> {
+  let list: Stripe.Customer[];
+  try {
+    const res = await stripe.customers.list({ email, limit: 100 });
+    list = res.data.filter((c) => !(c as any).deleted);
+  } catch {
+    return { id: null, ambiguous: false, matches: 0 };
+  }
+  if (list.length === 0) return { id: null, ambiguous: false, matches: 0 };
+  if (list.length === 1) return { id: list[0].id, ambiguous: false, matches: 1 };
+
+  // Several records: only accept one if exactly one of them is actually in use.
+  const withLiveSub: string[] = [];
+  for (const c of list) {
+    try {
+      const subs = await stripe.subscriptions.list({ customer: c.id, status: "all", limit: 100 });
+      if (subs.data.some((s) => s.status !== "canceled" && s.status !== "incomplete_expired")) {
+        withLiveSub.push(c.id);
+      }
+    } catch {
+      // ignore this candidate
+    }
+  }
+  if (withLiveSub.length === 1) return { id: withLiveSub[0], ambiguous: false, matches: list.length };
+  return { id: null, ambiguous: true, matches: list.length };
+}
+
 export async function ensureStripeCustomer(customer: CustomerRow): Promise<string | null> {
   if (customer.stripe_customer_id) return customer.stripe_customer_id;
   const stripe = getStripe();
   if (!stripe) return null;
+  const admin = createSupabaseAdminClient();
+
+  if (customer.email) {
+    const found = await findStripeCustomerByEmail(stripe, customer.email);
+    if (found.id) {
+      await admin
+        .from("customers")
+        .update({ stripe_customer_id: found.id })
+        .eq("id", customer.id);
+      await admin.from("audit_logs").insert({
+        action: "stripe.customer.linked",
+        target_table: "customers",
+        target_id: customer.id,
+        meta: { stripe_customer_id: found.id, matched_by: "email", matches: found.matches },
+      });
+      return found.id;
+    }
+    if (found.ambiguous) {
+      await admin.from("audit_logs").insert({
+        action: "stripe.customer.ambiguous",
+        target_table: "customers",
+        target_id: customer.id,
+        meta: {
+          email: customer.email,
+          matches: found.matches,
+          note: "同じメールのStripe顧客が複数あり自動紐付けできません。Stripe側で統合してください（二重請求の原因になります）。",
+        },
+      });
+    }
+  }
+
   const created = await stripe.customers.create({
     email: customer.email ?? undefined,
     name: customer.full_name ?? undefined,
     metadata: { customer_id: customer.id },
   });
-  const admin = createSupabaseAdminClient();
   await admin
     .from("customers")
     .update({ stripe_customer_id: created.id })
@@ -354,24 +533,35 @@ export async function syncSupportCreate(params: {
     horse_name: params.support.horse_name ?? "",
   };
 
-  // Reuse existing item if provided
+  // Reuse the existing item — but ONLY if Stripe still has it. A stored item
+  // id routinely outlives the item itself (staff deleted it in the dashboard,
+  // a "stop" removed it, the subscription expired). Updating blind either
+  // threw a raw Stripe error at the member or, worse, let the caller believe
+  // the quantity had been changed when nothing was billed. Fall through to the
+  // create/heal path when it is gone.
   if (params.existing_item_id) {
-    const item = await stripe.subscriptionItems.update(params.existing_item_id, {
-      quantity: qty,
-      metadata,
-      proration_behavior: "create_prorations",
-    });
-    const admin = createSupabaseAdminClient();
-    await admin
-      .from("support_subscriptions")
-      .update({ stripe_subscription_item_id: item.id })
-      .eq("id", params.support.id);
-    return {
-      synced: true,
-      stripe_customer_id: stripeCustomerId,
-      stripe_subscription_id: params.contract.stripe_subscription_id,
-      stripe_subscription_item_id: item.id,
-    };
+    const live = await getLiveSubscriptionItem(stripe, params.existing_item_id);
+    if (live) {
+      const item = await stripe.subscriptionItems.update(params.existing_item_id, {
+        quantity: qty,
+        metadata,
+        proration_behavior: "create_prorations",
+      });
+      const subId =
+        typeof live.subscription === "string" ? live.subscription : (live.subscription as any)?.id;
+      if (subId) await clearScheduledCancel(stripe, subId);
+      const admin = createSupabaseAdminClient();
+      await admin
+        .from("support_subscriptions")
+        .update({ stripe_subscription_item_id: item.id, canceled_at: null })
+        .eq("id", params.support.id);
+      return {
+        synced: true,
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: subId ?? params.contract.stripe_subscription_id,
+        stripe_subscription_item_id: item.id,
+      };
+    }
   }
 
   // A previously-linked subscription can have died since (canceled, or
@@ -456,6 +646,13 @@ export async function syncSupportUpdate(params: {
   if (!stripe) return { synced: false, reason: "stripe_disabled" };
   if (!params.stripe_subscription_item_id) return { synced: false, reason: "item_missing" };
 
+  // The stored item can be dead (deleted item / expired subscription). Report
+  // that as a typed reason so callers self-heal instead of pattern-matching on
+  // Stripe's error text, which previously let a failed 口数 change look like a
+  // success in some paths.
+  const live = await getLiveSubscriptionItem(stripe, params.stripe_subscription_item_id);
+  if (!live) return { synced: false, reason: "item_dead" };
+
   // Items are priced at the half-口 quantum (¥6,000); quantity scales the amount.
   const qty = toQuantity(params.monthly_amount, SUPPORT_STRIPE_QUANTUM);
   const item = await stripe.subscriptionItems.update(params.stripe_subscription_item_id, {
@@ -463,7 +660,92 @@ export async function syncSupportUpdate(params: {
     metadata: { support_id: params.support_id, horse_name: params.horse_name ?? "" },
     proration_behavior: "create_prorations",
   });
-  return { synced: true, stripe_subscription_item_id: item.id };
+  return {
+    synced: true,
+    stripe_subscription_item_id: item.id,
+    stripe_subscription_id:
+      typeof live.subscription === "string" ? live.subscription : (live.subscription as any)?.id,
+  };
+}
+
+/**
+ * Change the billed 口数 of one support row, addressed by row id, and keep
+ * Stripe in lock-step. This is THE entry point for every 口数 change — member
+ * self-service and 管理画面 alike.
+ *
+ * Before this existed, `/api/admin/supports/[id]` wrote `units` /
+ * `monthly_amount` straight to Supabase and never called Stripe: staff who
+ * "changed 1口 to 半口" for a member saw the change in the admin UI while
+ * Stripe kept charging the old amount every month (reported 2026-09, two
+ * members over-charged). Any new caller must go through here.
+ *
+ * `allow_create` controls what happens when the row has no live Stripe item:
+ *   - true  (member flows): mint a fresh item/subscription — the member is
+ *     actively signing up, so starting billing is what they asked for.
+ *   - false (admin flows): report `not_billed_by_stripe` and touch nothing.
+ *     Staff-registered rows are invoiced manually; silently creating a
+ *     subscription for them would start charging a card without consent.
+ */
+export async function syncSupportUnitsById(params: {
+  support_id: string;
+  monthly_amount: number;
+  allow_create: boolean;
+}): Promise<SupportSyncResult> {
+  const stripe = getStripe();
+  if (!stripe) return { synced: false, reason: "stripe_disabled" };
+  const admin = createSupabaseAdminClient();
+
+  const { data: row } = await admin
+    .from("support_subscriptions")
+    .select(
+      "id, customer_id, contract_id, horse_id, stripe_subscription_item_id, horse:horses(name)",
+    )
+    .eq("id", params.support_id)
+    .maybeSingle();
+  if (!row) return { synced: false, reason: "support_missing" };
+
+  const horseName = ((row as any).horse?.name as string | null) ?? null;
+  const itemId = ((row as any).stripe_subscription_item_id as string | null) ?? null;
+
+  if (itemId) {
+    const updated = await syncSupportUpdate({
+      support_id: params.support_id,
+      stripe_subscription_item_id: itemId,
+      monthly_amount: params.monthly_amount,
+      horse_name: horseName,
+    });
+    if (updated.synced) return updated;
+    if (!params.allow_create) return { synced: false, reason: updated.reason ?? "item_dead" };
+  } else if (!params.allow_create) {
+    return { synced: false, reason: "not_billed_by_stripe" };
+  }
+
+  const [{ data: customer }, { data: contract }] = await Promise.all([
+    admin
+      .from("customers")
+      .select("id, email, full_name, stripe_customer_id")
+      .eq("id", (row as any).customer_id)
+      .maybeSingle(),
+    admin
+      .from("contracts")
+      .select("id, stripe_subscription_id, status")
+      .eq("id", (row as any).contract_id)
+      .maybeSingle(),
+  ]);
+  if (!customer || !contract) {
+    return { synced: false, reason: "customer_or_contract_missing" };
+  }
+  return syncSupportCreate({
+    customer: customer as any,
+    contract: contract as any,
+    support: {
+      id: params.support_id,
+      horse_id: (row as any).horse_id,
+      horse_name: horseName,
+      monthly_amount: params.monthly_amount,
+    },
+    existing_item_id: null,
+  });
 }
 
 /**
@@ -487,10 +769,20 @@ export async function syncSupportCancel(params: {
   stripe_subscription_item_id: string | null;
   stripe_subscription_id: string | null;
   immediate?: boolean;
-}): Promise<SupportSyncResult & { scheduled_cancel_at?: string | null }> {
+}): Promise<SupportCancelResult> {
   const stripe = getStripe();
-  if (!stripe) return { synced: false, reason: "stripe_disabled" };
-  if (!params.stripe_subscription_item_id) return { synced: false, reason: "item_missing" };
+  if (!stripe) return { synced: false, reason: "stripe_disabled", mode: "noop" };
+  if (!params.stripe_subscription_item_id) {
+    return { synced: false, reason: "item_missing", mode: "noop" };
+  }
+
+  // The stored item id may already be gone. Nothing left to bill means the
+  // stop has effectively happened — report it as such so the DB row is closed
+  // out rather than left `active` forever.
+  const liveItem = await getLiveSubscriptionItem(stripe, params.stripe_subscription_item_id);
+  if (!liveItem) {
+    return { synced: true, mode: "already_gone", scheduled_cancel_at: null };
+  }
 
   if (params.stripe_subscription_id) {
     // The subscription may already be dead (canceled, or expired from
@@ -503,7 +795,12 @@ export async function syncSupportCancel(params: {
       if (e?.code !== "resource_missing") throw e;
     }
     if (!sub || sub.status === "canceled" || sub.status === "incomplete_expired") {
-      return { synced: true, stripe_subscription_id: params.stripe_subscription_id, scheduled_cancel_at: null };
+      return {
+        synced: true,
+        stripe_subscription_id: params.stripe_subscription_id,
+        scheduled_cancel_at: null,
+        mode: "already_gone",
+      };
     }
     const isLastItem = sub.items.data.length <= 1;
 
@@ -513,7 +810,12 @@ export async function syncSupportCancel(params: {
           invoice_now: false,
           prorate: true,
         });
-        return { synced: true, stripe_subscription_id: sub.id, scheduled_cancel_at: null };
+        return {
+          synced: true,
+          stripe_subscription_id: sub.id,
+          scheduled_cancel_at: null,
+          mode: "immediate",
+        };
       }
       const updated = await stripe.subscriptions.update(params.stripe_subscription_id, {
         cancel_at_period_end: true,
@@ -525,12 +827,55 @@ export async function syncSupportCancel(params: {
         synced: true,
         stripe_subscription_id: sub.id,
         scheduled_cancel_at: scheduled,
+        mode: "scheduled",
       };
     }
   }
 
+  // Multiple items remain: Stripe has no per-item "cancel at period end", so
+  // the item is removed NOW. `mode: "immediate"` is what tells the caller to
+  // close the DB row instead of marking it "stops at period end".
   await stripe.subscriptionItems.del(params.stripe_subscription_item_id, {
     proration_behavior: "create_prorations",
   });
-  return { synced: true, scheduled_cancel_at: null };
+  return {
+    synced: true,
+    stripe_subscription_id: params.stripe_subscription_id,
+    scheduled_cancel_at: null,
+    mode: "immediate",
+  };
+}
+
+/**
+ * Stop billing for one support row, addressed by row id. Shared by the member
+ * stop endpoint and 管理画面 so a staff-side stop can never again leave a live
+ * Stripe item behind (reported 2026-09: "登録は解除してあります" while both of
+ * the member's cards kept being charged).
+ */
+export async function syncSupportCancelById(params: {
+  support_id: string;
+  immediate?: boolean;
+}): Promise<SupportCancelResult> {
+  const stripe = getStripe();
+  if (!stripe) return { synced: false, reason: "stripe_disabled", mode: "noop" };
+  const admin = createSupabaseAdminClient();
+  const { data: row } = await admin
+    .from("support_subscriptions")
+    .select(
+      "id, stripe_subscription_item_id, contract:contracts(id, stripe_subscription_id)",
+    )
+    .eq("id", params.support_id)
+    .maybeSingle();
+  if (!row) return { synced: false, reason: "support_missing", mode: "noop" };
+
+  const itemId = ((row as any).stripe_subscription_item_id as string | null) ?? null;
+  // Rows registered by staff are invoiced manually and carry no Stripe item —
+  // there is nothing to cancel, and that is a success, not a failure.
+  if (!itemId) return { synced: true, reason: "not_billed_by_stripe", mode: "noop" };
+
+  return syncSupportCancel({
+    stripe_subscription_item_id: itemId,
+    stripe_subscription_id: (row as any).contract?.stripe_subscription_id ?? null,
+    immediate: params.immediate,
+  });
 }

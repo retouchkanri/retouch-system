@@ -73,22 +73,49 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "この馬は支援対象外です" }, { status: 400 });
   }
 
-  const { data: existingContract } = await admin
-    .from("contracts")
-    .select("id, plan_id, plan:membership_plans(code)")
+  // 同じ馬の支援行が既に生きている場合は二重登録しない。
+  // 支援数・月額の二重計上、Stripe item の重複作成の温床になる。
+  const { data: dupRows } = await admin
+    .from("support_subscriptions")
+    .select("id, units, status")
     .eq("customer_id", customer_id)
-    .eq("status", "active")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("horse_id", horse_id)
+    .in("status", ["active", "past_due", "incomplete"])
+    .limit(1);
+  if ((dupRows ?? []).length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          `この会員には既に「${horse.name}」の支援が登録されています（${Number((dupRows as any)[0].units)}口）。` +
+          "重複登録ではなく、既存の支援の口数を編集してください。",
+        support_id: (dupRows as any)[0].id,
+      },
+      { status: 409 },
+    );
+  }
 
-  const existingPlanCode = (existingContract as any)?.plan?.code as string | undefined;
-  if (existingPlanCode && isBasicMemberPlanCode(existingPlanCode)) {
+  // 支援行は必ず SUPPORT 契約にぶら下げる。
+  // 以前は「最新の active 契約」を無条件に採用していたため、リタポ(RPT)や
+  // 特別チームの契約に支援行が紐づくことがあった。その状態で支援を停止すると
+  // contract.stripe_subscription_id 経由で無関係のサブスクリプションを
+  // 解約しかねず、請求内訳も別会員種別と混ざる。
+  const { data: customerContracts } = await admin
+    .from("contracts")
+    .select("id, plan_id, status, plan:membership_plans(code)")
+    .eq("customer_id", customer_id)
+    .in("status", ["active", "past_due", "incomplete"])
+    .order("started_at", { ascending: false });
+
+  const basic = (customerContracts ?? []).find(
+    (c: any) => c.status !== "incomplete" && isBasicMemberPlanCode(c.plan?.code),
+  );
+  if (basic) {
     return NextResponse.json(
       { error: "基本会員区分の契約が有効です。先に契約を停止してから支援を追加してください。" },
       { status: 409 },
     );
   }
+  const existingContract = (customerContracts ?? []).find((c: any) => c.plan?.code === "SUPPORT");
 
   let contractId = existingContract?.id as string | undefined;
   // Track if we created a new contract in this request so we can roll it back

@@ -49,7 +49,12 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
     syncError = e?.message ?? "Stripeとの同期に失敗しました";
   }
 
-  if (stripeEnabled && !sync?.synced) {
+  // A row that was never Stripe-billed (registered by staff and invoiced
+  // manually) has nothing to cancel — that is a successful stop, not a sync
+  // failure. Previously it returned 502 and the member could never stop it.
+  const nothingToCancel = sync?.reason === "item_missing" || sync?.reason === "not_billed_by_stripe";
+
+  if (stripeEnabled && !sync?.synced && !nothingToCancel) {
     await admin.from("audit_logs").insert({
       actor_id: session.userId,
       action: "support.cancel.sync_failed",
@@ -70,10 +75,19 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
     );
   }
 
+  // Branch on what Stripe ACTUALLY did, never on whether a date came back.
+  // The old `sync.scheduled_cancel_at ?? contract.current_period_end` turned an
+  // immediate item deletion (what Stripe does when other items remain on the
+  // subscription) into a "stops at period end" result: the row stayed `active`
+  // still holding the id of an item Stripe had already deleted. A later re-signup
+  // then found that zombie row and ADDED 口数 to it, doubling the quantity — the
+  // 2026-09 over-charge. Only `mode: "scheduled"` may keep the row active.
   const scheduledAt =
-    (sync as any)?.scheduled_cancel_at ??
-    (existing as any).contract?.current_period_end ??
-    null;
+    (sync as any)?.mode === "scheduled"
+      ? ((sync as any)?.scheduled_cancel_at ??
+        (existing as any).contract?.current_period_end ??
+        null)
+      : null;
 
   if (scheduledAt) {
     // 次回更新日で停止 → status は active のまま、停止予定日を canceled_at に保存
