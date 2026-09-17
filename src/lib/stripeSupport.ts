@@ -503,6 +503,38 @@ async function resolvePriceForNewItem(
 }
 
 /**
+ * After an item was added / increased with `proration_behavior: "always_invoice"`,
+ * find the invoice Stripe just raised for it and report whether the member
+ * still has to complete the payment (3DS, Link confirmation, declined card).
+ *
+ * Only an invoice created by THIS call counts (`created >= sinceUnix`,
+ * `billing_reason: subscription_update`) — an older open invoice must not be
+ * mistaken for it. When the prorated amount is ¥0 Stripe raises no invoice at
+ * all, which is simply "nothing to pay".
+ */
+async function immediateInvoiceStatus(
+  stripe: Stripe,
+  subscriptionId: string,
+  sinceUnix: number,
+): Promise<{ requiresPayment: boolean; checkoutUrl: string | null }> {
+  try {
+    const list = await stripe.invoices.list({
+      subscription: subscriptionId,
+      created: { gte: sinceUnix },
+      limit: 5,
+    });
+    const inv = list.data.find((i) => i.billing_reason === "subscription_update");
+    if (!inv) return { requiresPayment: false, checkoutUrl: null };
+    const unpaid = inv.status === "open" && (inv.amount_remaining ?? 0) > 0;
+    return { requiresPayment: unpaid, checkoutUrl: unpaid ? inv.hosted_invoice_url ?? null : null };
+  } catch {
+    // Could not inspect — the webhook (invoice.payment_failed) still handles a
+    // failed charge, so do not fail the whole signup over this lookup.
+    return { requiresPayment: false, checkoutUrl: null };
+  }
+}
+
+/**
  * Create or update the Stripe subscription item for a given support row.
  * Safe to call with or without Stripe configured; returns synced=false
  * when Stripe is disabled so the caller can continue DB-only work.
@@ -542,14 +574,24 @@ export async function syncSupportCreate(params: {
   if (params.existing_item_id) {
     const live = await getLiveSubscriptionItem(stripe, params.existing_item_id);
     if (live) {
+      // 口数を増やす場合は、増えた分の今月分（日割り）をその場で請求する。
+      // create_prorations のままだと差額が次回更新日まで繰り越され、次回請求が
+      // 「月額＋先月分の日割り」となり二重請求に見える（2026-09 報告）。
+      // 減らす場合は従来どおり次回請求で相殺する。
+      const increasing = qty > (live.quantity ?? 0);
+      const since = Math.floor(Date.now() / 1000) - 60;
       const item = await stripe.subscriptionItems.update(params.existing_item_id, {
         quantity: qty,
         metadata,
-        proration_behavior: "create_prorations",
+        proration_behavior: increasing ? "always_invoice" : "create_prorations",
       });
       const subId =
         typeof live.subscription === "string" ? live.subscription : (live.subscription as any)?.id;
       if (subId) await clearScheduledCancel(stripe, subId);
+      const immediate =
+        increasing && subId
+          ? await immediateInvoiceStatus(stripe, subId, since)
+          : { requiresPayment: false, checkoutUrl: null };
       const admin = createSupabaseAdminClient();
       await admin
         .from("support_subscriptions")
@@ -560,6 +602,8 @@ export async function syncSupportCreate(params: {
         stripe_customer_id: stripeCustomerId,
         stripe_subscription_id: subId ?? params.contract.stripe_subscription_id,
         stripe_subscription_item_id: item.id,
+        checkout_url: immediate.checkoutUrl,
+        requires_payment: immediate.requiresPayment,
       };
     }
   }
@@ -616,13 +660,27 @@ export async function syncSupportCreate(params: {
     params.contract.stripe_subscription_id!,
     base,
   );
+  // 2頭目以降の追加は、その馬の今月分（次回更新日までの日割り）をその場で請求する。
+  //
+  // 以前は create_prorations だったため、追加時には1円も請求されず、日割り分が
+  // 次回更新日の請求にまとめて繰り越されていた。その結果、3頭を追加した会員の
+  // 初回は1頭分しか引き落とされず、次回請求が「4頭分の月額 ¥24,000 ＋
+  // 3頭分の日割り ¥17,995 ＝ ¥41,995」になり、過剰請求に見えていた
+  // （2026-09 報告: snow55pixie@gmail.com ほか）。合計額は同じでも請求の
+  // タイミングが会員・運営の想定と食い違うため、追加時点で精算する。
+  const since = Math.floor(Date.now() / 1000) - 60;
   const item = await stripe.subscriptionItems.create({
     subscription: params.contract.stripe_subscription_id!,
     price: priceForNewItem,
     quantity: qty,
     metadata,
-    proration_behavior: "create_prorations",
+    proration_behavior: "always_invoice",
   });
+  const immediate = await immediateInvoiceStatus(
+    stripe,
+    params.contract.stripe_subscription_id!,
+    since,
+  );
   const admin = createSupabaseAdminClient();
   await admin
     .from("support_subscriptions")
@@ -633,6 +691,8 @@ export async function syncSupportCreate(params: {
     stripe_customer_id: stripeCustomerId,
     stripe_subscription_id: params.contract.stripe_subscription_id,
     stripe_subscription_item_id: item.id,
+    checkout_url: immediate.checkoutUrl,
+    requires_payment: immediate.requiresPayment,
   };
 }
 

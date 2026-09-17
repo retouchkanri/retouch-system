@@ -81,6 +81,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const canCommit = (sync?.synced && !requiresStripePayment) || !stripeEnabled;
 
   if (requiresStripePayment) {
+    // Stripe 側は既に新しい口数で請求（未払いの請求書）を作っている。DB の口数を
+    // 旧値のまま返すと、支払い完了後に DB と Stripe の請求額が食い違うため、
+    // 口数だけは先に揃える（status は同期処理が incomplete にしており、
+    // 支払い完了時に Webhook が active へ戻す）。
+    const { error: rpErr } = await admin
+      .from("support_subscriptions")
+      .update({ units, monthly_amount: monthly })
+      .eq("id", params.id);
+    if (rpErr) return NextResponse.json({ error: rpErr.message }, { status: 500 });
+
     await admin.from("audit_logs").insert({
       actor_id: session.userId,
       action: "support.update.requires_payment",
