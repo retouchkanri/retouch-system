@@ -52,7 +52,11 @@ export default async function HorsesSupportSection({
   const [{ data: horses }, { rows: supporters }] = await Promise.all([
     admin
       .from("horses")
-      .select("id, name, profile, image_url, is_supportable, sort_order")
+      // is_emergency_recruitment は必ず取得すること。取得しないと
+      // isEmergencyRecruitmentHorse() が undefined を見て常に false となり、
+      // 管理画面で「緊急募集」にしてもトップ／馬一覧でピンク表示・上段固定に
+      // ならない（馬名に「緊急支援募集馬」を含む場合だけ偶然動いていた）。
+      .select("id, name, profile, image_url, is_supportable, is_emergency_recruitment, sort_order")
       .order("sort_order"),
     fetchAllRows<any>((from, to) =>
       admin

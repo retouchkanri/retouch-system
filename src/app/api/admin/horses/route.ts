@@ -17,6 +17,7 @@ export async function POST(req: Request) {
       profile: body.profile || null,
       image_url: body.image_url || null,
       is_supportable: body.is_supportable ?? true,
+      is_emergency_recruitment: body.is_emergency_recruitment ?? false,
       sort_order: body.sort_order ?? 100,
     })
     .select("id")

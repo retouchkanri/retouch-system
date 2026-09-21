@@ -13,6 +13,7 @@ export default function HorseEditForm({ horse }: { horse: Horse }) {
     profile: horse.profile ?? "",
     image_url: horse.image_url ?? "",
     is_supportable: horse.is_supportable,
+    is_emergency_recruitment: horse.is_emergency_recruitment ?? false,
     sort_order: horse.sort_order ?? 100,
   });
   const [busy, setBusy] = useState(false);
@@ -74,9 +75,18 @@ export default function HorseEditForm({ horse }: { horse: Horse }) {
         <div className="md:col-span-3"><label className="label">紹介文</label><input className="input" value={form.profile} onChange={set("profile")} /></div>
         <div className="md:col-span-4"><label className="label">画像URL</label><input type="url" className="input" value={form.image_url} onChange={set("image_url")} placeholder="https://..." /></div>
         <div><label className="label">並び順</label><input type="number" className="input" value={form.sort_order} onChange={set("sort_order")} /></div>
-        <label className="flex items-center gap-2 md:col-span-3">
+        <label className="flex items-center gap-2">
           <input type="checkbox" checked={form.is_supportable} onChange={set("is_supportable")} className="w-5 h-5" />
           <span>支援受付中</span>
+        </label>
+        <label className="flex items-center gap-2 md:col-span-2">
+          <input
+            type="checkbox"
+            checked={form.is_emergency_recruitment}
+            onChange={set("is_emergency_recruitment")}
+            className="w-5 h-5"
+          />
+          <span>緊急支援募集（トップ・馬一覧でピンク表示・最上段に固定）</span>
         </label>
       </div>
       {msg && <p className="text-sm">{msg}</p>}
