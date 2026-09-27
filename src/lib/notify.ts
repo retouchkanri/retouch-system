@@ -360,6 +360,19 @@ function yen(n: number): string {
   return `¥${Math.round(n).toLocaleString("ja-JP")}`;
 }
 
+/** 日本時間の「2026年10月20日」。日時が不正なら null。 */
+function jaDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(d);
+}
+
 export function donationThanksTemplate(params: {
   name: string | null;
   amount: number;
@@ -524,13 +537,21 @@ export function supportAddedTemplate(params: {
    *   false       : 運営による手動登録。請求方法は別途案内する旨に差し替える。
    */
   autoBill?: boolean;
+  /**
+   * 請求中の支援に口数を追加した場合の、新しい月額が適用される請求日（ISO）。
+   * 口数の変更は次回の請求日から適用し、月の途中の日割り請求はしない。
+   */
+  effectiveFrom?: string | null;
 }): Pick<NotifyPayload, "subject" | "body_text"> {
   const who = params.name?.trim() || "ご支援者";
   const u = Number.isInteger(params.units) ? `${params.units}口` : `${params.units.toFixed(1)}口`;
+  const effective = jaDate(params.effectiveFrom);
   const billingLine =
     params.autoBill === false
       ? `お支払い方法・次回以降のご請求につきましては、事務局より別途ご案内いたします。`
-      : `次回以降、毎月ご請求させていただきます。`;
+      : effective
+        ? `追加後の月額は ${effective} のご請求から適用されます（月の途中の日割りのご請求はありません）。`
+        : `次回以降、毎月ご請求させていただきます。`;
   return {
     subject: `【Retouch Members】支援お申し込み完了のお知らせ — ${params.horseName}`,
     body_text:
@@ -552,9 +573,12 @@ export function supportChangedTemplate(params: {
   prevMonthly: number;
   newUnits: number;
   newMonthly: number;
+  /** 変更後の月額が適用される請求日（ISO）。無い場合は日付を示さない案内にする。 */
+  effectiveFrom?: string | null;
 }): Pick<NotifyPayload, "subject" | "body_text"> {
   const who = params.name?.trim() || "ご支援者";
   const fmt = (n: number) => (Number.isInteger(n) ? `${n}口` : `${n.toFixed(1)}口`);
+  const effective = jaDate(params.effectiveFrom);
   return {
     subject: `【Retouch Members】支援内容変更のお知らせ — ${params.horseName}`,
     body_text:
@@ -562,7 +586,9 @@ export function supportChangedTemplate(params: {
       `${params.horseName}の支援内容を以下のとおり変更いたしました。\n\n` +
       `【変更前】 ${fmt(params.prevUnits)} / 月額 ${yen(params.prevMonthly)}\n` +
       `【変更後】 ${fmt(params.newUnits)} / 月額 ${yen(params.newMonthly)}\n\n` +
-      `Stripeの仕様により、月の途中での変更は日割り計算にて差額が次回請求に反映されます。` +
+      (effective
+        ? `変更後の月額は ${effective} のご請求から適用されます。月の途中の変更による日割りのご請求・返金はありません。`
+        : `変更後の月額で、毎月ご請求させていただきます。`) +
       signature(),
   };
 }

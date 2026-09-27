@@ -271,18 +271,18 @@ export default async function AdminSearchPage({
     ) : null;
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">横断検索</h1>
+    <div className="space-y-3">
+      <h1 className="text-xl font-bold">横断検索</h1>
 
-      <form method="get" className="card flex flex-wrap gap-2">
+      <form method="get" className="card flex flex-wrap items-center gap-2">
         <input
           name="q"
           defaultValue={q}
           placeholder="氏名 / メール / 電話 / ユーザー名 / 馬名 / 社内メモ / Stripe ID など"
-          className="input flex-1 min-w-[260px]"
+          className="input flex-1 min-w-[200px]"
           autoFocus
         />
-        <select name="scope" defaultValue={scope} className="input w-auto">
+        <select name="scope" defaultValue={scope} className="input w-auto shrink-0">
           <option value="all">すべて</option>
           <option value="customers">顧客</option>
           <option value="horses">馬</option>
@@ -292,18 +292,18 @@ export default async function AdminSearchPage({
           <option value="payments">決済</option>
           <option value="memos">社内メモ</option>
         </select>
-        <button className="btn-primary !py-2 !px-4">検索</button>
+        <button className="btn-primary shrink-0">検索</button>
       </form>
 
       {q.length === 0 ? (
-        <p className="card text-ink-mute text-sm">
+        <p className="card text-ink-mute text-xs leading-relaxed">
           キーワードを入力して検索してください。顧客・馬・支援・寄付・予約・決済・社内メモを横断的に探せます。
         </p>
       ) : (
-        <p className="text-sm text-ink-soft">
+        <p className="text-xs text-ink-soft">
           「{q}」の検索結果：合計 <span className="font-bold">{totalHits}</span> 件
           {candidatePoolTruncated && (
-            <span className="block text-warn text-xs mt-1">
+            <span className="block text-warn text-[11px] mt-1">
               ※ 一致した顧客が多すぎるため、関連する支援・寄付・予約・決済は上位 200 名分のみを対象に検索しています。
               キーワードをもう少し絞り込んでください。
             </span>

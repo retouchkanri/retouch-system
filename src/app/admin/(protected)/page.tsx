@@ -121,14 +121,14 @@ export default async function AdminDashboardPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">ダッシュボード</h1>
-        <p className="text-sm text-ink-mute">{new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h1 className="text-xl font-bold">ダッシュボード</h1>
+        <p className="text-xs text-ink-mute">{new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {cards.map((c) => {
           const inner = (
             <>
@@ -136,17 +136,17 @@ export default async function AdminDashboardPage() {
               <span className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${c.accentBar}`} />
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-xs font-semibold text-ink-mute mb-1.5 tracking-wide">{c.label}</p>
-                  <p className={`text-[2rem] leading-none font-bold tabular-nums ${c.warn ? "text-danger" : "text-ink"}`}>
+                  <p className="text-[11px] font-semibold text-ink-mute mb-1 tracking-wide">{c.label}</p>
+                  <p className={`text-2xl leading-none font-bold tabular-nums ${c.warn ? "text-danger" : "text-ink"}`}>
                     {c.value.toLocaleString()}
                   </p>
-                  <p className={`text-xs mt-2 ${c.warn ? "text-danger font-semibold" : "text-ink-mute"}`}>
+                  <p className={`text-[11px] mt-1.5 ${c.warn ? "text-danger font-semibold" : "text-ink-mute"}`}>
                     {c.warn ? "→ 対応が必要です" : c.sub}
                   </p>
                 </div>
-                <span className={`shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center ${c.warn ? "bg-red-50" : c.iconBg}`}>
+                <span className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${c.warn ? "bg-red-50" : c.iconBg}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={c.icon} alt="" className="w-7 h-7" />
+                  <img src={c.icon} alt="" className="w-6 h-6" />
                 </span>
               </div>
             </>
@@ -155,39 +155,39 @@ export default async function AdminDashboardPage() {
             <Link
               key={c.label}
               href={c.href}
-              className={`card relative !p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all ${c.warn ? "ring-2 ring-danger/40 bg-red-50/60" : ""}`}
+              className={`card relative hover:shadow-lg hover:-translate-y-0.5 transition-all ${c.warn ? "ring-2 ring-danger/40 bg-red-50/60" : ""}`}
             >
               {inner}
             </Link>
           ) : (
-            <div key={c.label} className="card relative !p-5">{inner}</div>
+            <div key={c.label} className="card relative">{inner}</div>
           );
         })}
       </div>
 
       {/* Quick links */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {[
           { href: "/admin/customers", label: "顧客一覧", sub: "検索・編集・履歴", icon: "https://api.iconify.design/fluent-emoji-flat/busts-in-silhouette.svg" },
           { href: "/admin/supports", label: "支援管理", sub: "馬ごと・口数・状態", icon: "https://api.iconify.design/fluent-emoji-flat/horse-face.svg" },
           { href: "/admin/contracts", label: "契約一覧", sub: "A/B/C・停止処理", icon: "https://api.iconify.design/fluent-emoji-flat/page-with-curl.svg" },
           { href: "/admin/payments", label: "決済履歴", sub: "成功・失敗・返金", icon: "https://api.iconify.design/fluent-emoji-flat/credit-card.svg" },
         ].map((l) => (
-          <Link key={l.href} href={l.href} className="card !p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-3 group">
-            <span className="shrink-0 w-10 h-10 rounded-xl bg-surface-soft flex items-center justify-center group-hover:bg-brand-50 transition-colors">
+          <Link key={l.href} href={l.href} className="card !p-2.5 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2.5 group">
+            <span className="shrink-0 w-9 h-9 rounded-full bg-surface-soft flex items-center justify-center group-hover:bg-brand-50 transition-colors">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={l.icon} alt="" className="w-6 h-6" />
+              <img src={l.icon} alt="" className="w-5 h-5" />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="font-bold text-sm group-hover:text-brand-dark transition-colors">{l.label}</p>
-              <p className="text-xs text-ink-soft mt-0.5">{l.sub}</p>
+              <p className="text-[11px] text-ink-soft mt-0.5 truncate">{l.sub}</p>
             </div>
           </Link>
         ))}
       </div>
 
       {/* Charts row */}
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-3 gap-3">
         {/* Revenue Chart (day / week / month / year) */}
         <div className="card md:col-span-2">
           <RevenueChart series={revenueSeries} />
@@ -299,7 +299,7 @@ export default async function AdminDashboardPage() {
         </table>
       </section>
 
-      <section className="grid md:grid-cols-2 gap-4">
+      <section className="grid md:grid-cols-2 gap-3">
         <div className="card">
           <h2 className="section-title">最近の支援申込</h2>
           <ul className="divide-y divide-surface-line">

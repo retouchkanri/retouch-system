@@ -16,6 +16,17 @@ import { SUPPORT_STRIPE_QUANTUM } from "./constraints";
  *     different quantities. See SUPPORT_STRIPE_QUANTUM in constraints.ts
  *     for why the quantum is the half-口 amount and not the full ¥12,000.
  *
+ * 1頭＝1サブスクリプション（2026-09〜。旧サイトと同じ請求の形）:
+ *   - 馬ごとに専用の支援契約と Stripe サブスクリプションを作る
+ *     （ensureDedicatedContract）。申込時に月額（半口 ¥6,000 / 1口 ¥12,000）を
+ *     満額請求し、以後は申込日を更新日として毎月同額を請求する。
+ *     既存のサブスクリプションに2頭目以降を「追加」しないので、日割りの端数は
+ *     発生せず、1頭ずつ「次回更新日で停止」できる。
+ *   - 口数の変更は次回の請求日から新しい月額を適用する（proration なし）。
+ *     月の途中で差額を日割りで請求・相殺しないため、請求額は常に月額どおり。
+ *   - 以前の方式でまとめて請求されている契約（1つのサブスクリプションに
+ *     複数の馬）はそのまま動作する（停止・口数変更も従来どおり処理できる）。
+ *
  * Stripe is OPTIONAL: when Stripe or the base price id is not configured,
  * helpers degrade to a no-op while returning `{ synced: false }` so the
  * DB side of the operation still succeeds for local/dev environments.
@@ -29,6 +40,14 @@ export type SupportSyncResult = {
   stripe_subscription_item_id?: string | null;
   checkout_url?: string | null;
   requires_payment?: boolean;
+  /** 支援行を請求している契約（専用契約へ移した場合は新しい契約の id） */
+  contract_id?: string | null;
+  /**
+   * 口数の変更が請求に反映される日（ISO）。変更は次回の請求日から適用し、
+   * 日割りの請求・相殺はしない。新しくサブスクリプションを作った場合は null
+   * （申込時に満額を請求済み）。
+   */
+  effective_from?: string | null;
 };
 
 /**
@@ -213,6 +232,14 @@ async function getLiveSubscriptionItem(
   stripe: Stripe,
   itemId: string,
 ): Promise<Stripe.SubscriptionItem | null> {
+  return (await getLiveItemAndSubscription(stripe, itemId))?.item ?? null;
+}
+
+/** getLiveSubscriptionItem と同じ判定で、アイテムと親のサブスクリプションを返す。 */
+async function getLiveItemAndSubscription(
+  stripe: Stripe,
+  itemId: string,
+): Promise<{ item: Stripe.SubscriptionItem; subscription: Stripe.Subscription } | null> {
   let item: Stripe.SubscriptionItem;
   try {
     item = await stripe.subscriptionItems.retrieve(itemId);
@@ -223,7 +250,34 @@ async function getLiveSubscriptionItem(
   const subId =
     typeof item.subscription === "string" ? item.subscription : (item.subscription as any)?.id;
   if (!subId) return null;
-  return (await isSubscriptionLive(stripe, subId)) ? item : null;
+  let subscription: Stripe.Subscription;
+  try {
+    subscription = await stripe.subscriptions.retrieve(subId);
+  } catch (e: any) {
+    if (e?.code === "resource_missing") return null;
+    throw e;
+  }
+  if (subscription.status === "canceled" || subscription.status === "incomplete_expired") return null;
+  return { item, subscription };
+}
+
+function periodEndIso(sub: Stripe.Subscription): string | null {
+  return sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null;
+}
+
+/**
+ * 初回決済が済んでいない（incomplete）サブスクリプションの、未払いの請求書の
+ * 支払いページ。口数を変えても、その請求書は申込時の金額のまま支払ってもらう。
+ */
+async function pendingFirstInvoiceUrl(stripe: Stripe, sub: Stripe.Subscription): Promise<string | null> {
+  if (sub.status !== "incomplete" || !sub.latest_invoice) return null;
+  try {
+    const invoiceId = typeof sub.latest_invoice === "string" ? sub.latest_invoice : sub.latest_invoice.id;
+    const inv = await stripe.invoices.retrieve(invoiceId);
+    return inv.status === "open" && (inv.amount_remaining ?? 0) > 0 ? inv.hosted_invoice_url ?? null : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -372,6 +426,7 @@ async function ensureContractSubscription(
   basePriceId: string,
   initialQuantity: number,
   metadata: Stripe.MetadataParam,
+  description?: string,
 ): Promise<{
   subscriptionId: string;
   initialItemId: string | null;
@@ -396,7 +451,12 @@ async function ensureContractSubscription(
     collection_method: "charge_automatically",
     payment_behavior: "default_incomplete",
     proration_behavior: "create_prorations",
-    metadata: { contract_id: contract.id },
+    // Stripe の管理画面で、どの馬のサブスクリプションか分かるようにする
+    ...(description ? { description: description.slice(0, 500) } : {}),
+    metadata: {
+      contract_id: contract.id,
+      ...(metadata.support_id ? { support_id: String(metadata.support_id) } : {}),
+    },
     expand: ["latest_invoice.payment_intent"],
   });
 
@@ -465,79 +525,115 @@ function toQuantity(monthlyAmount: number, baseUnitAmount: number): number {
 }
 
 /**
- * Stripe rejects `subscriptionItems.create` with "A new item with Price ...
- * can't be added to this Subscription because an existing Subscription Item
- * ... is already using that Price" whenever a SECOND item on the SAME
- * subscription would reuse an already-used Price id. Since every support
- * item shares one global quantum price (see SUPPORT_STRIPE_QUANTUM), this
- * fires reliably the moment a supporter who already supports one horse adds
- * support for a second horse — the existing item on their subscription is
- * already using that price. (Reproduced from the 2026-08 report: repeated
- * "support.create.sync_failed" for a supporter's 2nd horse.)
+ * この支援行を請求する契約を決める（1頭＝1サブスクリプション）。
  *
- * Fix: only reuse the shared base price when it is NOT already attached to
- * an item on this subscription; otherwise mint a same-amount price scoped to
- * this one new item. Future quantity changes are made via the item's own id
- * (see syncSupportUpdate), so this ad-hoc price never needs to be looked up
- * again — it's fine for each additional horse to end up with its own price.
+ * 契約の Stripe サブスクリプションが生きている（＝ほかの馬を請求している）か、
+ * 契約にほかの有効な支援行がぶら下がっている場合は、この馬専用の支援契約を
+ * 新しく作り、支援行をそこへ移す。以前はここで既存のサブスクリプションに
+ * 2頭目以降をアイテムとして追加していたため、
+ *   - 追加した馬の初月が「次回更新日までの日割り」になり、¥5,325 などの
+ *     端数が請求された（2026-09 報告: gorokonapon@docomo.ne.jp ほか）、
+ *   - 複数の馬が1つのサブスクリプションにまとまり、1頭だけを
+ *     「次回更新日で停止」できなかった（停止は即時削除＋日割りの相殺になり、
+ *     次回の請求額が端数になっていた）。
+ * 専用の契約には、Webhook（契約単位でステータスを反映）もそのまま使える。
+ *
+ * 移していない（そのまま使える）場合は `movedFrom` が null。
  */
-async function resolvePriceForNewItem(
+async function ensureDedicatedContract(
   stripe: Stripe,
-  subscriptionId: string,
-  base: { unit_amount: number; stripe_price_id: string },
-): Promise<string> {
-  const items = await stripe.subscriptionItems.list({ subscription: subscriptionId, limit: 100 });
-  const inUse = items.data.some((it) => {
-    const priceId = typeof it.price === "string" ? it.price : it.price?.id;
-    return priceId === base.stripe_price_id;
-  });
-  if (!inUse) return base.stripe_price_id;
+  contract: ContractRow,
+  supportId: string,
+  customerId: string,
+): Promise<{ contract: ContractRow; movedFrom: string | null }> {
+  const admin = createSupabaseAdminClient();
+  const hasLiveSubscription =
+    !!contract.stripe_subscription_id && (await isSubscriptionLive(stripe, contract.stripe_subscription_id));
+  const { count, error: countErr } = await admin
+    .from("support_subscriptions")
+    .select("id", { count: "exact", head: true })
+    .eq("contract_id", contract.id)
+    .neq("id", supportId)
+    .in("status", ["active", "past_due", "incomplete"]);
+  // 件数を確認できない場合は、ほかの支援行がある前提で専用の契約を作る（安全側）。
+  const hasOtherRows = countErr ? true : (count ?? 0) > 0;
+  // 支援プランの契約だけを使う（過去のデータには、リタポ等の契約に支援行が
+  // 付いているものがある。そこへ支援の請求を載せると会員種別の判定が狂う）。
+  const { data: prev } = await admin
+    .from("contracts")
+    .select("plan_id, plan:membership_plans(code)")
+    .eq("id", contract.id)
+    .maybeSingle();
+  const isSupportContract = (prev as any)?.plan?.code === "SUPPORT";
+  if (!hasLiveSubscription && !hasOtherRows && isSupportContract) {
+    return { contract: { ...contract, stripe_subscription_id: null }, movedFrom: null };
+  }
 
-  const price = await stripe.prices.create({
-    currency: "jpy",
-    unit_amount: base.unit_amount,
-    recurring: { interval: "month" },
-    product_data: { name: "Retouchメンバーズ 支援（半口単位）" },
-  });
-  return price.id;
+  let planId = isSupportContract ? (((prev as any)?.plan_id as string | null) ?? null) : null;
+  if (!planId) {
+    const { data: supportPlan } = await admin
+      .from("membership_plans")
+      .select("id")
+      .eq("code", "SUPPORT")
+      .order("is_active", { ascending: false })
+      .order("sort_order")
+      .limit(1)
+      .maybeSingle();
+    planId = ((supportPlan as any)?.id as string | null) ?? null;
+  }
+  const { data: created, error: cErr } = await admin
+    .from("contracts")
+    .insert({
+      customer_id: customerId,
+      plan_id: planId,
+      status: "incomplete",
+    })
+    .select("id, stripe_subscription_id, status")
+    .single();
+  if (cErr || !created) throw new Error("支援用の契約を作成できませんでした。");
+
+  const { error: mvErr } = await admin
+    .from("support_subscriptions")
+    .update({ contract_id: (created as any).id })
+    .eq("id", supportId);
+  if (mvErr) {
+    await admin
+      .from("contracts")
+      .update({ status: "canceled", canceled_at: new Date().toISOString() })
+      .eq("id", (created as any).id);
+    throw new Error("支援用の契約を作成できませんでした。");
+  }
+  return {
+    contract: {
+      id: (created as any).id,
+      stripe_subscription_id: null,
+      status: (created as any).status,
+    },
+    movedFrom: contract.id,
+  };
 }
 
-/**
- * After an item was added / increased with `proration_behavior: "always_invoice"`,
- * find the invoice Stripe just raised for it and report whether the member
- * still has to complete the payment (3DS, Link confirmation, declined card).
- *
- * Only an invoice created by THIS call counts (`created >= sinceUnix`,
- * `billing_reason: subscription_update`) — an older open invoice must not be
- * mistaken for it. When the prorated amount is ¥0 Stripe raises no invoice at
- * all, which is simply "nothing to pay".
- */
-async function immediateInvoiceStatus(
-  stripe: Stripe,
-  subscriptionId: string,
-  sinceUnix: number,
-): Promise<{ requiresPayment: boolean; checkoutUrl: string | null }> {
-  try {
-    const list = await stripe.invoices.list({
-      subscription: subscriptionId,
-      created: { gte: sinceUnix },
-      limit: 5,
-    });
-    const inv = list.data.find((i) => i.billing_reason === "subscription_update");
-    if (!inv) return { requiresPayment: false, checkoutUrl: null };
-    const unpaid = inv.status === "open" && (inv.amount_remaining ?? 0) > 0;
-    return { requiresPayment: unpaid, checkoutUrl: unpaid ? inv.hosted_invoice_url ?? null : null };
-  } catch {
-    // Could not inspect — the webhook (invoice.payment_failed) still handles a
-    // failed charge, so do not fail the whole signup over this lookup.
-    return { requiresPayment: false, checkoutUrl: null };
-  }
+/** ensureDedicatedContract で移した支援行を元の契約へ戻し、作った契約を閉じる（失敗時）。 */
+async function undoDedicatedContract(supportId: string, movedFrom: string, createdId: string): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  await admin.from("support_subscriptions").update({ contract_id: movedFrom }).eq("id", supportId);
+  await admin
+    .from("contracts")
+    .update({ status: "canceled", canceled_at: new Date().toISOString() })
+    .eq("id", createdId)
+    .is("stripe_subscription_id", null);
 }
 
 /**
  * Create or update the Stripe subscription item for a given support row.
  * Safe to call with or without Stripe configured; returns synced=false
  * when Stripe is disabled so the caller can continue DB-only work.
+ *
+ * 請求の規則（公平で、端数が出ない形）:
+ *   - 新しく請求を始める支援行は、その馬専用のサブスクリプションを作り、
+ *     月額を満額で請求する（以後は申込日を更新日として毎月同額）。
+ *   - 請求中のアイテムの口数変更は、次回の請求日から新しい月額を適用する
+ *     （proration_behavior: "none"）。月の途中の差額を日割りで請求・相殺しない。
  */
 export async function syncSupportCreate(params: {
   customer: CustomerRow;
@@ -571,27 +667,28 @@ export async function syncSupportCreate(params: {
   // threw a raw Stripe error at the member or, worse, let the caller believe
   // the quantity had been changed when nothing was billed. Fall through to the
   // create/heal path when it is gone.
+  // 初回決済が済んでいないサブスクリプションを、別の口数で申し込み直した場合に
+  // 取り消す対象（申込時の請求書は元の口数の金額のままなので、そのまま使うと
+  // 実際の口数と支払額が食い違う）。新しいサブスクリプションを作った後に取り消す。
+  let supersededIncomplete: { subscription: Stripe.Subscription; itemId: string } | null = null;
   if (params.existing_item_id) {
-    const live = await getLiveSubscriptionItem(stripe, params.existing_item_id);
-    if (live) {
-      // 口数を増やす場合は、増えた分の今月分（日割り）をその場で請求する。
-      // create_prorations のままだと差額が次回更新日まで繰り越され、次回請求が
-      // 「月額＋先月分の日割り」となり二重請求に見える（2026-09 報告）。
-      // 減らす場合は従来どおり次回請求で相殺する。
-      const increasing = qty > (live.quantity ?? 0);
-      const since = Math.floor(Date.now() / 1000) - 60;
+    const live = await getLiveItemAndSubscription(stripe, params.existing_item_id);
+    if (live && live.subscription.status === "incomplete" && (live.item.quantity ?? 0) !== qty) {
+      supersededIncomplete = { subscription: live.subscription, itemId: live.item.id };
+    } else if (live) {
+      // 口数の変更は次回の請求日から適用する（日割りの請求・相殺はしない）。
+      // 以前は増やすと差額の日割りをその場で請求（always_invoice）、減らすと
+      // 次回請求で日割り相殺（create_prorations）しており、どちらも請求額が
+      // 月額と異なる端数になっていた（2026-09 報告）。
       const item = await stripe.subscriptionItems.update(params.existing_item_id, {
         quantity: qty,
         metadata,
-        proration_behavior: increasing ? "always_invoice" : "create_prorations",
+        proration_behavior: "none",
       });
-      const subId =
-        typeof live.subscription === "string" ? live.subscription : (live.subscription as any)?.id;
-      if (subId) await clearScheduledCancel(stripe, subId);
-      const immediate =
-        increasing && subId
-          ? await immediateInvoiceStatus(stripe, subId, since)
-          : { requiresPayment: false, checkoutUrl: null };
+      const sub = live.subscription;
+      await clearScheduledCancel(stripe, sub.id);
+      // 初回決済がまだのサブスクリプションは、申込時の請求書の支払いへ案内する。
+      const pendingUrl = await pendingFirstInvoiceUrl(stripe, sub);
       const admin = createSupabaseAdminClient();
       await admin
         .from("support_subscriptions")
@@ -600,10 +697,12 @@ export async function syncSupportCreate(params: {
       return {
         synced: true,
         stripe_customer_id: stripeCustomerId,
-        stripe_subscription_id: subId ?? params.contract.stripe_subscription_id,
+        stripe_subscription_id: sub.id,
         stripe_subscription_item_id: item.id,
-        checkout_url: immediate.checkoutUrl,
-        requires_payment: immediate.requiresPayment,
+        checkout_url: pendingUrl,
+        requires_payment: Boolean(pendingUrl),
+        contract_id: params.contract.id,
+        effective_from: periodEndIso(sub),
       };
     }
   }
@@ -615,85 +714,80 @@ export async function syncSupportCreate(params: {
   // "No such subscription" / "cannot update ... incomplete_expired" error
   // (reported 2026-08: this permanently broke every future edit for a
   // contract's horses once its subscription died).
-  const hasLiveSubscription =
-    !!params.contract.stripe_subscription_id &&
-    (await isSubscriptionLive(stripe, params.contract.stripe_subscription_id));
-
-  // No (live) subscription yet: create one with this item.
-  if (!hasLiveSubscription) {
-    const ensured = await ensureContractSubscription(
-      { ...params.contract, stripe_subscription_id: null },
+  //
+  // 請求を新しく始めるときは、必ずこの馬専用のサブスクリプションを作る
+  // （既存のサブスクリプションへ追加しない）。ensureDedicatedContract を参照。
+  const target = await ensureDedicatedContract(stripe, params.contract, params.support.id, params.customer.id);
+  let ensured: Awaited<ReturnType<typeof ensureContractSubscription>>;
+  try {
+    ensured = await ensureContractSubscription(
+      target.contract,
       stripeCustomerId,
       base.stripe_price_id,
       qty,
       metadata,
+      params.support.horse_name ? `支援: ${params.support.horse_name}` : undefined,
     );
-    const admin = createSupabaseAdminClient();
-    if (ensured.initialItemId) {
-      // A row healed back onto a fresh subscription is live again — clear
-      // any stale "canceled" status left over from the dead subscription
-      // (the webhook's contract-wide cascade only re-activates rows already
-      // in active/past_due/incomplete, so a canceled row would otherwise
-      // stay stuck displaying "canceled" forever despite billing fine).
-      await admin
-        .from("support_subscriptions")
-        .update({
-          stripe_subscription_item_id: ensured.initialItemId,
-          status: ensured.requiresPayment ? "incomplete" : "active",
-          canceled_at: null,
-        })
-        .eq("id", params.support.id);
-    }
-    return {
-      synced: true,
-      stripe_customer_id: stripeCustomerId,
-      stripe_subscription_id: ensured.subscriptionId,
-      stripe_subscription_item_id: ensured.initialItemId,
-      checkout_url: ensured.checkoutUrl,
-      requires_payment: ensured.requiresPayment,
-    };
+  } catch (e) {
+    if (target.movedFrom) await undoDedicatedContract(params.support.id, target.movedFrom, target.contract.id);
+    throw e;
   }
-
-  // Subscription exists but no item yet: add a new item.
-  const priceForNewItem = await resolvePriceForNewItem(
-    stripe,
-    params.contract.stripe_subscription_id!,
-    base,
-  );
-  // 2頭目以降の追加は、その馬の今月分（次回更新日までの日割り）をその場で請求する。
-  //
-  // 以前は create_prorations だったため、追加時には1円も請求されず、日割り分が
-  // 次回更新日の請求にまとめて繰り越されていた。その結果、3頭を追加した会員の
-  // 初回は1頭分しか引き落とされず、次回請求が「4頭分の月額 ¥24,000 ＋
-  // 3頭分の日割り ¥17,995 ＝ ¥41,995」になり、過剰請求に見えていた
-  // （2026-09 報告: snow55pixie@gmail.com ほか）。合計額は同じでも請求の
-  // タイミングが会員・運営の想定と食い違うため、追加時点で精算する。
-  const since = Math.floor(Date.now() / 1000) - 60;
-  const item = await stripe.subscriptionItems.create({
-    subscription: params.contract.stripe_subscription_id!,
-    price: priceForNewItem,
-    quantity: qty,
-    metadata,
-    proration_behavior: "always_invoice",
-  });
-  const immediate = await immediateInvoiceStatus(
-    stripe,
-    params.contract.stripe_subscription_id!,
-    since,
-  );
   const admin = createSupabaseAdminClient();
-  await admin
-    .from("support_subscriptions")
-    .update({ stripe_subscription_item_id: item.id, status: "active", canceled_at: null })
-    .eq("id", params.support.id);
+  if (ensured.initialItemId) {
+    // A row healed back onto a fresh subscription is live again — clear
+    // any stale "canceled" status left over from the dead subscription
+    // (the webhook's contract-wide cascade only re-activates rows already
+    // in active/past_due/incomplete, so a canceled row would otherwise
+    // stay stuck displaying "canceled" forever despite billing fine).
+    await admin
+      .from("support_subscriptions")
+      .update({
+        stripe_subscription_item_id: ensured.initialItemId,
+        status: ensured.requiresPayment ? "incomplete" : "active",
+        canceled_at: null,
+      })
+      .eq("id", params.support.id);
+  }
+  if (supersededIncomplete) await retireIncompleteSubscription(stripe, supersededIncomplete);
   return {
     synced: true,
     stripe_customer_id: stripeCustomerId,
-    stripe_subscription_id: params.contract.stripe_subscription_id,
-    stripe_subscription_item_id: item.id,
-    checkout_url: immediate.checkoutUrl,
-    requires_payment: immediate.requiresPayment,
+    stripe_subscription_id: ensured.subscriptionId,
+    stripe_subscription_item_id: ensured.initialItemId,
+    checkout_url: ensured.checkoutUrl,
+    requires_payment: ensured.requiresPayment,
+    contract_id: target.contract.id,
+    effective_from: null,
   };
+}
+
+/**
+ * 申し込み直しで不要になった、初回決済前（incomplete）のサブスクリプションを片付ける。
+ * 未払いの請求書を無効にしてから取り消すので、古いお支払いページから誤って
+ * 支払われることはない。失敗しても、Stripe が 23 時間後に自動で失効させ請求書を
+ * 無効にするため、請求は発生しない（best-effort）。
+ */
+async function retireIncompleteSubscription(
+  stripe: Stripe,
+  target: { subscription: Stripe.Subscription; itemId: string },
+): Promise<void> {
+  try {
+    const sub = await stripe.subscriptions.retrieve(target.subscription.id);
+    if (sub.status !== "incomplete") return;
+    if (sub.items.data.length > 1) {
+      // ほかの馬も載っている古い形のサブスクリプション: この馬のアイテムだけ外す
+      await stripe.subscriptionItems.del(target.itemId, { proration_behavior: "none" });
+      return;
+    }
+    const invoiceId = typeof sub.latest_invoice === "string" ? sub.latest_invoice : sub.latest_invoice?.id;
+    if (invoiceId) {
+      const inv = await stripe.invoices.retrieve(invoiceId);
+      if (inv.status === "open") await stripe.invoices.voidInvoice(invoiceId);
+    }
+    await stripe.subscriptions.cancel(sub.id);
+  } catch {
+    // best-effort（上記のとおり、残っても請求は発生しない）
+  }
 }
 
 export async function syncSupportUpdate(params: {
@@ -710,21 +804,22 @@ export async function syncSupportUpdate(params: {
   // that as a typed reason so callers self-heal instead of pattern-matching on
   // Stripe's error text, which previously let a failed 口数 change look like a
   // success in some paths.
-  const live = await getLiveSubscriptionItem(stripe, params.stripe_subscription_item_id);
+  const live = await getLiveItemAndSubscription(stripe, params.stripe_subscription_item_id);
   if (!live) return { synced: false, reason: "item_dead" };
 
   // Items are priced at the half-口 quantum (¥6,000); quantity scales the amount.
+  // 変更は次回の請求日から適用する（日割りの請求・相殺はしない）。syncSupportCreate と同じ規則。
   const qty = toQuantity(params.monthly_amount, SUPPORT_STRIPE_QUANTUM);
   const item = await stripe.subscriptionItems.update(params.stripe_subscription_item_id, {
     quantity: qty,
     metadata: { support_id: params.support_id, horse_name: params.horse_name ?? "" },
-    proration_behavior: "create_prorations",
+    proration_behavior: "none",
   });
   return {
     synced: true,
     stripe_subscription_item_id: item.id,
-    stripe_subscription_id:
-      typeof live.subscription === "string" ? live.subscription : (live.subscription as any)?.id,
+    stripe_subscription_id: live.subscription.id,
+    effective_from: periodEndIso(live.subscription),
   };
 }
 

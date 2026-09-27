@@ -167,8 +167,8 @@ export default async function HomePage() {
               <Image src={userImage} alt="会員マイページ画面" className="w-full h-auto" />
             </div>
             <div>
-              <p className="text-brand font-bold tracking-[0.2em] text-xs sm:text-sm mb-3">MEMBER PAGE</p>
-              <h2 className="text-2xl sm:text-3xl font-bold text-ink mb-5 leading-snug font-serif">会員は自分の支援を<br />いつでも確認・変更</h2>
+              <p className="text-brand font-bold tracking-[0.2em] text-xs sm:text-sm mb-3 text-center lg:text-left">MEMBER PAGE</p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-ink mb-5 leading-snug font-serif text-center lg:text-left">会員は自分の支援を<br />いつでも確認・変更</h2>
               <ul className="space-y-3 text-ink-soft text-sm leading-relaxed">
                 {[
                   "支援中の馬と口数をひとつの画面で確認",

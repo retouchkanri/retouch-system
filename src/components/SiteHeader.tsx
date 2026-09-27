@@ -7,6 +7,7 @@ import { resolveBadge, type Badge } from "@/lib/roles";
 import { loadPaymentStat } from "@/lib/badge";
 import HeaderUserMenu from "./HeaderUserMenu";
 import MobileCtaBar from "./MobileCtaBar";
+import CommunityNavLink from "./community/CommunityNavLink";
 
 export default async function SiteHeader() {
   const session = await getSession();
@@ -64,6 +65,10 @@ export default async function SiteHeader() {
               className="h-9 w-auto md:h-12"
             />
           </Link>
+
+          <div className="flex items-center gap-4 md:gap-6 min-w-0">
+          {/* ログイン中は常にコミュニティへの導線を表示（未読バッジは取得できたときのみ） */}
+          {session && <CommunityNavLink />}
 
           {/* Desktop: phone + nav */}
           <div className="hidden md:flex items-center gap-4">
@@ -129,6 +134,7 @@ export default async function SiteHeader() {
                 avatarUrl={avatarUrl}
               />
             )}
+          </div>
           </div>
         </div>
       </header>

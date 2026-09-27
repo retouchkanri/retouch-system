@@ -12,8 +12,8 @@
 }
 
 html, body {
-  background: #f7f8fa;
-  color: #1f2937;
+  background: #fcfcfd;
+  color: #000000;
   /* 全ページの既定フォントを Noto Sans JP に固定（見出し等の font-serif は Noto Serif JP）。 */
   font-family: var(--font-noto-sans-jp), "Hiragino Sans", "Hiragino Kaku Gothic ProN",
     "Meiryo", system-ui, sans-serif;
@@ -34,28 +34,27 @@ body {
   max-width: 100vw;
 }
 
-/* Large tap targets for 50s+ users */
+/* Compact interactive controls; keep ≥14px for readability */
 button, a, input, select, textarea {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 @layer components {
   /* ── Buttons ── */
   /* Buttons with a soft shadow and a thin inner border. */
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 px-6 py-3 font-bold
-           transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-brand/30
-           disabled:opacity-50 disabled:cursor-not-allowed text-base shadow-md;
-    border-radius: 4px;
+    @apply inline-flex items-center justify-center gap-1 px-3.5 py-1.5 font-bold
+           transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand/30
+           disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-sm rounded-lg;
   }
   .btn-primary {
-    @apply btn bg-brand text-white border border-brand-light/50 hover:bg-brand-dark hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97];
+    @apply btn bg-brand text-white border border-brand-light/50 hover:bg-brand-dark hover:shadow-md hover:-translate-y-0.5 active:scale-[0.97];
   }
   .btn-secondary {
-    @apply btn bg-white text-brand border border-brand hover:bg-brand-50 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97];
+    @apply btn bg-white text-brand border border-brand hover:bg-brand-50 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.97];
   }
   .btn-accent {
-    @apply btn text-white border border-amber-200/60 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97];
+    @apply btn text-white border border-amber-200/60 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.97];
     background-image: linear-gradient(180deg, #f7b733, #f59e0b);
   }
   .btn-danger {
@@ -67,23 +66,23 @@ button, a, input, select, textarea {
 
   /* ── Cards ── */
   .card {
-    @apply bg-white shadow-card border border-surface-line p-5 rounded-xl overflow-hidden
+    @apply bg-white shadow-card border border-surface-line p-3 rounded-xl overflow-hidden
            transition-all duration-200;
   }
 
   /* ── Form elements ── */
   .label {
-    @apply block text-sm font-semibold text-ink-soft mb-1.5;
+    @apply block text-xs font-semibold text-ink-soft mb-1;
   }
   .input {
-    @apply w-full border border-surface-line bg-white px-4 py-3 text-base rounded-xl
+    @apply w-full border border-surface-line bg-white px-3 py-1.5 text-sm rounded-lg
            transition-colors duration-200
            focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20;
   }
 
   /* ── Chips / badges ── */
   .chip {
-    @apply inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full;
+    @apply inline-flex items-center px-2.5 py-0.5 text-xs font-semibold rounded-full;
   }
   .chip-ok    { @apply chip bg-green-100 text-green-800; }
   .chip-warn  { @apply chip bg-amber-100 text-amber-800; }
@@ -113,7 +112,7 @@ button, a, input, select, textarea {
 
   /* ── Section titles ── */
   .section-title {
-    @apply text-lg font-bold text-ink mb-3 flex items-center gap-2;
+    @apply text-base font-bold text-ink mb-2 flex items-center gap-2;
   }
 
   /* ── Tables ── */
@@ -121,10 +120,10 @@ button, a, input, select, textarea {
     @apply w-full border-collapse text-sm;
   }
   .table th {
-    @apply bg-surface-soft text-left px-3 py-2 font-semibold text-ink-soft border-b border-surface-line;
+    @apply bg-surface-soft text-left px-2.5 py-1.5 font-semibold text-ink-soft border-b border-surface-line text-xs;
   }
   .table td {
-    @apply px-3 py-2 border-b border-surface-line align-top;
+    @apply px-2.5 py-1.5 border-b border-surface-line align-top;
   }
   /* 横スクロールする幅広テーブルでも操作ボタン列を常に右端に固定して見えるようにする */
   .table th.col-actions {
@@ -142,15 +141,15 @@ button, a, input, select, textarea {
   }
 }
 
-/* ── Mobile: larger buttons for elderly users ── */
+/* ── Mobile: keep usable tap targets without oversized padding ── */
 @media (max-width: 640px) {
   .btn, .btn-primary, .btn-secondary, .btn-accent, .btn-danger, .btn-ghost {
-    @apply px-6 py-4 text-lg;
-    min-height: 56px;
+    @apply px-4 py-2.5 text-sm;
+    min-height: 44px;
   }
   .input, select.input, textarea.input {
-    @apply py-4 text-lg;
-    min-height: 56px;
+    @apply py-2.5 text-base;
+    min-height: 44px;
   }
   /* Login / signup: tighter card padding on small screens */
   .auth-page .card {
@@ -196,6 +195,70 @@ button, a, input, select, textarea {
 }
 .btn-pulse {
   animation: btnPulse 2.4s ease-in-out infinite;
+}
+
+/* ── Community header icon: gentle bounce + glow to draw attention ── */
+@keyframes communityNavAttn {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 0 rgba(45, 106, 79, 0));
+  }
+  35% {
+    transform: translateY(-3px) scale(1.1);
+    filter: drop-shadow(0 2px 4px rgba(45, 106, 79, 0.35));
+  }
+  55% {
+    transform: translateY(-1px) scale(1.05);
+    filter: drop-shadow(0 1px 2px rgba(45, 106, 79, 0.2));
+  }
+}
+.community-nav-attn {
+  animation: communityNavAttn 2.2s ease-in-out infinite;
+}
+.community-nav-attn:hover,
+.community-nav-attn:focus-visible {
+  animation: none;
+  transform: scale(1.08);
+}
+
+/* ── Community “準備中” in-progress icon ── */
+.community-progress-icon {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.community-progress-ring {
+  position: absolute;
+  inset: 0;
+  animation: communityProgressSpin 1.4s linear infinite;
+}
+.community-progress-arc {
+  transform-origin: 28px 28px;
+}
+.community-progress-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  z-index: 1;
+}
+.community-progress-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #2d6a4f;
+  animation: communityProgressDot 1.2s ease-in-out infinite;
+}
+.community-progress-dots span:nth-child(2) { animation-delay: 0.15s; }
+.community-progress-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes communityProgressSpin {
+  to { transform: rotate(360deg); }
+}
+@keyframes communityProgressDot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+  40% { transform: translateY(-4px); opacity: 1; }
 }
 
 /* ── Hero animations ── */
@@ -305,21 +368,21 @@ body.hero-active .scroll-top-btn {
 }
 
 /* ── Rich text content (Tiptap editor output / news body HTML) ── */
-.rich-text { line-height: 1.75; color: #4b5563; }
-.rich-text h1 { font-size: 1.5rem; font-weight: 700; color: #1f2937; margin-top: 1.25rem; margin-bottom: 0.6rem; }
-.rich-text h2 { font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-top: 1rem; margin-bottom: 0.5rem; }
-.rich-text h3 { font-size: 1.1rem; font-weight: 700; color: #1f2937; margin-top: 0.875rem; margin-bottom: 0.4rem; }
+.rich-text { line-height: 1.75; color: #000000; }
+.rich-text h1 { font-size: 1.5rem; font-weight: 700; color: #000000; margin-top: 1.25rem; margin-bottom: 0.6rem; }
+.rich-text h2 { font-size: 1.25rem; font-weight: 700; color: #000000; margin-top: 1rem; margin-bottom: 0.5rem; }
+.rich-text h3 { font-size: 1.1rem; font-weight: 700; color: #000000; margin-top: 0.875rem; margin-bottom: 0.4rem; }
 .rich-text p { margin-bottom: 0.75rem; }
 .rich-text ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
 .rich-text ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 0.75rem; }
 .rich-text li { margin-bottom: 0.25rem; }
 .rich-text a { color: #2d6a4f; text-decoration: underline; }
 .rich-text a:hover { color: #1b4332; }
-.rich-text strong, .rich-text b { font-weight: 700; color: #1f2937; }
+.rich-text strong, .rich-text b { font-weight: 700; color: #000000; }
 .rich-text em, .rich-text i { font-style: italic; }
 .rich-text u { text-decoration: underline; }
 .rich-text s { text-decoration: line-through; }
-.rich-text blockquote { border-left: 4px solid #e5e7eb; padding-left: 1rem; color: #6b7280; font-style: italic; margin-bottom: 0.75rem; }
+.rich-text blockquote { border-left: 4px solid #e5e7eb; padding-left: 1rem; color: #000000; font-style: italic; margin-bottom: 0.75rem; }
 /* ProseMirror editor inner */
 .rich-text .ProseMirror { padding: 0.875rem 1rem; min-height: inherit; outline: none; }
 .rich-text .ProseMirror > *:last-child { margin-bottom: 0; }
@@ -339,7 +402,8 @@ details[open] .faq-chevron { transform: rotate(180deg); }
 .faq-chevron { transition: transform 0.25s ease; }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-fade, .hero-zoom, .hero-pulse, .hero-scale-loop, .feature-float, .feature-card, .btn-pulse, .deck-border-spin, .emergency-horse-border-spin {
+  .hero-fade, .hero-zoom, .hero-pulse, .hero-scale-loop, .feature-float, .feature-card, .btn-pulse, .deck-border-spin, .emergency-horse-border-spin, .community-nav-attn,
+  .community-progress-ring, .community-progress-dots span {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
@@ -372,4 +436,40 @@ details[open] .faq-chevron { transform: rotate(180deg); }
     opacity: 1 !important;
     transform: none !important;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   会員コミュニティ（Slack と同じ見た目）
+   --------------------------------------------------------------------------- */
+.sk-app {
+  font-family: Lato, "Helvetica Neue", Helvetica, "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", Meiryo, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #1d1c1d;
+}
+.sk-app .font-black {
+  font-weight: 900;
+}
+/* サイドバー（濃い紫の上）の細いスクロールバー */
+.sk-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.sk-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.sk-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+}
+.sk-scroll-light {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(29, 28, 29, 0.25) transparent;
+}
+.sk-scroll-light::-webkit-scrollbar {
+  width: 8px;
+}
+.sk-scroll-light::-webkit-scrollbar-thumb {
+  background: rgba(29, 28, 29, 0.25);
+  border-radius: 4px;
 }

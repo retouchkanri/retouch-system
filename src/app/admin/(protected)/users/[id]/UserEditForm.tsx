@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { resolveAvatarUrl } from "@/lib/avatars";
 import { ROLE_LABELS_JP, toRole, type Role } from "@/lib/roles";
+import PasswordInput from "@/components/PasswordInput";
 
 type Initial = {
   email: string;
@@ -130,9 +131,8 @@ export default function UserEditForm({
       </div>
       <div>
         <label className="label">パスワード変更（任意・8文字以上）</label>
-        <input
-          type="password"
-          className="input"
+        <PasswordInput
+          autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           minLength={8}

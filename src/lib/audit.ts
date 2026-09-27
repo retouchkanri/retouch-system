@@ -15,7 +15,9 @@ export type AuditAction =
   | `setting.${string}`
   | `kb.${string}`
   | `special_team.${string}`
-  | `horse_meeting.${string}`;
+  | `horse_meeting.${string}`
+  | `backup.${string}`
+  | `community.${string}`;
 
 export type AuditEntry = {
   actorId: string | null;

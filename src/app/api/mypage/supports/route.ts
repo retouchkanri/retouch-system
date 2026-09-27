@@ -127,20 +127,28 @@ export async function POST(req: Request) {
     });
   }
 
-  let contractId: string | null = (activeContract as any)?.id ?? null;
-  let contractRow: {
-    id: string;
-    stripe_subscription_id: string | null;
-    status: string;
-  } | null = activeContract
-    ? {
-        id: (activeContract as any).id,
-        stripe_subscription_id: (activeContract as any).stripe_subscription_id ?? null,
-        status: (activeContract as any).status,
-      }
-    : null;
+  type ContractRef = { id: string; stripe_subscription_id: string | null; status: string };
+  const toRef = (c: any): ContractRef => ({
+    id: c.id,
+    stripe_subscription_id: c.stripe_subscription_id ?? null,
+    status: c.status,
+  });
 
-  if (!contractId) {
+  // 1頭＝1サブスクリプション: 新しい馬の支援は、その馬専用の支援契約で請求する
+  // （既存のサブスクリプションへ追加すると、初月が日割りの端数になり、1頭だけの
+  // 停止もできなくなるため。stripeSupport.ts の ensureDedicatedContract を参照）。
+  // 請求も支援行も付いていない空の支援契約（前回の申込が途中で終わった等）があれば
+  // 再利用し、無ければ新しく作る。
+  const contractForNewSupport = async (): Promise<ContractRef | null> => {
+    for (const c of supportContracts) {
+      if ((c as any).stripe_subscription_id) continue;
+      const { count, error } = await admin
+        .from("support_subscriptions")
+        .select("id", { count: "exact", head: true })
+        .eq("contract_id", (c as any).id)
+        .in("status", ["active", "past_due", "incomplete"]);
+      if (!error && (count ?? 0) === 0) return toRef(c);
+    }
     const { data: created, error: cErr } = await admin
       .from("contracts")
       .insert({
@@ -151,16 +159,24 @@ export async function POST(req: Request) {
       })
       .select("id, stripe_subscription_id, status")
       .single();
-    if (cErr || !created) {
-      return NextResponse.json({ error: "契約の作成に失敗しました" }, { status: 500 });
+    if (cErr || !created) return null;
+    return toRef(created);
+  };
+
+  // 既存の支援に口数を足す場合は、その支援行が実際に請求されている契約を使う。
+  const contractOfRow = async (contractIdOfRow: string | null): Promise<ContractRef | null> => {
+    if (contractIdOfRow) {
+      const { data } = await admin
+        .from("contracts")
+        .select("id, stripe_subscription_id, status")
+        .eq("id", contractIdOfRow)
+        .maybeSingle();
+      if (data) return toRef(data);
     }
-    contractId = created.id;
-    contractRow = {
-      id: created.id,
-      stripe_subscription_id: (created as any).stripe_subscription_id ?? null,
-      status: (created as any).status,
-    };
-  }
+    return activeContract ? toRef(activeContract) : contractForNewSupport();
+  };
+
+  let contractId: string | null = (activeContract as any)?.id ?? null;
 
   // Authoritative per-口 price. Never price off the selected plan's own
   // unit_amount (半口=6,000) — a half share is units=0.5 at 12,000/口.
@@ -178,7 +194,7 @@ export async function POST(req: Request) {
   // add yet another row on top of them.
   const { data: existingRows } = await admin
     .from("support_subscriptions")
-    .select("id, units, monthly_amount, status, canceled_at, stripe_subscription_item_id, horse:horses(name)")
+    .select("id, contract_id, units, monthly_amount, status, canceled_at, stripe_subscription_item_id, horse:horses(name)")
     .eq("customer_id", session.customerId)
     .eq("horse_id", horse.id)
     .in("status", ["active", "past_due", "incomplete"])
@@ -236,6 +252,12 @@ export async function POST(req: Request) {
     const newUnits = isLiveBilling ? prevUnits + Number(units) : Number(units);
     const newMonthly = Math.round(perUnit * newUnits);
 
+    const mergeContract = await contractOfRow(((existingRow as any).contract_id as string | null) ?? null);
+    if (!mergeContract) {
+      return NextResponse.json({ error: "契約の作成に失敗しました" }, { status: 500 });
+    }
+    contractId = mergeContract.id;
+
     // --- 先に DB を仮保存 (incomplete = 手続き中) ---
     const { error: uErr } = await admin
       .from("support_subscriptions")
@@ -274,7 +296,7 @@ export async function POST(req: Request) {
     try {
       sync = await syncSupportCreate({
         customer: customer as any,
-        contract: contractRow!,
+        contract: mergeContract,
         support: {
           id: (existingRow as any).id,
           horse_id: horse.id,
@@ -283,6 +305,7 @@ export async function POST(req: Request) {
         },
         existing_item_id: existingItemId,
       });
+      if (sync?.contract_id) contractId = sync.contract_id;
     } catch (e: any) {
       sync = { synced: false, reason: e?.message ?? "stripe_error" };
       syncError = e?.message ?? "Stripeとの同期に失敗しました";
@@ -348,6 +371,8 @@ export async function POST(req: Request) {
       horseName: horse.name,
       units: newUnits,
       monthly: newMonthly,
+      // 請求中の支援への追加は、次回の請求日から新しい月額になる（日割りなし）
+      effectiveFrom: sync?.effective_from ?? null,
     });
     await notify({
       kind: "support_added",
@@ -384,6 +409,11 @@ export async function POST(req: Request) {
   }
 
   const monthly = Math.round(perUnit * Number(units));
+  const newContract = await contractForNewSupport();
+  if (!newContract) {
+    return NextResponse.json({ error: "契約の作成に失敗しました" }, { status: 500 });
+  }
+  contractId = newContract.id;
   const { data: inserted, error: sErr } = await admin
     .from("support_subscriptions")
     .insert({
@@ -403,7 +433,7 @@ export async function POST(req: Request) {
   try {
     sync = await syncSupportCreate({
       customer: customer as any,
-      contract: contractRow!,
+      contract: newContract,
       support: {
         id: inserted.id,
         horse_id: horse.id,
@@ -412,6 +442,7 @@ export async function POST(req: Request) {
       },
       existing_item_id: null,
     });
+    if (sync?.contract_id) contractId = sync.contract_id;
   } catch (e: any) {
     sync = { synced: false, reason: e?.message ?? "stripe_error" };
     syncError = e?.message ?? "Stripeとの同期に失敗しました";

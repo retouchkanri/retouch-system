@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import doImage from "@/assets/images/do.png";
 import { ADMIN_AVATAR_URL } from "@/lib/avatarUrls";
+import CommunityNavLink from "@/components/community/CommunityNavLink";
 
 type Message = { from: "bot" | "user"; text: string };
 
@@ -180,6 +181,9 @@ export default function BottomRightPanel({
       {/* ── Fixed bottom-right stack — lifted above the mobile CTA bar on phones ── */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 max-md:bottom-[5.5rem] max-md:right-2">
 
+        {/* コミュニティ（モバイルのみ・お問い合わせチャットの上） */}
+        <CommunityNavLink variant="fab" />
+
         {/* Chatbot button */}
         {showChat && (
           <div className="relative flex items-center justify-center">
@@ -222,7 +226,7 @@ export default function BottomRightPanel({
 
       {/* ── Chat popup ── */}
       {showChat && chatOpen && (
-        <div className="fixed bottom-36 right-4 z-50 w-[min(20rem,calc(100vw-1.5rem))] sm:w-96 flex flex-col bg-white rounded-2xl shadow-2xl border border-surface-line overflow-hidden animate-[scaleIn_200ms_ease] max-md:bottom-[9.5rem] max-md:right-2">
+        <div className="fixed bottom-36 right-4 z-50 w-[min(20rem,calc(100vw-1.5rem))] sm:w-96 flex flex-col bg-white rounded-2xl shadow-2xl border border-surface-line overflow-hidden animate-[scaleIn_200ms_ease] max-md:bottom-[12.5rem] max-md:right-2">
           {/* Header */}
           <div className="bg-brand px-4 py-3 flex items-center gap-3">
             <ChatAvatar

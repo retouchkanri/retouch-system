@@ -101,7 +101,7 @@ export async function POST(req: Request) {
   // 解約しかねず、請求内訳も別会員種別と混ざる。
   const { data: customerContracts } = await admin
     .from("contracts")
-    .select("id, plan_id, status, plan:membership_plans(code)")
+    .select("id, plan_id, status, stripe_subscription_id, plan:membership_plans(code)")
     .eq("customer_id", customer_id)
     .in("status", ["active", "past_due", "incomplete"])
     .order("started_at", { ascending: false });
@@ -115,7 +115,13 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   }
-  const existingContract = (customerContracts ?? []).find((c: any) => c.plan?.code === "SUPPORT");
+  // 運営登録（手動請求）の支援行は、Stripe の請求が付いていない支援契約にぶら下げる。
+  // 会員の支援は馬ごとに専用の契約（Stripe サブスクリプション）で請求しているため、
+  // そこへ手動の行を付けると、その馬の停止・決済失敗の Webhook で無関係の手動の
+  // 行まで停止・決済失敗扱いになってしまう。
+  const existingContract = (customerContracts ?? []).find(
+    (c: any) => c.plan?.code === "SUPPORT" && !c.stripe_subscription_id,
+  );
 
   let contractId = existingContract?.id as string | undefined;
   // Track if we created a new contract in this request so we can roll it back

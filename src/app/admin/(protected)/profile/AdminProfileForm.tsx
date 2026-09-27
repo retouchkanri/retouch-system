@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function AdminProfileForm({
   userId,
@@ -177,9 +178,8 @@ export default function AdminProfileForm({
         <p className="text-xs text-ink-mute">変更する場合のみ入力してください。</p>
         <div>
           <label className="label">新しいパスワード（8文字以上）</label>
-          <input
-            type="password"
-            className="input"
+          <PasswordInput
+            autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             minLength={8}
@@ -188,9 +188,8 @@ export default function AdminProfileForm({
         </div>
         <div>
           <label className="label">パスワード確認</label>
-          <input
-            type="password"
-            className="input"
+          <PasswordInput
+            autoComplete="new-password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             minLength={8}

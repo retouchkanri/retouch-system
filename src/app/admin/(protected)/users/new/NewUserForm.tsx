@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROLE_LABELS_JP, type Role } from "@/lib/roles";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function NewUserForm({ assignableRoles }: { assignableRoles: Role[] }) {
   const router = useRouter();
@@ -47,9 +48,8 @@ export default function NewUserForm({ assignableRoles }: { assignableRoles: Role
       </div>
       <div>
         <label className="label">パスワード（8文字以上）</label>
-        <input
-          type="password"
-          className="input"
+        <PasswordInput
+          autoComplete="new-password"
           value={form.password}
           onChange={set("password")}
           minLength={8}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function ResetUpdateForm() {
   const supabase = getSupabaseBrowserClient();
@@ -152,24 +153,22 @@ export default function ResetUpdateForm() {
       <p className="text-sm text-ink-soft">新しいパスワードを設定してください。</p>
       <div>
         <label className="label" htmlFor="new-pass">新しいパスワード（8文字以上）</label>
-        <input
+        <PasswordInput
           id="new-pass"
-          type="password"
           required
           autoComplete="new-password"
-          className="input"
+          minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
       </div>
       <div>
         <label className="label" htmlFor="new-pass2">新しいパスワード（確認）</label>
-        <input
+        <PasswordInput
           id="new-pass2"
-          type="password"
           required
           autoComplete="new-password"
-          className="input"
+          minLength={8}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
         />

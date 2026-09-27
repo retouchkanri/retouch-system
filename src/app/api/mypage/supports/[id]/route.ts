@@ -175,6 +175,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     prevMonthly,
     newUnits: Number(units),
     newMonthly: monthly,
+    effectiveFrom: (sync as any)?.effective_from ?? null,
   });
   await notify({
     kind: "support_changed",

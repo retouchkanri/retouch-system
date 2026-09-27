@@ -19,7 +19,7 @@ const CHART_TYPES: { key: ChartType; label: string }[] = [
 
 // 円グラフの配色（区分ごとに色分け）。順に割り当て、足りなければ循環。
 const PIE_COLORS = [
-  "#2d6a4f", "#40916c", "#74c69d", "#f59e0b", "#ef6c4d",
+  "#1b4332", "#2d6a4f", "#40916c", "#74c69d", "#f59e0b",
   "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6", "#a3a635",
   "#6366f1", "#d946ef", "#0ea5e9", "#84cc16", "#f43f5e",
 ];
@@ -149,8 +149,19 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
         ? `${linePath} L${pts[pts.length - 1].x},${PLOT_Y1} L${pts[0].x},${PLOT_Y1} Z`
         : "";
 
-    // x 軸ラベルの間引き（多すぎると重なるため）。
-    const step = Math.max(1, Math.ceil(n / 8));
+    // x 軸ラベルの間引き（多すぎると重なるため）。末尾ラベルと直前の間引き位置が近すぎる場合は置換する。
+    const step = Math.max(1, Math.ceil(n / 6));
+    const xLabelSet = new Set<number>();
+    for (let i = 0; i < n; i += step) xLabelSet.add(i);
+    if (n > 1) {
+      const last = n - 1;
+      const prevShown = [...xLabelSet].filter((i) => i < last).pop();
+      if (prevShown != null && last - prevShown < Math.max(1, Math.ceil(step * 0.65))) {
+        xLabelSet.delete(prevShown);
+      }
+      xLabelSet.add(last);
+    }
+    const xLabels = [...xLabelSet].sort((a, b) => a - b);
 
     // 円グラフ用スライス（金額>0 の区分のみ。上から時計回り）。
     const pieSum = data.reduce((a, d) => a + Math.max(d.total, 0), 0);
@@ -176,7 +187,7 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
         };
       });
 
-    return { n, maxVal, ticks, pts, bars, linePath, areaPath, step, pieSum, pieSlices };
+    return { n, maxVal, ticks, pts, bars, linePath, areaPath, xLabels, pieSum, pieSlices };
   }, [data]);
 
   const hasData = view.maxVal > 0;
@@ -188,10 +199,10 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
     <div>
       {/* ヘッダー: タイトル + 種類切替 + 期間切替 */}
       <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-        <h2 className="text-lg font-bold text-ink flex items-center gap-2">収益推移</h2>
-        <div className="flex items-center gap-2">
+        <h2 className="text-base font-bold text-ink flex items-center gap-2">収益推移</h2>
+        <div className="flex items-center gap-1.5 flex-wrap">
           {/* 折れ線 / 棒 切替 */}
-          <div className="inline-flex rounded-lg border border-surface-line bg-surface-soft p-0.5">
+          <div className="inline-flex rounded-full border border-surface-line/80 bg-white p-0.5 gap-0.5">
             {CHART_TYPES.map((t) => {
               const active = t.key === chartType;
               return (
@@ -203,10 +214,10 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
                     setHover(null);
                   }}
                   aria-pressed={active}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  className={`px-2.5 py-1 text-xs rounded-full transition-all ${
                     active
-                      ? "bg-white text-brand-dark font-bold shadow-sm"
-                      : "text-ink-mute hover:text-ink"
+                      ? "bg-brand-50 text-brand-dark font-bold shadow-sm"
+                      : "text-ink-mute hover:text-ink hover:bg-surface-soft"
                   }`}
                 >
                   {t.label}
@@ -215,7 +226,7 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
             })}
           </div>
           {/* 日 / 週 / 月 / 年 切替 */}
-          <div className="inline-flex rounded-lg border border-surface-line bg-surface-soft p-0.5">
+          <div className="inline-flex rounded-full border border-surface-line/80 bg-white p-0.5 gap-0.5">
             {PERIODS.map((p) => {
               const active = p.key === period;
               return (
@@ -227,10 +238,10 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
                     setHover(null);
                   }}
                   aria-pressed={active}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  className={`px-2.5 py-1 text-xs rounded-full transition-all ${
                     active
-                      ? "bg-white text-brand-dark font-bold shadow-sm"
-                      : "text-ink-mute hover:text-ink"
+                      ? "bg-brand-50 text-brand-dark font-bold shadow-sm"
+                      : "text-ink-mute hover:text-ink hover:bg-surface-soft"
                   }`}
                 >
                   {p.label}
@@ -252,16 +263,16 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
         >
           <defs>
             <linearGradient id="adminChartGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3d8b6e" stopOpacity="0.22" />
-              <stop offset="70%" stopColor="#3d8b6e" stopOpacity="0.05" />
-              <stop offset="100%" stopColor="#3d8b6e" stopOpacity="0" />
+              <stop offset="0%" stopColor="#1b4332" stopOpacity="0.14" />
+              <stop offset="70%" stopColor="#1b4332" stopOpacity="0.04" />
+              <stop offset="100%" stopColor="#1b4332" stopOpacity="0" />
             </linearGradient>
             <linearGradient id="adminBarGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#40916c" stopOpacity="0.95" />
-              <stop offset="100%" stopColor="#2d6a4f" stopOpacity="0.85" />
+              <stop offset="0%" stopColor="#2d6a4f" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#1b4332" stopOpacity="0.88" />
             </linearGradient>
             <filter id="lineShadow" x="-4%" y="-10%" width="108%" height="130%">
-              <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#1b4332" floodOpacity="0.18" />
+              <feDropShadow dx="0" dy="1" stdDeviation="0.8" floodColor="#0d2818" floodOpacity="0.2" />
             </filter>
           </defs>
 
@@ -275,16 +286,16 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
                   y1={y}
                   x2={PLOT_X1}
                   y2={y}
-                  stroke="#e9edf0"
+                  stroke="#f0f2f4"
                   strokeWidth="0.6"
                   strokeDasharray={i === 0 ? "0" : "2 3"}
                 />
                 <text
                   x={PLOT_X0 - 6}
-                  y={y + 2.6}
+                  y={y + 2}
                   textAnchor="end"
                   className="fill-ink-mute"
-                  style={{ fontSize: 7.5 }}
+                  style={{ fontSize: 6 }}
                 >
                   {axisYen(tv)}
                 </text>
@@ -302,7 +313,7 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
                   y={b.y}
                   width={b.w}
                   height={Math.max(b.h, 0.4)}
-                  rx={Math.min(b.w / 2.5, 2)}
+                  rx={Math.min(b.w / 2, 4)}
                   fill="url(#adminBarGrad)"
                   opacity={hover == null || hover === i ? 1 : 0.5}
                 />
@@ -346,12 +357,12 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
             <>
               {/* エリア塗り */}
               {view.areaPath && <path d={view.areaPath} fill="url(#adminChartGrad)" />}
-              {/* 本線（単調スプライン） */}
+              {/* 本線（単調スプライン）— 細く／濃い緑 */}
               <path
                 d={view.linePath}
                 fill="none"
-                stroke="#2d6a4f"
-                strokeWidth="1.6"
+                stroke="#1b4332"
+                strokeWidth="1.15"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 filter="url(#lineShadow)"
@@ -363,10 +374,10 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
                   y1={PLOT_Y0}
                   x2={hp.x}
                   y2={PLOT_Y1}
-                  stroke="#2d6a4f"
-                  strokeWidth="0.6"
+                  stroke="#1b4332"
+                  strokeWidth="0.5"
                   strokeDasharray="2 2"
-                  opacity="0.5"
+                  opacity="0.45"
                 />
               )}
               {/* データ点 */}
@@ -375,12 +386,12 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
                   <circle
                     cx={p.x}
                     cy={p.y}
-                    r={hover === i ? 3 : 2.2}
+                    r={hover === i ? 2.8 : 2}
                     fill="white"
-                    stroke="#2d6a4f"
-                    strokeWidth={hover === i ? 1.3 : 0.9}
+                    stroke="#1b4332"
+                    strokeWidth={hover === i ? 1.2 : 0.85}
                   />
-                  {hover === i && <circle cx={p.x} cy={p.y} r="1.1" fill="#2d6a4f" />}
+                  {hover === i && <circle cx={p.x} cy={p.y} r="1" fill="#1b4332" />}
                   {/* 当たり判定（透明・広め） */}
                   <circle
                     cx={p.x}
@@ -415,17 +426,18 @@ export default function RevenueChart({ series }: { series: RevenueSeries }) {
             </>
           )}
 
-          {/* x 軸ラベル（間引き） */}
-          {data.map((d, i) => {
-            if (i % view.step !== 0 && i !== view.n - 1) return null;
+          {/* x 軸ラベル（間引き・末尾の重なり回避） */}
+          {view.xLabels.map((i) => {
+            const d = data[i];
+            if (!d) return null;
             return (
               <text
                 key={i}
                 x={anchorX(i)}
-                y={H - 9}
+                y={H - 8}
                 textAnchor="middle"
                 className={hover === i ? "fill-ink font-bold" : "fill-ink-mute"}
-                style={{ fontSize: 7.5 }}
+                style={{ fontSize: 6 }}
               >
                 {d.label}
               </text>

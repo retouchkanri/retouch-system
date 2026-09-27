@@ -23,6 +23,15 @@ const nextConfig = {
       allowedOrigins: Array.from(new Set(["localhost:3000", siteHost])),
     },
   },
+  // 絵文字画像（ファイル名＝コードポイントで内容は変わらない）はブラウザに長くキャッシュさせる
+  async headers() {
+    return [
+      {
+        source: "/noprecache/emoji/:file*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" }],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.supabase.co" },

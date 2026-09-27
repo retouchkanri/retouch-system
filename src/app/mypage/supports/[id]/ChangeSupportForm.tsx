@@ -70,8 +70,8 @@ export default function ChangeSupportForm({
             {diffMonthly === 0
               ? "月額の変更はありません。"
               : diffMonthly > 0
-                ? `次回以降の月額が ${formatYen(diffMonthly)} 増加します。当月分は日割り（プロレーション）で差額がご請求されます。`
-                : `次回以降の月額が ${formatYen(Math.abs(diffMonthly))} 減少します。日割りの差額は次回請求に反映されます。`}
+                ? `次回のご請求日から月額が ${formatYen(diffMonthly)} 増加します。月の途中の日割りのご請求はありません。`
+                : `次回のご請求日から月額が ${formatYen(Math.abs(diffMonthly))} 減少します。月の途中の日割りの返金・相殺はありません。`}
           </p>
         </div>
         {error && <p className="text-danger text-sm">{error}</p>}

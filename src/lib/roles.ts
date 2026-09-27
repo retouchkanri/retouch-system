@@ -75,6 +75,8 @@ export type Capability =
   | "news.manage" // news / posts
   | "messages.manage" // 会員向けメッセージ配信（お知らせ・メルマガ）
   | "chatbot.manage" // AIチャットボット設定・ナレッジ管理
+  | "backups.manage" // DBバックアップ（実行・自動設定・ダウンロード・削除）
+  | "community.manage" // 会員コミュニティ（チャンネル・ユーザー・通報・一括送信の管理）
   | "inquiries.manage"; // inquiries
 
 const ADMIN_CAPS: Capability[] = [
@@ -94,6 +96,8 @@ const ADMIN_CAPS: Capability[] = [
   "news.manage",
   "messages.manage",
   "chatbot.manage",
+  "backups.manage",
+  "community.manage",
   "inquiries.manage",
 ];
 
@@ -111,6 +115,7 @@ const MODERATOR_CAPS: Capability[] = [
   "bookings.manage",
   "news.manage",
   "messages.manage",
+  "community.manage",
   "inquiries.manage",
 ];
 
